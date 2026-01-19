@@ -1,0 +1,107 @@
+<!--pages/home/home.wxml-->
+<view class="container">
+  <!-- 背景装饰 -->
+  <view class="bg-decoration bg-1"></view>
+  <view class="bg-decoration bg-2"></view>
+  <view class="bg-decoration bg-3"></view>
+
+  <view class="content">
+    <!-- 上部分：标题、头像、输入框、按钮（占3/5） -->
+    <view class="top-section">
+      <!-- 欢迎文字 -->
+      <view class="welcome-section">
+        <text class="welcome-title">欢迎来到</text>
+        <text class="app-name">打牌计分器</text>
+      </view>
+
+      <!-- Logo区域 - 微信头像选择按钮 -->
+      <view class="logo-section">
+        <button
+          class="avatar-btn"
+          open-type="chooseAvatar"
+          bindchooseavatar="onChooseAvatar"
+        >
+          <image
+            class="avatar"
+            src="{{userInfo.avatarUrl || '/images/avatar.png'}}"
+            mode="aspectFill"
+          ></image>
+        </button>
+        <view class="avatar-ring"></view>
+      </view>
+
+      <!-- 昵称输入 - 微信昵称输入 -->
+      <view class="input-section">
+        <input
+          class="nickname-input"
+          type="nickname"
+          placeholder="请输入你的昵称"
+          value="{{nickname}}"
+          bindinput="onNicknameInput"
+          maxlength="10"
+        />
+      </view>
+
+      <!-- 按钮组 -->
+      <view class="button-group">
+        <view class="weui-btn weui-btn_primary" bindtap="openCreateRoomModal">创建房间</view>
+        <view class="weui-btn weui-btn_default" bindtap="joinRoom">加入房间</view>
+      </view>
+    </view>
+
+    <!-- 下部分：底部文字（占2/5） -->
+    <view class="bottom-section">
+      <view class="footer">
+        <text class="footer-text">简单快捷，享受打牌乐趣</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 创建房间弹窗 -->
+  <view class="modal-mask {{showCreateModal ? 'show' : ''}}" bindtap="closeCreateRoomModal"></view>
+  <view class="modal-content {{showCreateModal ? 'show' : ''}}">
+    <view class="modal-header">创建房间</view>
+
+    <view class="modal-body">
+      <!-- 房间名输入框 -->
+      <view class="room-name-section">
+        <input
+          class="room-name-input"
+          type="text"
+          placeholder="请输入房间名称"
+          value="{{roomName}}"
+          bindinput="onRoomNameInput"
+          maxlength="20"
+        />
+      </view>
+
+      <!-- 模式选择 -->
+      <view class="mode-section">
+        <view class="mode-title">选择模式</view>
+        <view class="mode-options">
+          <view
+            class="mode-option {{gameMode === 'normal' ? 'active' : ''}}"
+            bindtap="selectMode"
+            data-mode="normal"
+          >
+            <text class="mode-text">普通模式</text>
+            <view class="mode-check" wx:if="{{gameMode === 'normal'}}">✓</view>
+          </view>
+          <view
+            class="mode-option {{gameMode === 'bet' ? 'active' : ''}}"
+            bindtap="selectMode"
+            data-mode="bet"
+          >
+            <text class="mode-text">下注模式</text>
+            <view class="mode-check" wx:if="{{gameMode === 'bet'}}">✓</view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 立即创建按钮 -->
+      <view class="create-btn-section">
+        <view class="weui-btn weui-btn_primary create-submit-btn" bindtap="submitCreateRoom">立即创建</view>
+      </view>
+    </view>
+  </view>
+</view>

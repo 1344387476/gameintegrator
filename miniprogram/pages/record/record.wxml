@@ -1,0 +1,40 @@
+<!--pages/record/record.wxml-->
+<view class="container">
+  <view class="form-section">
+    <view class="form-title">新增记账</view>
+
+    <view class="form-item">
+      <text class="label">选择赢家</text>
+      <picker mode="selector" range="{{room.members}}" bindchange="onWinnerChange" value="{{winnerIndex}}">
+        <view class="picker {{winnerIndex === -1 ? 'placeholder' : ''}}">
+          {{winnerIndex === -1 ? '请选择赢家' : room.members[winnerIndex]}}
+          <image src="/images/arrow.svg" class="arrow-icon"></image>
+        </view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <text class="label">赢得金额</text>
+      <input type="digit" class="input" placeholder="请输入金额" value="{{amount}}" bindinput="onAmountInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label">选择输家</text>
+      <view class="losers-list">
+        <view class="loser-item" wx:for="{{room.members}}" wx:key="index" bindtap="toggleLoser" data-index="{{index}}">
+          <text class="loser-name">{{item}}</text>
+          <view class="loser-check {{losers[index] ? 'checked' : ''}}">
+            {{losers[index] ? '✓' : ''}}
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="form-item">
+      <text class="label">备注</text>
+      <input class="input" placeholder="请输入备注（可选）" value="{{remark}}" bindinput="onRemarkInput" />
+    </view>
+
+    <button class="submit-btn" bindtap="submitRecord">确认记账</button>
+  </view>
+</view>

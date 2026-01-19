@@ -1,0 +1,27 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/room/room",
+    "pages/record/record"
+  ],
+  "window": {
+    "backgroundColor": "#f7f7f7",
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTitleText": "打牌记账",
+    "navigationBarTextStyle": "black",
+    "enablePullDownRefresh": false
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents",
+  "requiredPrivateInfos": [],
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于记录位置信息"
+    }
+  },
+  "useExtendedLib": {
+    "weui": true
+  }
+}

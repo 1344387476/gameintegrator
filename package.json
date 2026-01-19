@@ -1,0 +1,21 @@
+{
+  "name": "gameintegrator",
+  "version": "1.0.0",
+  "description": "打牌记账小程序 - 一个用于记录打牌积分、结算战绩的微信小程序，支持普通模式和下注模式",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "miniprogram",
+    "weixin",
+    "game",
+    "score",
+    "settlement"
+  ],
+  "author": "Craft",
+  "license": "MIT",
+  "dependencies": {
+    "weui-wxss": "^2.4.4"
+  }
+}

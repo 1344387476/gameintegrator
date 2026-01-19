@@ -1,0 +1,19 @@
+@import 'fn';
+
+page,
+[data-weui-theme='light'] {
+  .varsLight();
+}
+
+[data-weui-theme='dark'] {
+  .varsDark();
+}
+
+[data-weui-mode='care'],
+[data-weui-mode='care'][data-weui-theme='light'] {
+  .varsCareDark();
+}
+
+[data-weui-mode='care'][data-weui-theme='dark'] {
+  .varsCareDark();
+}
