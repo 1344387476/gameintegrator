@@ -25,7 +25,8 @@ Page({
         total: 0,
         receiver: '',
         receivedTime: ''
-      }
+      },
+      allInValue: 0 // all in最大值（下注模式）
     },
     // 当前用户昵称
     currentUser: '',
@@ -49,6 +50,16 @@ Page({
     // 支出相关数据
     expenseAmounts: {}, // 各成员支出金额
     expenseTotal: 0, // 支出总计
+    // 下注模式相关数据
+    allInValue: 0, // all in最大值（下注模式）
+    showAllInModal: false, // all in设置弹窗（已废弃）
+    showSettingsModal: false, // 设置弹窗
+    allInInput: '', // all in值输入
+    showAllInTip: false, // all in未设置提示
+    lastDepositAmount: 0, // 上一个转入金额
+    lastDepositOperator: '', // 上一个转入玩家
+    canFollow: false, // 是否可以跟注
+    isCreator: false, // 是否为房主
     // 战绩数据
     resultData: {
       playerList: [], // 玩家战绩列表
@@ -183,20 +194,48 @@ Page({
           // 判断是否为收取奖池
           const isReceive = record.detail && (record.detail.type === 'receive' || record.description.includes('收取了奖池'));
 
-          // 将描述分割成片段，用于单独高亮"我"字
+          // 将描述分割成片段，用于单独高亮"我"字和金额
           let segments = [];
           if (hasMe) {
             const parts = processedDescription.split('我');
             for (let i = 0; i < parts.length; i++) {
               if (parts[i]) {
-                segments.push({ text: parts[i], isMe: false });
+                // 提取金额数字进行高亮
+                const amountMatch = parts[i].match(/\d+/);
+                if (amountMatch) {
+                  const amountStr = amountMatch[0];
+                  const amountParts = parts[i].split(amountStr);
+                  if (amountParts[0]) {
+                    segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+                  }
+                  segments.push({ text: amountStr, isMe: false, isAmount: true });
+                  if (amountParts[1]) {
+                    segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+                  }
+                } else {
+                  segments.push({ text: parts[i], isMe: false, isAmount: false });
+                }
               }
               if (i < parts.length - 1) {
-                segments.push({ text: '我', isMe: true });
+                segments.push({ text: '我', isMe: true, isAmount: false });
               }
             }
           } else {
-            segments.push({ text: processedDescription, isMe: false });
+            // 处理不包含"我"的情况，但要高亮金额
+            const amountMatch = processedDescription.match(/\d+/);
+            if (amountMatch) {
+              const amountStr = amountMatch[0];
+              const amountParts = processedDescription.split(amountStr);
+              if (amountParts[0]) {
+                segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+              }
+              segments.push({ text: amountStr, isMe: false, isAmount: true });
+              if (amountParts[1]) {
+                segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+              }
+            } else {
+              segments.push({ text: processedDescription, isMe: false, isAmount: false });
+            }
           }
 
           return {
@@ -215,12 +254,42 @@ Page({
         room.prizePool = { total: 0, receiver: '', receivedTime: '' };
       }
 
+      // 初始化allInValue（下注模式）
+      if (room.gameMode === 'bet' && room.allInValue === undefined) {
+        room.allInValue = 0;
+      }
+
       // 初始化status
       if (!room.status) {
         room.status = 'playing';
       }
 
-      this.setData({ room, showWelcome: true });
+      // 下注模式：找到最后一个转入记录，判断是否可以跟注
+      let lastDepositAmount = 0;
+      let lastDepositOperator = '';
+      let canFollow = false;
+      
+      if (room.gameMode === 'bet') {
+        const depositRecords = room.records.filter(r => r.detail && (r.detail.type === 'deposit' || r.detail.type === 'follow' || r.detail.type === 'allin'));
+        if (depositRecords.length > 0) {
+          const lastRecord = depositRecords[0];
+          lastDepositAmount = lastRecord.detail.amount;
+          lastDepositOperator = lastRecord.detail.operator;
+          canFollow = true;
+        }
+      }
+
+      // 判断是否为房主
+      const isCreator = room.creator === this.data.currentUser;
+
+      this.setData({ 
+        room, 
+        showWelcome: true,
+        lastDepositAmount,
+        lastDepositOperator,
+        canFollow,
+        isCreator
+      });
 
       // 如果有历史记录且不是首次加载，滚动到底部
       if (room.records && room.records.length > 1) {
@@ -427,7 +496,10 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ room });
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
     this.saveRoomData();
 
     // 关闭弹窗并提示
@@ -508,6 +580,11 @@ Page({
     // 执行转入
     const player = room.members[playerIndex];
     player.score -= amount;
+    // 如果奖池已被收取，有新转入时清空收取记录，使收取按钮恢复可用
+    if (room.prizePool.receiver) {
+      room.prizePool.receiver = '';
+      room.prizePool.receivedTime = '';
+    }
     room.prizePool.total += amount;
 
     // 更新滚动标志
@@ -525,8 +602,8 @@ Page({
     this.setData({ animateAmount: true });
     setTimeout(() => this.setData({ animateAmount: false }), 400);
 
-    // 生成转入记录
-    const description = `${currentUser} 潬入 ${amount} 分`;
+    // 生成转入记录（下注模式显示为"下注"）
+    const description = `${currentUser} 下注 ${amount} 分`;
     const processedDescription = description.replace(currentUser, '我');
     const hasMe = processedDescription.includes('我');
 
@@ -570,7 +647,10 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ room });
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
     this.saveRoomData();
 
     // 关闭弹窗并提示
@@ -705,7 +785,10 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ room });
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
     this.saveRoomData();
 
     // 关闭弹窗并提示
@@ -951,7 +1034,10 @@ Page({
     }
 
     // 保存数据
-    this.setData({ room });
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
     this.saveRoomData();
 
     // 关闭弹窗并提示
@@ -1453,6 +1539,419 @@ Page({
           wx.navigateBack();
         }
       }
+    });
+  },
+
+  /**
+   * ==================== 下注模式新增功能 ==================== */
+
+  /**
+   * 点击"跟"按钮
+   * 功能：跟上一个转入玩家的积分金额
+   * 激活条件：有上一个转入记录
+   */
+  handleFollow() {
+    // 检查是否可以跟注
+    console.log("111")
+    if (!this.data.canFollow || this.data.lastDepositAmount <= 0) {
+      this.showTip('暂无玩家转入积分，无法跟注');
+      return;
+    }
+
+    // 游戏已结束，不允许操作
+    if (this.data.room.status !== 'playing') {
+      this.showTip('游戏已结束，无法操作');
+      return;
+    }
+
+    const amount = this.data.lastDepositAmount;
+    const currentUser = this.data.currentUser;
+    const room = this.data.room;
+
+    // 找到操作玩家
+    const playerIndex = room.members.findIndex(m => m.name === currentUser);
+    if (playerIndex === -1) {
+      this.showTip('找不到当前用户');
+      return;
+    }
+
+    // 执行转入
+    const player = room.members[playerIndex];
+    player.score -= amount;
+    // 如果奖池已被收取，有新转入时清空收取记录，使收取按钮恢复可用
+    if (room.prizePool.receiver) {
+      room.prizePool.receiver = '';
+      room.prizePool.receivedTime = '';
+    }
+    room.prizePool.total += amount;
+
+    // 更新滚动标志
+    const updateMemberScrollFlags = (member) => {
+      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
+      const scoreScroll = scoreText.length > 7;
+      member.scoreScroll = scoreScroll;
+    };
+
+    updateMemberScrollFlags(player);
+
+    // 更新跟注状态
+    this.setData({
+      lastDepositAmount: amount,
+      lastDepositOperator: currentUser,
+      canFollow: true
+    });
+
+    // 播放动画
+    this.setData({ animateAmount: true });
+    setTimeout(() => this.setData({ animateAmount: false }), 400);
+
+    // 获取玩家头像
+    const playerAvatar = player.avatarUrl || '';
+
+    // 生成跟注记录（下注模式）
+    const description = `${currentUser} 跟注 ${amount} 分`;
+    const processedDescription = description.replace(currentUser, '我');
+    const hasMe = processedDescription.includes('我');
+
+    // 将描述分割成片段，用于单独高亮"我"字和金额
+    let segments = [];
+    if (hasMe) {
+      const parts = processedDescription.split('我');
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i]) {
+          const amountMatch = parts[i].match(/\d+/);
+          if (amountMatch) {
+            const amountStr = amountMatch[0];
+            const amountParts = parts[i].split(amountStr);
+            if (amountParts[0]) {
+              segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+            }
+            segments.push({ text: amountStr, isMe: false, isAmount: true });
+            if (amountParts[1]) {
+              segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+            }
+          } else {
+            segments.push({ text: parts[i], isMe: false, isAmount: false });
+          }
+        }
+        if (i < parts.length - 1) {
+          segments.push({ text: '我', isMe: true, isAmount: false });
+        }
+      }
+    } else {
+      const amountMatch = processedDescription.match(/\d+/);
+      if (amountMatch) {
+        const amountStr = amountMatch[0];
+        const amountParts = processedDescription.split(amountStr);
+        if (amountParts[0]) {
+          segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+        }
+        segments.push({ text: amountStr, isMe: false, isAmount: true });
+        if (amountParts[1]) {
+          segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+        }
+      } else {
+        segments.push({ text: processedDescription, isMe: false, isAmount: false });
+      }
+    }
+
+    const record = {
+      description: description,
+      processedDescription: processedDescription,
+      time: this.getCurrentTime(),
+      detail: {
+        type: 'follow',
+        operator: currentUser,
+        operatorAvatar: playerAvatar,
+        avatarUrl: playerAvatar,
+        amount: amount,
+        playerScoreAfter: player.score,
+        prizePoolAfter: room.prizePool.total
+      },
+      hasMe: hasMe,
+      isSystem: false,
+      isReceive: false,
+      segments: segments
+    };
+    room.records.unshift(record);
+
+    // 保存数据
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
+    this.saveRoomData();
+
+    this.showTip('跟注成功');
+    this.scrollToBottom();
+  },
+
+  /**
+   * 点击"过"按钮
+   * 功能：跳过当前回合，生成系统消息
+   */
+  handlePass() {
+    // 游戏已结束，不允许操作
+    if (this.data.room.status !== 'playing') {
+      this.showTip('游戏已结束，无法操作');
+      return;
+    }
+
+    const currentUser = this.data.currentUser;
+    const room = this.data.room;
+
+    // 生成跳过记录（系统消息）
+    const description = `${currentUser} 跳过了这回合`;
+
+    const record = {
+      description: description,
+      processedDescription: description,
+      time: this.getCurrentTime(),
+      detail: {
+        type: 'pass',
+        operator: currentUser
+      },
+      hasMe: false,
+      isSystem: true,
+      isReceive: false,
+      segments: [{ text: description, isMe: false }]
+    };
+    room.records.unshift(record);
+
+    // 保存数据
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
+    this.saveRoomData();
+
+    this.scrollToBottom();
+  },
+
+  /**
+   * 点击"all in"按钮
+   * 功能：根据设置的all in值转入积分到奖池
+   */
+  handleAllIn() {
+    // 检查是否设置了all in值
+    if (!this.data.room.allInValue || this.data.room.allInValue <= 0) {
+      this.showAllInTip();
+      return;
+    }
+
+    // 游戏已结束，不允许操作
+    if (this.data.room.status !== 'playing') {
+      this.showTip('游戏已结束，无法操作');
+      return;
+    }
+
+    const amount = this.data.room.allInValue;
+    const currentUser = this.data.currentUser;
+    const room = this.data.room;
+
+    // 找到当前玩家
+    const playerIndex = room.members.findIndex(m => m.name === currentUser);
+    if (playerIndex === -1) {
+      this.showTip('找不到当前用户');
+      return;
+    }
+
+    const player = room.members[playerIndex];
+
+    // 扣除玩家积分
+    player.score -= amount;
+
+    // 如果奖池已被收取，有新转入时清空收取记录，使收取按钮恢复可用
+    if (room.prizePool.receiver) {
+      room.prizePool.receiver = '';
+      room.prizePool.receivedTime = '';
+    }
+
+    // 增加奖池金额
+    room.prizePool.total += amount;
+
+    // 更新滚动标志
+    const updateMemberScrollFlags = (member) => {
+      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
+      const scoreScroll = scoreText.length > 7;
+      member.scoreScroll = scoreScroll;
+    };
+
+    updateMemberScrollFlags(player);
+
+    // 更新跟注状态
+    this.setData({
+      lastDepositAmount: amount,
+      lastDepositOperator: currentUser,
+      canFollow: true
+    });
+
+    // 播放动画
+    this.setData({ animateAmount: true });
+    setTimeout(() => this.setData({ animateAmount: false }), 400);
+
+    // 生成all in记录
+    const playerAvatar = player.avatarUrl || '';
+    const description = `${currentUser} all in ${amount} 分`;
+    const processedDescription = description.replace(currentUser, '我');
+    const hasMe = processedDescription.includes('我');
+
+    // 将描述分割成片段，用于单独高亮"我"字和金额
+    let segments = [];
+    if (hasMe) {
+      const parts = processedDescription.split('我');
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i]) {
+          const amountMatch = parts[i].match(/\d+/);
+          if (amountMatch) {
+            const amountStr = amountMatch[0];
+            const amountParts = parts[i].split(amountStr);
+            if (amountParts[0]) {
+              segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+            }
+            segments.push({ text: amountStr, isMe: false, isAmount: true });
+            if (amountParts[1]) {
+              segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+            }
+          } else {
+            segments.push({ text: parts[i], isMe: false, isAmount: false });
+          }
+        }
+        if (i < parts.length - 1) {
+          segments.push({ text: '我', isMe: true, isAmount: false });
+        }
+      }
+    } else {
+      const amountMatch = processedDescription.match(/\d+/);
+      if (amountMatch) {
+        const amountStr = amountMatch[0];
+        const amountParts = processedDescription.split(amountStr);
+        if (amountParts[0]) {
+          segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+        }
+        segments.push({ text: amountStr, isMe: false, isAmount: true });
+        if (amountParts[1]) {
+          segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+        }
+      } else {
+        segments.push({ text: processedDescription, isMe: false, isAmount: false });
+      }
+    }
+
+    const record = {
+      description: description,
+      processedDescription: processedDescription,
+      time: this.getCurrentTime(),
+      detail: {
+        type: 'allin',
+        operator: currentUser,
+        operatorAvatar: playerAvatar,
+        avatarUrl: playerAvatar,
+        amount: amount,
+        playerScoreAfter: player.score,
+        prizePoolAfter: room.prizePool.total,
+      },
+      hasMe: hasMe,
+      isSystem: false,
+      isReceive: false,
+      segments: segments
+    };
+
+    room.records.unshift(record);
+
+    // 保存数据
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
+    this.saveRoomData();
+
+    this.showTip('All in成功');
+    this.scrollToBottom();
+  },
+
+  /**
+   * all in值输入
+   */
+  onAllInInput(e) {
+    const value = e.detail.value;
+    this.setData({ allInInput: value });
+  },
+
+  /**
+   * 显示all in未设置提示
+   */
+  showAllInTip() {
+    this.setData({ showAllInTip: true });
+    setTimeout(() => {
+      this.setData({ showAllInTip: false });
+    }, 2000);
+  },
+
+  /**
+   * ==================== 设置功能 ==================== */
+
+  /**
+   * 打开设置弹窗
+   */
+  openSettingsModal() {
+    this.setData({
+      showSettingsModal: true,
+      allInInput: this.data.room.allInValue ? this.data.room.allInValue.toString() : ''
+    });
+  },
+
+  /**
+   * 关闭设置弹窗
+   */
+  closeSettingsModal() {
+    this.setData({ showSettingsModal: false });
+  },
+
+  /**
+   * 保存设置
+   */
+  saveSettings() {
+    const room = this.data.room;
+    
+    // 如果是下注模式，保存all in值
+    if (room.gameMode === 'bet') {
+      const value = parseInt(this.data.allInInput);
+      if (this.data.allInInput && value > 0) {
+        if (!this.validatePositiveInteger(value)) {
+          this.showTip('请输入正整数');
+          return;
+        }
+        room.allInValue = value;
+      }
+    }
+
+    // 保存数据
+    this.setData({ 
+      room,
+      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+    });
+    this.saveRoomData();
+    this.closeSettingsModal();
+    this.showTip('设置已保存');
+  },
+
+  /**
+   * 点击奖池区域
+   * 功能：打开转入奖池弹窗
+   */
+  transferToPrizePool() {
+    // 游戏已结束，不允许操作
+    if (this.data.room.status !== 'playing') {
+      this.showTip('游戏已结束，无法操作');
+      return;
+    }
+
+    // 打开转入奖池弹窗
+    this.setData({
+      showPrizeModal: true,
+      prizeAmount: '',
+      showInputError: false
     });
   },
 

@@ -448,6 +448,168 @@ page {
   box-shadow: none;
 }
 
+/* 奖池内容区域（可点击） */
+.prize-pool-content {
+  padding: 20rpx;
+}
+
+/* 跟/过/all in按钮容器（与奖池信息分离） */
+.bet-actions-row {
+  display: flex;
+  gap: 12rpx;
+  padding: 0 20rpx 20rpx;
+}
+
+.bet-action-btn {
+  flex: 1;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8rpx;
+  transition: all 0.25s;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+}
+
+.bet-action-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 1);
+}
+
+.bet-action-btn.disabled {
+  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
+}
+
+.bet-action-text {
+  color: #FF7A2F;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.bet-action-btn.disabled .bet-action-text {
+  color: #999999;
+}
+
+/* all in设置按钮样式 */
+.all-in-setting-btn {
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  background: rgba(255, 122, 47, 0.1);
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+}
+
+.setting-icon {
+  font-size: 24rpx;
+}
+
+.setting-text {
+  color: #FF7A2F;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+/* 设置按钮样式 */
+.settings-btn {
+  position: absolute;
+  bottom: 30rpx;
+  left: 24rpx;
+  width: 80rpx;
+  height: 80rpx;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.15);
+  transition: all 0.25s;
+  z-index: 10;
+}
+
+.settings-btn:active {
+  transform: scale(0.95);
+}
+
+.settings-icon {
+  font-size: 40rpx;
+  color: #FF7A2F;
+}
+
+/* 设置弹窗 */
+.settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #ffffff;
+  border-radius: 20rpx;
+  width: 80%;
+  max-width: 600rpx;
+  z-index: 1001;
+  opacity: 0;
+  transition: all 0.3s;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.15);
+}
+
+.settings-modal.show {
+  opacity: 1;
+}
+
+.setting-item {
+  padding: 32rpx 24rpx;
+  border-bottom: 2rpx solid #f0f0f0;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-label {
+  font-size: 28rpx;
+  color: #333333;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.setting-description {
+  font-size: 24rpx;
+  color: #999999;
+  margin-bottom: 24rpx;
+}
+
+.setting-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.setting-input {
+  flex: 1;
+  height: 72rpx;
+  padding: 0 24rpx;
+  background-color: #f8f9fa;
+  border-radius: 8rpx;
+  font-size: 26rpx;
+  color: #333333;
+  border: 2rpx solid #e8e8e8;
+}
+
+.setting-input:focus {
+  border-color: #FF7A2F;
+  background-color: #ffffff;
+}
+
+.setting-unit {
+  font-size: 26rpx;
+  color: #666666;
+}
+
 /* ==================== 右侧：聊天室样式 ==================== */
 .chat-section {
   flex: 1;
@@ -577,12 +739,37 @@ page {
   font-weight: 600;
 }
 
-
-/* 转账消息气泡：圆角绿色气泡，从右往左方向 */
-.chat-message.transfer {
-  justify-content: flex-end !important;
+/* 积分金额高亮样式 */
+.chat-message .message-content .transfer-amount {
+  color: #FF3B30;
+  font-weight: 600;
 }
 
+.chat-message .message-content .receive-amount {
+  color: #34C759;
+  font-weight: 600;
+}
+
+
+/* 转账消息：双头像布局 */
+.chat-message.transfer {
+  gap: 16rpx;
+}
+
+.chat-message.transfer.mine {
+  justify-content: flex-end;
+}
+
+.chat-message.transfer.others {
+  justify-content: flex-start;
+}
+
+.chat-message.transfer .avatar-container {
+  width: 96rpx;
+  height: 48rpx;
+}
+
+/* 转账消息气泡：圆角灰色气泡 */
 .chat-message.transfer .bubble {
   background: #F5F5F5 !important;
   color: #333333;
@@ -635,25 +822,97 @@ page {
   justify-content: flex-start;
 }
 
-
-
-/* 单头像样式 */
-.chat-message.mine .message-avatar {
-  width: 42rpx;
-  height: 42rpx;
-  border-radius: 50%;
+/* 头像容器 */
+.avatar-container {
+  position: relative;
+  width: 96rpx;
+  height: 48rpx;
   flex-shrink: 0;
-  border: 2rpx solid #07C160;
-  order: 2; /* 头像在右 */
+  margin-right: 8rpx;
 }
 
-.chat-message.others .message-avatar {
-  width: 42rpx;
-  height: 42rpx;
+.chat-message.mine .avatar-container {
+  margin-right: 0;
+  margin-left: 8rpx;
+}
+
+/* 下注模式单头像容器（缩小宽度以减少间距） */
+.avatar-container.bet-avatar {
+  width: 56rpx; /* 48rpx头像 + 8rpx间距 */
+  height: 48rpx;
+}
+
+/* 单头像样式 */
+.single-avatar {
+  width: 48rpx;
+  height: 48rpx;
   border-radius: 50%;
-  flex-shrink: 0;
   border: 2rpx solid #E5E5E5;
-  order: 0; /* 头像在左 */
+}
+
+.chat-message.mine .single-avatar {
+  border-color: #07C160;
+  position: absolute;
+  right: 0;
+}
+
+.chat-message.others .single-avatar {
+  border-color: #E5E5E5;
+  position: absolute;
+  left: 0;
+}
+
+/* 双头像样式（普通模式转账消息） */
+.sender-avatar {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  border: 2rpx solid #07C160;
+  position: absolute;
+  z-index: 2;
+}
+
+.receiver-avatar {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  border: 2rpx solid #E5E5E5;
+  position: absolute;
+  z-index: 1;
+}
+
+/* 自己发送的转账：发送者头像在右，接收者在左，发送者覆盖接收者20% */
+.chat-message.mine .sender-avatar {
+  right: 0;
+}
+
+.chat-message.mine .receiver-avatar {
+  left: 0;
+}
+
+.chat-message.mine .sender-me {
+  right: 0;
+}
+
+.chat-message.mine .receiver-me {
+  right: 38rpx; /* 48rpx * 0.8 = 38.4rpx，约38rpx */
+}
+
+/* 别人发送的转账：发送者头像在左，接收者在右，发送者覆盖接收者20% */
+.chat-message.others .sender-avatar {
+  left: 0;
+}
+
+.chat-message.others .receiver-avatar {
+  right: 0;
+}
+
+.chat-message.others .sender-other {
+  left: 0;
+}
+
+.chat-message.others .receiver-other {
+  left: 38rpx; /* 48rpx * 0.8 = 38.4rpx，约38rpx */
 }
 
 /* ==================== 弹窗通用样式 ==================== */

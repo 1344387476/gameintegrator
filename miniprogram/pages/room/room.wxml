@@ -45,21 +45,38 @@
   <view class="right-section">
     <!-- 下注模式：奖池NPC -->
     <view class="prize-pool-section" wx:if="{{room.gameMode === 'bet'}}">
-      <view class="prize-pool-card" bindtap="transferToPrizePool">
-        <view class="prize-pool-header">
-          <text class="prize-pool-title">公共奖池</text>
-          <text class="prize-pool-icon">💰</text>
+      <view class="prize-pool-card">
+        <!-- 奖池信息（可点击） -->
+        <view class="prize-pool-content" bindtap="transferToPrizePool">
+          <view class="prize-pool-header">
+            <text class="prize-pool-title">公共奖池</text>
+            <text class="prize-pool-icon">💰</text>
+          </view>
+          <view class="prize-pool-amount {{animateAmount ? 'animate' : ''}}">
+            <text class="amount-number">{{room.prizePool.total}}</text>
+            <text class="amount-unit">积分</text>
+          </view>
+          <view class="prize-pool-tip">点击奖池转入积分</view>
+          <!-- 收取提示 -->
+          <view class="receive-tip {{room.prizePool.receiver ? 'show' : ''}}">
+            【{{room.prizePool.receiver}}】收取了奖池
+          </view>
         </view>
-        <view class="prize-pool-amount {{animateAmount ? 'animate' : ''}}">
-          <text class="amount-number">{{room.prizePool.total}}</text>
-          <text class="amount-unit">积分</text>
-        </view>
-        <view class="prize-pool-tip">点击奖池转入积分</view>
-        <!-- 收取提示 -->
-        <view class="receive-tip {{room.prizePool.receiver ? 'show' : ''}}">
-          【{{room.prizePool.receiver}}】收取了奖池
+        
+        <!-- 跟/过/all in按钮（与奖池信息分离） -->
+        <view class="bet-actions-row" wx:if="{{room.status === 'playing'}}">
+          <view class="bet-action-btn {{!canFollow ? 'disabled' : ''}}" bindtap="handleFollow">
+            <text class="bet-action-text">跟</text>
+          </view>
+          <view class="bet-action-btn" bindtap="handlePass">
+            <text class="bet-action-text">过</text>
+          </view>
+          <view class="bet-action-btn {{!room.allInValue ? 'disabled' : ''}}" bindtap="handleAllIn">
+            <text class="bet-action-text">all in</text>
+          </view>
         </view>
       </view>
+      
       <!-- 收取奖池按钮 -->
       <view class="receive-pool-btn {{room.prizePool.receiver ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" bindtap="receivePrizePool">
         收取奖池
@@ -79,7 +96,20 @@
 
           <!-- 历史记录 -->
           <view class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.detail && item.detail.type === 'transfer' ? 'transfer' : ''}}" wx:for="{{room.records}}" wx:key="index" bindtap="onRecordTap" data-record="{{item}}">
-            <image class="message-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" wx:if="{{item.detail && (item.detail.type === 'deposit' || item.detail.type === 'receive')}}" src="{{item.detail.operatorAvatar || item.detail.avatarUrl || '/images/avatar.png'}}"></image>
+            <!-- 头像容器 -->
+            <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}" wx:if="{{item.detail && item.detail.type !== 'settle' && item.detail.type !== 'welcome' && item.detail.type !== 'pass'}}">
+              <!-- 普通模式：双头像（发送者+接收者） -->
+              <block wx:if="{{room.gameMode === 'normal' && item.detail.type === 'transfer'}}">
+                <!-- 接收者头像（底层） -->
+                <image class="receiver-avatar {{item.isMe ? 'receiver-me' : 'receiver-other'}}" src="{{item.isMe ? item.detail.senderAvatar : item.detail.receiverAvatar || '/images/avatar.png'}}"></image>
+                <!-- 发送者头像（顶层，覆盖20%） -->
+                <image class="sender-avatar {{item.isMe ? 'sender-me' : 'sender-other'}}" src="{{item.isMe ? item.detail.receiverAvatar : item.detail.senderAvatar || '/images/avatar.png'}}"></image>
+              </block>
+              <!-- 普通模式其他操作：显示操作者头像 -->
+              <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" wx:elif="{{room.gameMode === 'normal'}}" src="{{item.detail.operatorAvatar || item.detail.avatarUrl || '/images/avatar.png'}}"></image>
+              <!-- 下注模式：只显示发送者头像 -->
+              <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" wx:elif="{{room.gameMode === 'bet'}}" src="{{item.detail.operatorAvatar || item.detail.avatarUrl || '/images/avatar.png'}}"></image>
+            </view>
             
             <view class="bubble {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.isReceive ? 'receive' : ''}}">
               <!-- 时间戳 -->
@@ -100,7 +130,7 @@
     </view>
     <!-- 底部固定功能按钮 -->
     <view class="bottom-fixed-actions">
-      <view class="bottom-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn">
+      <view class="bottom-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn" wx:if="{{room.gameMode === 'normal'}}">
         <text class="btn-icon">💸</text>
         <text class="btn-text">支出</text>
       </view>
@@ -108,6 +138,11 @@
         <text class="btn-icon">📋</text>
         <text class="btn-text">{{room.status === 'playing' ? '结算' : '已结算'}}</text>
       </view>
+    </view>
+    
+    <!-- 设置按钮（仅房主可见） -->
+    <view class="settings-btn" wx:if="{{isCreator}}" bindtap="openSettingsModal">
+      <text class="settings-icon">⚙️</text>
     </view>
   </view>
 </view>
@@ -258,6 +293,34 @@
       <view class="action-btn {{resultData.isUploaded ? 'uploaded' : ''}}" bindtap="uploadResult">
         {{resultData.isUploaded ? '已上传' : '上传服务器'}}
       </view>
+    </view>
+  </view>
+</view>
+
+<!-- all in未设置提示 -->
+<view class="all-in-tip {{showAllInTip ? 'show' : ''}}" wx:if="{{showAllInTip}}">
+  <text class="tip-content-text">请先设置all in值</text>
+</view>
+
+<!-- 设置弹窗 -->
+<view class="modal-mask {{showSettingsModal ? 'show' : ''}}" wx:if="{{showSettingsModal}}" bindtap="closeSettingsModal"></view>
+<view class="settings-modal {{showSettingsModal ? 'show' : ''}}" wx:if="{{showSettingsModal}}">
+  <view class="modal-header">
+    <text class="modal-title">房间设置</text>
+    <text class="modal-close" bindtap="closeSettingsModal">✕</text>
+  </view>
+  <view class="modal-body">
+    <view class="setting-item" wx:if="{{room.gameMode === 'bet'}}">
+      <view class="setting-label">All In值设置</view>
+      <view class="setting-description">设置全局all in最大值（仅房主可设置）</view>
+      <view class="setting-input-wrapper">
+        <input class="setting-input" type="digit" placeholder="请输入正整数" value="{{allInInput}}" bindinput="onAllInInput" />
+        <text class="setting-unit">分</text>
+      </view>
+    </view>
+    <view class="modal-actions">
+      <view class="action-btn cancel" bindtap="closeSettingsModal">取消</view>
+      <view class="action-btn confirm" bindtap="saveSettings">确认保存</view>
     </view>
   </view>
 </view>
