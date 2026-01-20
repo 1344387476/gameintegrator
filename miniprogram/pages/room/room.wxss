@@ -29,7 +29,7 @@ page {
   border-right: 1rpx solid #e8e8e8;
   box-shadow: 2rpx 0 8rpx rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
-  padding-top: 70rpx;
+  padding-top: 100rpx;
   padding-bottom: 20rpx;
 }
 
@@ -1463,4 +1463,202 @@ page {
   font-size: 28rpx;
   color: #FF7A2F;
   font-weight: 700;
+}
+
+/* ==================== 动画样式 ==================== */
+
+/* 转入奖池飘动动画关键帧 */
+@keyframes float-up-right {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(0, -20px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(80px, -120px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* 转入奖池飘动动画容器 */
+.float-animation-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 999;
+  overflow: visible;
+  background: transparent;
+  border: none;
+}
+
+/* 飘动金额元素 */
+.float-amount {
+  position: absolute;
+  font-size: 24px;
+  font-weight: 800;
+  color: #FFD700;
+  white-space: nowrap;
+  opacity: 0;
+  animation-name: float-up-right;
+  animation-duration: 800ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+  will-change: transform;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000;
+}
+
+/* 移除发光效果，避免白色框闪烁 */
+
+/* 收取奖池动画容器（全屏半透明遮罩） */
+.receive-animation-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.7) 100%);
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+  backdrop-filter: blur(4rpx);
+}
+
+/* 收取金额显示 */
+.receive-amount-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  pointer-events: none;
+  animation: receive-amount-pop 1.2s ease-out;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.receive-amount-text {
+  font-size: 64px;
+  font-weight: 900;
+  color: #FFD700;
+  text-shadow: 
+    0 0 30rpx rgba(255, 215, 0, 0.8),
+    0 4rpx 12rpx rgba(0, 0, 0, 0.5);
+  letter-spacing: 4rpx;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  word-wrap: break-word;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+@keyframes receive-amount-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+    filter: blur(0);
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+    filter: blur(5px);
+  }
+}
+
+/* 彩带动画关键帧 */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(0.8);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(15px) rotate(45deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(360deg) scale(0.7);
+    opacity: 0;
+  }
+}
+
+/* 金币动画关键帧 */
+@keyframes coin-fall {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    transform: translateY(20px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* 彩带元素 */
+.confetti-item {
+  position: absolute;
+  border-radius: 2rpx;
+  opacity: 0.9;
+  transform-origin: center top;
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+}
+
+/* 金币元素 */
+.coin-item {
+  position: absolute;
+  font-size: 16px;
+  text-align: center;
+  opacity: 1;
+  transform-origin: center top;
+  background: #FFD700;
+  border-radius: 50%;
+  border: 1rpx solid #D4A500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation-name: coin-fall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+  box-shadow: 0 2rpx 8rpx rgba(184, 134, 11, 0.3);
+}
+
+.coin-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.coin-text {
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  color: #B8860B;
+  text-shadow: 0 1rpx 2rpx rgba(0, 0, 0, 0.3);
 }

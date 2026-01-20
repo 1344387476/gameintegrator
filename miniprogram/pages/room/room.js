@@ -67,7 +67,17 @@ Page({
       isUploaded: false // 是否已上传
     },
     scrollIntoView: '', // 聊天记录滚动位置
-    showWelcome: false // 是否显示欢迎消息
+    showWelcome: false, // 是否显示欢迎消息
+    // 动画相关数据（转入奖池飘动动画）
+    showFloatAnimation: false, // 是否显示飘动动画
+    floatAmount: 0, // 飘动金额
+    floatLeft: 0, // 飘动起始X坐标
+    floatTop: 0, // 飙动起始Y坐标
+    // 收取奖池动画
+    showReceiveAnimation: false, // 是否显示收取动画
+    confettiList: [], // 彩带列表
+    coinList: [], // 金币列表
+    receiveAmount: 0 // 收取动画显示的金额
   },
 
   /**
@@ -93,6 +103,9 @@ Page({
     if (this.data.roomId) {
       this.loadRoom(this.data.roomId);
     }
+
+    // TODO: 临时测试动画（正式使用请注释掉此行）
+    // setTimeout(() => this.createFloatAnimation(100, 100, 100), 1000);
   },
 
   /**
@@ -341,14 +354,14 @@ Page({
 
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
     // 普通模式：检查是否点击自己
     if (this.data.room.gameMode === 'normal') {
       if (member.name === this.data.currentUser) {
-        this.showTip('不能向自己转账');
+        // this.showTip('不能向自己转账');
         return;
       }
 
@@ -362,7 +375,7 @@ Page({
       });
     } else {
       // 下注模式：提示仅支持向奖池转入
-      this.showTip('本模式仅支持向奖池转入积分');
+      // this.showTip('本模式仅支持向奖池转入积分');
     }
   },
 
@@ -402,7 +415,7 @@ Page({
     // 找到转出方和接收方
     const senderIndex = room.members.findIndex(m => m.name === currentUser);
     if (senderIndex === -1) {
-      this.showTip('找不到当前用户');
+      // this.showTip('找不到当前用户');
       return;
     }
 
@@ -504,7 +517,7 @@ Page({
 
     // 关闭弹窗并提示
     this.closeTransferModal();
-    this.showTip('转账成功');
+    // this.showTip('转账成功');
 
     // 滚动到底部显示新消息
     this.scrollToBottom();
@@ -524,7 +537,7 @@ Page({
   transferToPrizePool() {
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
@@ -647,7 +660,7 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ 
+    this.setData({
       room,
       'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
     });
@@ -655,7 +668,10 @@ Page({
 
     // 关闭弹窗并提示
     this.closePrizeModal();
-    this.showTip('转入成功');
+    // this.showTip('转入成功');
+
+    // 触发转入奖池飘动动画
+    this.triggerDepositAnimation(playerIndex, amount);
 
     // 滚动到底部显示新消息
     this.scrollToBottom();
@@ -675,7 +691,7 @@ Page({
   receivePrizePool() {
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
@@ -735,6 +751,9 @@ Page({
 
     updateMemberScrollFlags(player);
 
+    // 保存奖池金额用于动画显示（在清零之前）
+    const displayAmount = prizeAmount;
+
     // 重置奖池并记录收取信息
     room.prizePool.total = 0;
     room.prizePool.receiver = currentUser;
@@ -785,7 +804,7 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ 
+    this.setData({
       room,
       'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
     });
@@ -793,7 +812,10 @@ Page({
 
     // 关闭弹窗并提示
     this.closeReceiveModal();
-    this.showTip('收取成功');
+    // this.showTip('收取成功');
+
+    // 触发收取奖池动画（彩带+金币），传入保存的金额
+    this.triggerReceiveAnimation(displayAmount);
 
     // 滚动到底部显示新消息
     this.scrollToBottom();
@@ -911,7 +933,7 @@ Page({
     // 找到当前用户索引
     const senderIndex = room.members.findIndex(m => m.name === currentUser);
     if (senderIndex === -1) {
-      this.showTip('找不到当前用户');
+      // this.showTip('找不到当前用户');
       return;
     }
 
@@ -1042,7 +1064,7 @@ Page({
 
     // 关闭弹窗并提示
     this.closeExpenseModal();
-    this.showTip(`支出成功，共转出 ${totalAmount} 积分`);
+    // this.showTip(`支出成功，共转出 ${totalAmount} 积分`);
 
     // 滚动到底部显示新消息
     this.scrollToBottom();
@@ -1560,7 +1582,7 @@ Page({
 
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
@@ -1676,13 +1698,16 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ 
+    this.setData({
       room,
       'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
     });
     this.saveRoomData();
 
-    this.showTip('跟注成功');
+    // 触发转入奖池飘动动画
+    this.triggerDepositAnimation(playerIndex, amount);
+
+    // 滚动到底部显示新消息
     this.scrollToBottom();
   },
 
@@ -1693,7 +1718,7 @@ Page({
   handlePass() {
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
@@ -1741,7 +1766,7 @@ Page({
 
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
@@ -1860,13 +1885,16 @@ Page({
     room.records.unshift(record);
 
     // 保存数据
-    this.setData({ 
+    this.setData({
       room,
       'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
     });
     this.saveRoomData();
 
-    this.showTip('All in成功');
+    // 触发转入奖池飘动动画
+    this.triggerDepositAnimation(playerIndex, amount);
+
+    // 滚动到底部显示新消息
     this.scrollToBottom();
   },
 
@@ -1943,7 +1971,7 @@ Page({
   transferToPrizePool() {
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      this.showTip('游戏已结束，无法操作');
+      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
@@ -1965,5 +1993,162 @@ Page({
       path: `/pages/room/room?roomId=${this.data.roomId}`,
       imageUrl: '/images/default-goods-image.png'
     };
+  },
+
+  // ==================== 动画系统 ====================
+
+  /**
+   * 获取元素位置（兼容滚动容器）
+   * @param {string} selector - 元素选择器
+   * @returns {Promise} 返回元素坐标 {left, top}
+   */
+  getElementPosition(selector) {
+    return new Promise((resolve, reject) => {
+      const query = wx.createSelectorQuery();
+      query.select(selector).boundingClientRect();
+      query.exec((res) => {
+        if (res && res[0]) {
+          resolve({
+            left: res[0].left,
+            top: res[0].top
+          });
+        } else {
+          reject(new Error(`Element not found: ${selector}`));
+        }
+      });
+    });
+  },
+
+  /**
+   * 触发转入奖池飘动动画
+   * @param {number} playerIndex - 玩家索引
+   * @param {number} amount - 转入金额
+   */
+  triggerDepositAnimation(playerIndex, amount) {
+    console.log('[动画] 触发转入动画', { playerIndex, amount });
+
+    const systemInfo = wx.getSystemInfoSync();
+    const screenWidth = systemInfo.windowWidth;
+
+    // 根据玩家索引计算固定的起始位置（更可靠）
+    // 玩家列表在左侧（25%宽度），每个玩家卡片高度约120px
+    const sectionWidth = screenWidth * 0.25;
+    const startX = sectionWidth / 2 + 20; // 左侧区域中心偏右
+    const startY = 100 + playerIndex * 140; // 根据索引垂直排列
+
+    console.log('[动画] 计算的动画起始位置:', { startX, startY, playerIndex, screenWidth, sectionWidth });
+
+    // 直接使用计算的位置触发动画
+    this.createFloatAnimation(startX, startY, amount);
+  },
+
+  /**
+   * 创建飘动动画（转入奖池）
+   * @param {number} startX - 起始X坐标
+   * @param {number} startY - 起始Y坐标
+   * @param {number} amount - 金额
+   */
+  createFloatAnimation(startX, startY, amount) {
+    console.log('[动画] 创建飘动动画', { startX, startY, amount });
+
+    // 设置动画数据（纯 CSS 动画，不使用 wx.createAnimation）
+    this.setData({
+      showFloatAnimation: true,
+      floatAmount: amount,
+      floatLeft: startX,
+      floatTop: startY
+    });
+
+    console.log('[动画] setData 完成，showFloatAnimation:', true);
+    console.log('[动画] 元素位置:', { left: startX, top: startY });
+
+    // 动画结束后清理
+    setTimeout(() => {
+      console.log('[动画] 清理飘动动画');
+      this.setData({
+        showFloatAnimation: false
+      });
+    }, 900);
+  },
+
+  /**
+   * 触发收取奖池动画（彩带+金币）
+   * @param {number} amount - 收取的金额
+   */
+  triggerReceiveAnimation(amount) {
+    console.log('[动画] 触发收取奖池动画，金额:', amount);
+    const systemInfo = wx.getSystemInfoSync();
+    const screenWidth = systemInfo.windowWidth;
+    const screenHeight = systemInfo.windowHeight;
+
+    // 优化：减少动画元素数量，降低卡顿
+    const isLowPerformance = screenWidth < 375;
+    const confettiCount = isLowPerformance ? 2 : 4; // 从 3-6 减少到 2-4
+    const coinCount = isLowPerformance ? 5 : 8; // 从 8-12 减少到 5-8
+
+    console.log('[动画] 屏幕尺寸:', { width: screenWidth, height: screenHeight, isLowPerformance });
+    console.log('[动画] 元素数量:', { confetti: confettiCount, coin: coinCount });
+
+    // 生成彩带列表
+    const confettiList = [];
+    const colors = ['#FF7A2F', '#FFD700', '#4CD964', '#FF3B30']; // 减少颜色种类
+    for (let i = 0; i < confettiCount; i++) {
+      const duration = 1200 + Math.random() * 600; // 缩短动画时间
+      const delay = Math.random() * 150; // 减少延迟
+      const startY = -30 - Math.random() * 50; // 减少起始高度
+
+      confettiList.push({
+        id: i,
+        left: Math.random() * (screenWidth - 40),
+        top: startY,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        width: 12 + Math.random() * 8, // 减小尺寸
+        height: 4 + Math.random() * 4,
+        duration: duration,
+        delay: delay
+      });
+    }
+
+    // 生成金币列表
+    const coinList = [];
+    for (let i = 0; i < coinCount; i++) {
+      const duration = 1000 + Math.random() * 500; // 缩短动画时间
+      const delay = Math.random() * 200; // 减少延迟
+      const startY = -40 - Math.random() * 50; // 减少起始高度
+
+      coinList.push({
+        id: i,
+        left: Math.random() * (screenWidth - 40),
+        top: startY,
+        size: 12 + Math.random() * 4, // 减小尺寸
+        duration: duration,
+        delay: delay
+      });
+    }
+
+    console.log('[动画] 彩带列表:', confettiList);
+    console.log('[动画] 金币列表:', coinList);
+    console.log('[动画] 显示金额:', amount);
+
+    // 设置动画数据
+    this.setData({
+      showReceiveAnimation: true,
+      confettiList,
+      coinList,
+      receiveAmount: amount // 保存显示金额
+    });
+
+    console.log('[动画] setData 完成，showReceiveAnimation:', true);
+
+    // 动画结束后清理（缩短清理时间）
+    setTimeout(() => {
+      console.log('[动画] 清理动画');
+      this.setData({
+        showReceiveAnimation: false,
+        confettiList: [],
+        coinList: [],
+        receiveAmount: 0
+      });
+    }, 2200); // 从 3000ms 缩短到 2200ms
   }
 });

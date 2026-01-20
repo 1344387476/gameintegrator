@@ -24,9 +24,9 @@
           <view class="member-item" wx:for="{{room.members}}" wx:key="index" bindtap="handleMemberTap" data-index="{{index}}">
             <view class="creator-tag" wx:if="{{item.name === room.creator}}">房主</view>
             <view class="member-square">
-              <image class="member-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
+              <image class="member-avatar" id="avatar-{{index}}" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
               <text class="member-name">{{item.name}}</text>
-              <view class="score-container {{item.score > 0 ? 'positive' : (item.score < 0 ? 'negative' : '')}}" wx:if="{{item.score !== 0}}">
+              <view id="score-{{index}}" class="score-container {{item.score > 0 ? 'positive' : (item.score < 0 ? 'negative' : '')}}" wx:if="{{item.score !== 0}}">
                 <text class="member-score {{item.scoreScroll ? 'scroll' : ''}}">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
               </view>
             </view>
@@ -143,6 +143,32 @@
     <!-- 设置按钮（仅房主可见） -->
     <view class="settings-btn" wx:if="{{isCreator}}" bindtap="openSettingsModal">
       <text class="settings-icon">⚙️</text>
+    </view>
+  </view>
+</view>
+
+<!-- 转入奖池飘动动画容器 -->
+<view class="float-animation-container" wx:if="{{showFloatAnimation}}">
+  <text
+    class="float-amount"
+    style="left: {{floatLeft}}px; top: {{floatTop}}px;"
+  >+{{floatAmount}}</text>
+</view>
+
+<!-- 收取奖池动画容器（彩带+金币+金额） -->
+<view class="receive-animation-container" wx:if="{{showReceiveAnimation}}">
+  <!-- 收取金额显示 -->
+  <view class="receive-amount-display">
+    <text class="receive-amount-text">+{{receiveAmount}}</text>
+  </view>
+  
+  <view class="confetti-item" wx:for="{{confettiList}}" wx:key="id"
+    style="left: {{item.left}}px; top: {{item.top}}px; background: {{item.color}}; width: {{item.width}}px; height: {{item.height}}px; animation-duration: {{item.duration}}ms; animation-delay: {{item.delay}}ms;">
+  </view>
+  <view class="coin-item" wx:for="{{coinList}}" wx:key="id"
+    style="left: {{item.left}}px; top: {{item.top}}px; width: {{item.size}}px; height: {{item.size}}px; animation-duration: {{item.duration}}ms; animation-delay: {{item.delay}}ms;">
+    <view class="coin-inner">
+      <text class="coin-text">💰</text>
     </view>
   </view>
 </view>
