@@ -11,16 +11,6 @@ page {
   background-color: #ffffff;
 }
 
-/* 顶部栏：覆盖整个页面 */
-.top-bar-wrapper {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 200;
-  background-color: #ffffff;
-}
-
 /* 左侧区域：玩家列表（25%宽度） */
 .left-section {
   display: flex;
@@ -29,8 +19,8 @@ page {
   border-right: 1rpx solid #e8e8e8;
   box-shadow: 2rpx 0 8rpx rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
-  padding-top: 100rpx;
-  padding-bottom: 20rpx;
+padding-top: 20rpx;
+padding-bottom: 20rpx;
 }
 
 /* 右侧区域：操作记录（75%宽度） */
@@ -41,36 +31,6 @@ page {
   background-color: #ffffff;
   box-sizing: border-box;
   min-width: 500rpx;
-  padding-top: 70rpx;
-  padding-bottom: 20rpx;
-}
-
-/* ==================== 顶部栏：覆盖整个页面 ==================== */
-.mode-invite-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16rpx 24rpx;
-  background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
-  border-bottom: 1rpx solid #e8e8e8;
-}
-
-.mode-badge {
-  padding: 8rpx 20rpx;
-  border-radius: 12rpx;
-  font-size: 24rpx;
-  font-weight: 600;
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-}
-
-.mode-badge.mode-normal {
-  background: linear-gradient(135deg, #4CD964 0%, #4CD964 100%);
-}
-
-.mode-badge.mode-bet {
-  background: linear-gradient(135deg, #FF7A2F 0%, #FF7A2F 100%);
 }
 
 /* ==================== 左侧：玩家列表 ==================== */
@@ -240,98 +200,27 @@ page {
   font-weight: 600;
 }
 
-/* ==================== 底部固定功能按钮区域 ==================== */
-.bottom-fixed-actions {
+/* ==================== 右侧：底部按钮区域 ==================== */
+.bottom-actions-container {
+  flex-shrink: 0;
   display: flex;
-  gap: 12rpx;
-  padding: 16rpx 24rpx;
-  margin-top: auto;
-  align-self: center;
-  width: 80%;
-  max-width: 600rpx;
-  z-index: 10;
+  gap: 16rpx;
+  margin-bottom: 50rpx;
+  align-self: stretch;
+  background-color: transparent;
+  box-sizing: border-box;
 }
 
-.bottom-btn {
+.bottom-actions-container .action-btn {
   flex: 1;
+  height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14rpx 16rpx;
-  background-color: #ffffff;
-  border-radius: 8rpx;
-  font-size: 24rpx;
-  color: #666666;
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.06);
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  font-weight: 600;
   transition: all 0.25s;
-}
-
-.bottom-btn:active {
-  transform: scale(0.95);
-  background-color: #f0f0f0;
-}
-
-.expense-btn {
-  background: linear-gradient(135deg, #FF7A2F 0%, #FF7A2F 100%);
-  color: #ffffff;
-}
-
-.expense-btn.disabled {
-  background: linear-gradient(135deg, #c5c5c5 0%, #c5c5c5 100%);
-  color: #ffffff;
-  box-shadow: none;
-}
-
-.settle-btn {
-  background: linear-gradient(135deg, #4CD964 0%, #4CD964 100%);
-  color: #ffffff;
-}
-
-.settle-btn.disabled {
-  background: linear-gradient(135deg, #c5c5c5 0%, #c5c5c5 100%);
-  color: #ffffff;
-  box-shadow: none;
-}
-
-.btn-icon {
-  font-size: 28rpx;
-  margin-right: 8rpx;
-}
-
-.btn-text {
-  font-size: 24rpx;
-  font-weight: 500;
-  color: #666666;
-}
-
-/* ==================== 邀请按钮 ==================== */
-.invite-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8rpx 20rpx;
-  background: linear-gradient(135deg, #FF7A2F 0%, #FF7A2F 100%);
-  border-radius: 8rpx;
-  color: #ffffff;
-  font-size: 24rpx;
-  font-weight: 500;
-  box-shadow: 0 2rpx 8rpx rgba(255, 122, 47, 0.3);
-  transition: all 0.25s;
-}
-
-.invite-btn:active {
-  transform: scale(0.95);
-  box-shadow: 0 2rpx 4rpx rgba(255, 122, 47, 0.4);
-}
-
-.invite-icon {
-  font-size: 22rpx;
-  margin-right: 6rpx;
-}
-
-.invite-text {
-  font-size: 24rpx;
-  font-weight: 500;
 }
 
 /* ==================== 右侧：奖池区域 ==================== */
@@ -493,54 +382,6 @@ page {
   color: #999999;
 }
 
-/* all in设置按钮样式 */
-.all-in-setting-btn {
-  margin-top: 12rpx;
-  padding: 12rpx 16rpx;
-  background: rgba(255, 122, 47, 0.1);
-  border-radius: 8rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-}
-
-.setting-icon {
-  font-size: 24rpx;
-}
-
-.setting-text {
-  color: #FF7A2F;
-  font-size: 24rpx;
-  font-weight: 600;
-}
-
-/* 设置按钮样式 */
-.settings-btn {
-  position: absolute;
-  bottom: 30rpx;
-  left: 24rpx;
-  width: 80rpx;
-  height: 80rpx;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.15);
-  transition: all 0.25s;
-  z-index: 10;
-}
-
-.settings-btn:active {
-  transform: scale(0.95);
-}
-
-.settings-icon {
-  font-size: 40rpx;
-  color: #FF7A2F;
-}
-
 /* 设置弹窗 */
 .settings-modal {
   position: fixed;
@@ -610,6 +451,55 @@ page {
   color: #666666;
 }
 
+/* ==================== 左侧底部按钮区域 ==================== */
+.left-bottom-buttons {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 20rpx;
+  padding: 20rpx 24rpx;
+  margin-top: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.left-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 50%;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
+  transition: all 0.25s;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.left-btn:active {
+  transform: scale(0.9);
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.1);
+}
+
+.left-btn.invite-btn,
+.left-btn.settings-btn {
+  background: linear-gradient(135deg, #757575 0%, #959595 100%);
+}
+
+.left-btn-icon {
+  font-size: 32rpx;
+  color: #ffffff;
+  line-height: 1;
+  margin-bottom: 2rpx;
+}
+
+.left-btn-text {
+  font-size: 18rpx;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1;
+}
+
 /* ==================== 右侧：聊天室样式 ==================== */
 .chat-section {
   flex: 1;
@@ -617,14 +507,14 @@ page {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 10rpx 24rpx 30rpx 20rpx;
+  padding: 10rpx 24rpx 0 20rpx;
   background-color: #EDEDED;
-
 }
 
 .chat-scroll {
   flex: 1;
-  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .chat-list {
@@ -797,32 +687,7 @@ page {
   font-weight: 600;
 }
 
-.chat-empty {
-  text-align: center;
-  padding: 80rpx 20rpx;
-}
-
-.empty-text {
-  font-size: 24rpx;
-  color: #999999;
-}
-
 /* ==================== 消息头像样式 ==================== */
-.chat-message {
-  display: flex;
-  align-items: flex-start;
-  gap: 16rpx;
-}
-
-.chat-message.mine {
-  justify-content: flex-end;
-}
-
-.chat-message.others {
-  justify-content: flex-start;
-}
-
-/* 头像容器 */
 .avatar-container {
   position: relative;
   width: 96rpx;
@@ -838,7 +703,7 @@ page {
 
 /* 下注模式单头像容器（缩小宽度以减少间距） */
 .avatar-container.bet-avatar {
-  width: 56rpx; /* 48rpx头像 + 8rpx间距 */
+  width: 56rpx;
   height: 48rpx;
 }
 
@@ -895,7 +760,7 @@ page {
 }
 
 .chat-message.mine .receiver-me {
-  right: 38rpx; /* 48rpx * 0.8 = 38.4rpx，约38rpx */
+  right: 38rpx;
 }
 
 /* 别人发送的转账：发送者头像在左，接收者在右，发送者覆盖接收者20% */
@@ -912,7 +777,7 @@ page {
 }
 
 .chat-message.others .receiver-other {
-  left: 38rpx; /* 48rpx * 0.8 = 38.4rpx，约38rpx */
+  left: 38rpx;
 }
 
 /* ==================== 弹窗通用样式 ==================== */
@@ -1006,11 +871,41 @@ page {
   box-shadow: none;
 }
 
-.action-btn.uploaded {
-  background: #f0f0f0;
+.action-btn.expense-btn {
+  background: linear-gradient(135deg, #FF7A2F 0%, #FF9559 100%);
+  box-shadow: 0 4rpx 16rpx rgba(255, 122, 47, 0.35);
+}
+
+.action-btn.expense-btn.disabled {
+  background: linear-gradient(135deg, #c8c8c8 0%, #d8d8d8 100%);
   color: #999999;
-  border: none;
-  box-shadow: none;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+  transform: none;
+}
+
+.action-btn.settle-btn {
+  background: linear-gradient(135deg, #4CD964 0%, #6FEB80 100%);
+  box-shadow: 0 4rpx 16rpx rgba(76, 217, 100, 0.35);
+}
+
+.action-btn.settle-btn.disabled {
+  background: linear-gradient(135deg, #c8c8c8 0%, #d8d8d8 100%);
+  color: #999999;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+  transform: none;
+}
+
+.btn-icon {
+  font-size: 26rpx;
+  margin-right: 8rpx;
+  line-height: 1;
+}
+
+.btn-text {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1;
 }
 
 /* 转账弹窗 */
@@ -1199,22 +1094,362 @@ page {
   bottom: 0;
 }
 
-.result-canvas {
-  width: 500rpx;
-  height: 700rpx;
-  background-color: #ffffff;
-  margin: 20rpx auto;
-  border-radius: 12rpx;
-  border: 1rpx solid #f5f5f5;
+/* 战绩弹窗标题 - 房间名 */
+.result-room-name {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #FF7A2F;
+  text-align: center;
+  flex: 1;
 }
 
+/* 战绩弹窗主体 */
+.result-body {
+  padding: 20rpx 24rpx 100rpx;
+  max-height: calc(75vh - 100rpx);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 战绩板块 */
+.result-section {
+  margin-bottom: 40rpx;
+}
+
+/* 板块标题 */
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 30rpx;
+  gap: 10rpx;
+}
+
+.title-icon {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+}
+
+.title-icon.win-icon {
+  background-color: #4CD964;
+}
+
+.title-icon.lose-icon {
+  background-color: #FF3B30;
+}
+
+.title-text {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #333333;
+}
+
+/* 柱状图容器（纵向排列） */
+.bar-chart-container-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  padding: 0 20rpx;
+}
+
+/* 单个柱状图项（横向布局） */
+.chart-item-horizontal {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 柱状条容器 */
+.bar-container {
+  flex: 1;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  padding-left: 20rpx;
+}
+
+/* 柱状条（横向） */
+.bar {
+  height: 40rpx;
+  border-radius: 4rpx;
+  min-width: 6rpx;
+}
+
+.bar.win-bar-horizontal {
+  background-color: #4CD964;
+}
+
+.bar.lose-bar-horizontal {
+  background-color: #FF3B30;
+}
+
+/* 玩家头像（迷你） */
+.player-avatar-mini {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  border: 2rpx solid #e8e8e8;
+  flex-shrink: 0;
+  margin-right: 16rpx;
+}
+
+/* 玩家姓名（迷你） */
+.player-name-mini {
+  font-size: 24rpx;
+  color: #333333;
+  width: 160rpx;  /* 固定宽度100px */
+  text-align: left;  /* 左对齐 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 16rpx;
+}
+
+/* 积分标签 */
+.score-label {
+  font-size: 28rpx;
+  font-weight: 700;
+  margin-left: 20rpx;
+  flex-shrink: 0;
+}
+
+.score-label.win-score {
+  color: #4CD964;
+}
+
+.score-label.lose-score {
+  color: #FF3B30;
+}
+
+/* 原纵向样式保留（备用） */
+.bar-chart-container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-around;
+  padding: 0 20rpx;
+  overflow-x: auto;
+  min-height: 200rpx;
+  gap: 20rpx;
+}
+
+.chart-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 100rpx;
+  flex-shrink: 0;
+}
+
+/* 无输赢提示 */
+.no-result-tip,
+.no-winners-tip,
+.no-losers-tip {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 80rpx 0;
+}
+
+.tip-text {
+  font-size: 28rpx;
+  color: #999999;
+}
+
+/* 玩家列表（保留原样式作为备用） */
+.result-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-bottom: 24rpx;
+}
+
+.result-player-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 20rpx;
+  background: #ffffff;
+  border-bottom: 1rpx solid #f0f0f0;
+  transition: all 0.25s;
+}
+
+.result-player-item:active {
+  background: #f8f9fa;
+}
+
+.result-player-avatar {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  border: 1rpx solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.result-player-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.result-player-name {
+  font-size: 28rpx;
+  color: #333333;
+  font-weight: 400;
+}
+
+.result-player-score {
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.result-player-score.positive {
+  color: #4CD964;
+}
+
+.result-player-score.negative {
+  color: #FF3B30;
+}
+
+.result-player-score.zero {
+  color: #999999;
+}
+
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24rpx;
+}
+
+.info-item:last-child {
+  margin-bottom: 0;
+}
+
+.info-label {
+  font-size: 28rpx;
+  color: #666666;
+  font-weight: 500;
+}
+
+.info-value {
+  font-size: 28rpx;
+  color: #333333;
+  font-weight: 600;
+}
+
+.info-value.prize-amount {
+  color: #FF7A2F;
+  font-weight: 700;
+}
+
+/* 模式徽章 */
+.result-mode-badge {
+  padding: 8rpx 20rpx;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.result-mode-badge.bet-mode {
+  background: linear-gradient(135deg, #FF7A2F 0%, #FF7A2F 100%);
+}
+
+.result-mode-badge.normal-mode {
+  background: linear-gradient(135deg, #4CD964 0%, #4CD964 100%);
+}
+
+/* 战绩弹窗按钮 */
 .result-actions {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 100%;
   display: flex;
   gap: 16rpx;
-  padding: 0 20rpx 40rpx;
+  padding: 24rpx 32rpx;
+  background: #ffffff;
+  border-top: 1rpx solid #f5f5f5;
+  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+}
+
+.result-actions .action-btn {
+  flex: 1;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  transition: all 0.25s;
+  box-sizing: border-box;
+}
+
+.result-actions .action-btn:active {
+  transform: scale(0.98);
+}
+
+/* 分享按钮 */
+.result-actions .share-btn {
+  background: linear-gradient(135deg, #FF7A2F 0%, #FF7A2F 100%);
+  color: #ffffff;
+  box-shadow: 0 4rpx 16rpx rgba(255, 122, 47, 0.3);
+}
+
+/* 保存到相册按钮 */
+.result-actions .save-btn {
+  background: #ffffff;
+  color: #FF7A2F;
+  border: 2rpx solid #FF7A2F;
+}
+
+
+
+/* 隐藏的Canvas（用于生成图片） */
+.result-canvas-hidden {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 500rpx;
+  height: 700rpx;
+  visibility: hidden;
 }
 
 /* 二维码弹窗 */
+.qrcode-canvas {
+  width: 400rpx;
+  height: 400rpx;
+  background-color: #ffffff !important;
+  margin: 20rpx 0;
+  border: 1rpx solid #e8e8e8;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+}
+
+.qrcode-tip {
+  font-size: 22rpx;
+  color: #999999;
+  text-align: center;
+  margin: 20rpx 0 40rpx 0;
+}
+
+.qrcode-actions {
+  display: flex;
+  gap: 16rpx;
+  width: 100%;
+  margin-top: 20rpx;
+}
 .qrcode-modal {
   position: fixed;
   left: 0;
@@ -1324,7 +1559,48 @@ page {
   margin-top: 20rpx;
 }
 
+/* all in未设置提示 */
+.all-in-tip {
+  position: fixed;
+  bottom: 50%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  background-color: rgba(0, 0, 0, 0.75);
+  padding: 24rpx 36rpx;
+  border-radius: 12rpx;
+  z-index: 1002;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+}
+
+.all-in-tip.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tip-content-text {
+  font-size: 26rpx;
+  color: #ffffff;
+  text-align: center;
+}
+
 /* 支出弹窗样式 */
+.player-avatar {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  margin-right: 12rpx;
+  border: 2rpx solid #ffffff;
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.1);
+}
+
+.player-name {
+  font-size: 24rpx;
+  color: #333333;
+  font-weight: 500;
+}
+
 .expense-modal {
   position: fixed;
   left: 5%;
@@ -1396,21 +1672,6 @@ page {
   flex: 1;
 }
 
-.player-avatar {
-  width: 44rpx;
-  height: 44rpx;
-  border-radius: 50%;
-  margin-right: 12rpx;
-  border: 2rpx solid #ffffff;
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.1);
-}
-
-.player-name {
-  font-size: 24rpx;
-  color: #333333;
-  font-weight: 500;
-}
-
 .expense-item .input-section {
   display: flex;
   align-items: center;
@@ -1463,6 +1724,32 @@ page {
   font-size: 28rpx;
   color: #FF7A2F;
   font-weight: 700;
+}
+
+/* all in未设置提示 */
+.all-in-tip {
+  position: fixed;
+  bottom: 50%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  background-color: rgba(0, 0, 0, 0.75);
+  padding: 24rpx 36rpx;
+  border-radius: 12rpx;
+  z-index: 1002;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+}
+
+.all-in-tip.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tip-content-text {
+  font-size: 26rpx;
+  color: #ffffff;
+  text-align: center;
 }
 
 /* ==================== 动画样式 ==================== */

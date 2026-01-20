@@ -77,7 +77,11 @@ Page({
     showReceiveAnimation: false, // 是否显示收取动画
     confettiList: [], // 彩带列表
     coinList: [], // 金币列表
-    receiveAmount: 0 // 收取动画显示的金额
+    receiveAmount: 0, // 收取动画显示的金额
+    // 战绩上传提示
+    showUploadTip: false, // 是否显示上传提示
+    uploadTipText: '', // 上传提示文字
+    uploadFailed: false // 上传是否失败
   },
 
   /**
@@ -98,14 +102,59 @@ Page({
   /**
    * 生命周期函数 - 页面显示
    * 每次显示页面时重新加载房间数据
+   * 并检查是否有未上传的战绩，尝试重新上传
    */
   onShow() {
     if (this.data.roomId) {
       this.loadRoom(this.data.roomId);
     }
 
+    // 检查是否有未上传的战绩，尝试重新上传
+    this.retryFailedUploads();
+
     // TODO: 临时测试动画（正式使用请注释掉此行）
     // setTimeout(() => this.createFloatAnimation(100, 100, 100), 1000);
+  },
+
+  /**
+   * 重试失败的上传
+   * 从本地存储中获取未上传的战绩，尝试重新上传
+   */
+  retryFailedUploads() {
+    const failedUploads = wx.getStorageSync('failedUploads') || [];
+    if (failedUploads.length === 0) {
+      return;
+    }
+
+    // TODO: 配置实际的服务器接口地址
+    const serverUrl = 'https://your-server.com/api/settlement';
+    const successfulUploads = [];
+
+    failedUploads.forEach((upload, index) => {
+      wx.request({
+        url: serverUrl,
+        method: 'POST',
+        data: upload.data,
+        header: {
+          'content-type': 'application/json'
+        },
+        success: (res) => {
+          if (res.statusCode === 200) {
+            successfulUploads.push(index);
+            
+            // 如果所有失败的上传都成功了，清空本地存储
+            if (successfulUploads.length === failedUploads.length) {
+              wx.removeStorageSync('failedUploads');
+              this.showTip('历史战绩上传成功');
+            }
+          }
+        },
+        fail: () => {
+          // 仍然失败，保留在本地，下次再试
+          console.error('重试上传失败:', upload);
+        }
+      });
+    });
   },
 
   /**
@@ -335,13 +384,6 @@ Page({
   },
 
   /**
-   * 返回上一页
-   */
-  goBack() {
-    wx.navigateBack();
-  },
-
-  /**
    * 处理玩家点击事件
    * 根据游戏模式执行不同的操作：
    * - 普通模式：显示转账弹窗
@@ -427,85 +469,23 @@ Page({
     receiver.score += amount;
 
     // 更新滚动标志
-    const updateMemberScrollFlags = (member) => {
-      // 检测积分是否需要滚动（超过7位数字，包括符号）
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      
-      member.scoreScroll = scoreScroll;
-    };
-
-    updateMemberScrollFlags(sender);
-    updateMemberScrollFlags(receiver);
+    this.updateMemberScrollFlags(sender);
+    this.updateMemberScrollFlags(receiver);
 
     // 获取双方头像
     const senderAvatar = sender.avatarUrl || '';
     const receiverAvatar = receiver.avatarUrl || '';
 
     // 生成转账记录
-    const description = `${currentUser} 转 ${amount} 分给 ${receiver.name}`;
-    const processedDescription = description.replace(currentUser, '我');
-    const hasMe = processedDescription.includes('我');
-
-    // 将描述分割成片段，用于单独高亮"我"字和金额
-    let segments = [];
-    if (hasMe) {
-      const parts = processedDescription.split('我');
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i]) {
-          // 检查是否包含金额
-          if (parts[i].includes(`${amount}`)) {
-            const amountParts = parts[i].split(`${amount}`);
-            if (amountParts[0]) {
-              segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-            }
-            segments.push({ text: `${amount}`, isMe: false, isAmount: true });
-            if (amountParts[1]) {
-              segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-            }
-          } else {
-            segments.push({ text: parts[i], isMe: false, isAmount: false });
-          }
-        }
-        if (i < parts.length - 1) {
-          segments.push({ text: '我', isMe: true, isAmount: false });
-        }
-      }
-    } else {
-      // 处理不包含"我"的情况，但仍然要高亮金额
-      if (processedDescription.includes(`${amount}`)) {
-        const amountParts = processedDescription.split(`${amount}`);
-        if (amountParts[0]) {
-          segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-        }
-        segments.push({ text: `${amount}`, isMe: false, isAmount: true });
-        if (amountParts[1]) {
-          segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-        }
-      } else {
-        segments.push({ text: processedDescription, isMe: false, isAmount: false });
-      }
-    }
-
-    const record = {
-      description: description,
-      processedDescription: processedDescription,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'transfer',
-        sender: currentUser,
-        senderAvatar: senderAvatar,
-        receiver: receiver.name,
-        receiverAvatar: receiverAvatar,
-        amount: amount,
-        senderScoreAfter: sender.score,
-        receiverScoreAfter: receiver.score
-      },
-      hasMe: hasMe,
-      isSystem: false,
-      isReceive: false,
-      segments: segments
-    };
+    const record = this.createTransferRecord({
+      sender: currentUser,
+      receiver,
+      amount,
+      senderAvatar,
+      receiverAvatar,
+      senderScoreAfter: sender.score,
+      receiverScoreAfter: receiver.score
+    });
     room.records.unshift(record);
 
     // 保存数据
@@ -590,91 +570,205 @@ Page({
       return;
     }
 
+    // 获取玩家头像
+    const playerAvatar = room.members[playerIndex].avatarUrl || '';
+
     // 执行转入
+    const result = this.processDeposit({
+      amount,
+      playerAvatar,
+      recordType: 'deposit',
+      recordTypeText: '下注'
+    });
+
+    if (!result.success) {
+      return;
+    }
+
+    // 关闭弹窗
+    this.closePrizeModal();
+
+    // 触发转入奖池飘动动画
+    this.triggerDepositAnimation(result.playerIndex, result.amount);
+
+    // 滚动到底部显示新消息
+    this.scrollToBottom();
+  },
+
+  /**
+   * 更新成员积分滚动标志
+   * 检测积分是否需要滚动（超过7位数字，包括符号）
+   * @param {Object} member - 成员对象
+   */
+  updateMemberScrollFlags(member) {
+    const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
+    const scoreScroll = scoreText.length > 7;
+    member.scoreScroll = scoreScroll;
+  },
+
+  /**
+   * 生成分段数据
+   * 将描述分割成片段，用于单独高亮"我"字和金额
+   * @param {string} description - 原始描述
+   * @param {string} currentUser - 当前用户名
+   * @returns {Array} 分段数组
+   */
+  generateSegments(description, currentUser) {
+    const processedDescription = currentUser ? description.replace(currentUser, '我') : description;
+    const hasMe = processedDescription.includes('我');
+    let segments = [];
+
+    if (hasMe) {
+      const parts = processedDescription.split('我');
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i]) {
+          const amountMatch = parts[i].match(/\d+/);
+          if (amountMatch) {
+            const amountStr = amountMatch[0];
+            const amountParts = parts[i].split(amountStr);
+            if (amountParts[0]) {
+              segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+            }
+            segments.push({ text: amountStr, isMe: false, isAmount: true });
+            if (amountParts[1]) {
+              segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+            }
+          } else {
+            segments.push({ text: parts[i], isMe: false, isAmount: false });
+          }
+        }
+        if (i < parts.length - 1) {
+          segments.push({ text: '我', isMe: true, isAmount: false });
+        }
+      }
+    } else {
+      const amountMatch = processedDescription.match(/\d+/);
+      if (amountMatch) {
+        const amountStr = amountMatch[0];
+        const amountParts = processedDescription.split(amountStr);
+        if (amountParts[0]) {
+          segments.push({ text: amountParts[0], isMe: false, isAmount: false });
+        }
+        segments.push({ text: amountStr, isMe: false, isAmount: true });
+        if (amountParts[1]) {
+          segments.push({ text: amountParts[1], isMe: false, isAmount: false });
+        }
+      } else {
+        segments.push({ text: processedDescription, isMe: false, isAmount: false });
+      }
+    }
+
+    return { processedDescription, hasMe, segments };
+  },
+
+  /**
+   * 生成转账记录
+   * @param {Object} params - 参数对象
+   * @returns {Object} 记录对象
+   */
+  createTransferRecord(params) {
+    const { sender, receiver, amount, senderAvatar, receiverAvatar, senderScoreAfter, receiverScoreAfter } = params;
+    const description = `${sender} 转 ${amount} 分给 ${receiver.name}`;
+    const { processedDescription, hasMe, segments } = this.generateSegments(description, sender);
+
+    return {
+      description,
+      processedDescription,
+      time: this.getCurrentTime(),
+      detail: {
+        type: 'transfer',
+        sender,
+        senderAvatar,
+        receiver: receiver.name,
+        receiverAvatar,
+        amount,
+        senderScoreAfter,
+        receiverScoreAfter
+      },
+      hasMe,
+      isSystem: false,
+      isReceive: false,
+      segments
+    };
+  },
+
+  /**
+   * 生成奖池转入记录
+   * @param {Object} params - 参数对象
+   * @returns {Object} 记录对象
+   */
+  createDepositRecord(params) {
+    const { operator, amount, playerAvatar, playerScoreAfter, prizePoolAfter, recordType, recordTypeText } = params;
+    const description = `${operator} ${recordTypeText} ${amount} 分`;
+    const { processedDescription, hasMe, segments } = this.generateSegments(description, operator);
+
+    return {
+      description,
+      processedDescription,
+      time: this.getCurrentTime(),
+      detail: {
+        type: recordType,
+        operator,
+        operatorAvatar: playerAvatar,
+        avatarUrl: playerAvatar,
+        amount,
+        playerScoreAfter,
+        prizePoolAfter
+      },
+      hasMe,
+      isSystem: false,
+      isReceive: false,
+      segments
+    };
+  },
+
+  /**
+   * 处理奖池转入
+   * @param {Object} params - 参数对象
+   */
+  processDeposit(params) {
+    const { amount, playerAvatar, recordType, recordTypeText } = params;
+    const room = this.data.room;
+    const currentUser = this.data.currentUser;
+
+    const playerIndex = room.members.findIndex(m => m.name === currentUser);
+    if (playerIndex === -1) {
+      this.showTip('找不到当前用户');
+      return false;
+    }
+
     const player = room.members[playerIndex];
     player.score -= amount;
-    // 如果奖池已被收取，有新转入时清空收取记录，使收取按钮恢复可用
+
     if (room.prizePool.receiver) {
       room.prizePool.receiver = '';
       room.prizePool.receivedTime = '';
     }
     room.prizePool.total += amount;
 
-    // 更新滚动标志
-    const updateMemberScrollFlags = (member) => {
-      // 检测积分是否需要滚动（超过7位数字，包括符号）
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      
-      member.scoreScroll = scoreScroll;
-    };
+    this.updateMemberScrollFlags(player);
 
-    updateMemberScrollFlags(player);
-
-    // 播放动画
     this.setData({ animateAmount: true });
     setTimeout(() => this.setData({ animateAmount: false }), 400);
 
-    // 生成转入记录（下注模式显示为"下注"）
-    const description = `${currentUser} 下注 ${amount} 分`;
-    const processedDescription = description.replace(currentUser, '我');
-    const hasMe = processedDescription.includes('我');
-
-    // 获取玩家头像
-    const playerAvatar = player.avatarUrl || '';
-
-    // 将描述分割成片段，用于单独高亮"我"字
-    let segments = [];
-    if (hasMe) {
-      const parts = processedDescription.split('我');
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i]) {
-          segments.push({ text: parts[i], isMe: false });
-        }
-        if (i < parts.length - 1) {
-          segments.push({ text: '我', isMe: true });
-        }
-      }
-    } else {
-      segments.push({ text: processedDescription, isMe: false });
-    }
-
-    const record = {
-      description: description,
-      processedDescription: processedDescription,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'deposit',
-        operator: currentUser,
-        operatorAvatar: playerAvatar,
-        avatarUrl: playerAvatar,
-        amount: amount,
-        playerScoreAfter: player.score,
-        prizePoolAfter: room.prizePool.total
-      },
-      hasMe: hasMe,
-      isSystem: false,
-      isReceive: false,
-      segments: segments
-    };
+    const record = this.createDepositRecord({
+      operator: currentUser,
+      amount,
+      playerAvatar,
+      playerScoreAfter: player.score,
+      prizePoolAfter: room.prizePool.total,
+      recordType,
+      recordTypeText
+    });
     room.records.unshift(record);
 
-    // 保存数据
     this.setData({
       room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+      'room.prizePool.total': room.prizePool.total
     });
     this.saveRoomData();
 
-    // 关闭弹窗并提示
-    this.closePrizeModal();
-    // this.showTip('转入成功');
-
-    // 触发转入奖池飘动动画
-    this.triggerDepositAnimation(playerIndex, amount);
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
+    return { success: true, playerIndex, amount };
   },
 
   /**
@@ -740,16 +834,7 @@ Page({
     const player = room.members[playerIndex];
     player.score += prizeAmount;
 
-    // 更新滚动标志
-    const updateMemberScrollFlags = (member) => {
-      // 检测积分是否需要滚动（超过7位数字，包括符号）
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      
-      member.scoreScroll = scoreScroll;
-    };
-
-    updateMemberScrollFlags(player);
+    this.updateMemberScrollFlags(player);
 
     // 保存奖池金额用于动画显示（在清零之前）
     const displayAmount = prizeAmount;
@@ -761,31 +846,13 @@ Page({
 
     // 生成收取记录
     const description = `${currentUser} 收取了奖池 ${prizeAmount} 分`;
-    const processedDescription = description.replace(currentUser, '我');
-    const hasMe = processedDescription.includes('我');
+    const { processedDescription, hasMe, segments } = this.generateSegments(description, currentUser);
 
-    // 获取玩家头像
     const playerAvatar = player.avatarUrl || '';
 
-    // 将描述分割成片段，用于单独高亮"我"字
-    let segments = [];
-    if (hasMe) {
-      const parts = processedDescription.split('我');
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i]) {
-          segments.push({ text: parts[i], isMe: false });
-        }
-        if (i < parts.length - 1) {
-          segments.push({ text: '我', isMe: true });
-        }
-      }
-    } else {
-      segments.push({ text: processedDescription, isMe: false });
-    }
-
     const record = {
-      description: description,
-      processedDescription: processedDescription,
+      description,
+      processedDescription,
       time: this.getCurrentTime(),
       detail: {
         type: 'receive',
@@ -796,23 +863,22 @@ Page({
         playerScoreAfter: player.score,
         prizePoolAfter: 0
       },
-      hasMe: hasMe,
+      hasMe,
       isSystem: false,
       isReceive: true,
-      segments: segments
+      segments
     };
     room.records.unshift(record);
 
     // 保存数据
     this.setData({
       room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+      'room.prizePool.total': room.prizePool.total
     });
     this.saveRoomData();
 
-    // 关闭弹窗并提示
+    // 关闭弹窗
     this.closeReceiveModal();
-    // this.showTip('收取成功');
 
     // 触发收取奖池动画（彩带+金币），传入保存的金额
     this.triggerReceiveAnimation(displayAmount);
@@ -971,87 +1037,24 @@ Page({
     }
 
     // 更新滚动标志
-    const updateMemberScrollFlags = (member) => {
-      // 检测积分是否需要滚动（超过7位数字，包括符号）
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      
-      member.scoreScroll = scoreScroll;
-    };
-
-    updateMemberScrollFlags(sender);
+    this.updateMemberScrollFlags(sender);
     for (const transfer of transfers) {
       const receiver = room.members.find(m => m.name === transfer.memberName);
-      updateMemberScrollFlags(receiver);
+      this.updateMemberScrollFlags(receiver);
 
       // 生成转账记录
-      const description = `${currentUser} 转 ${transfer.amount} 分给 ${receiver.name}`;
-      const processedDescription = description.replace(currentUser, '我');
-      const hasMe = processedDescription.includes('我');
-
-      // 获取双方头像
       const senderAvatar = sender.avatarUrl || '';
       const receiverAvatar = receiver.avatarUrl || '';
 
-      // 将描述分割成片段，用于单独高亮"我"字和金额
-      let segments = [];
-      if (hasMe) {
-        const parts = processedDescription.split('我');
-        for (let i = 0; i < parts.length; i++) {
-          if (parts[i]) {
-            // 检查是否包含金额
-            if (parts[i].includes(`${transfer.amount}`)) {
-              const amountParts = parts[i].split(`${transfer.amount}`);
-              if (amountParts[0]) {
-                segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-              }
-              segments.push({ text: `${transfer.amount}`, isMe: false, isAmount: true });
-              if (amountParts[1]) {
-                segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-              }
-            } else {
-              segments.push({ text: parts[i], isMe: false, isAmount: false });
-            }
-          }
-          if (i < parts.length - 1) {
-            segments.push({ text: '我', isMe: true, isAmount: false });
-          }
-        }
-      } else {
-        // 处理不包含"我"的情况，但仍然要高亮金额
-        if (processedDescription.includes(`${transfer.amount}`)) {
-          const amountParts = processedDescription.split(`${transfer.amount}`);
-          if (amountParts[0]) {
-            segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-          }
-          segments.push({ text: `${transfer.amount}`, isMe: false, isAmount: true });
-          if (amountParts[1]) {
-            segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-          }
-        } else {
-          segments.push({ text: processedDescription, isMe: false, isAmount: false });
-        }
-      }
-
-      const record = {
-        description: description,
-        processedDescription: processedDescription,
-        time: this.getCurrentTime(),
-        detail: {
-          type: 'transfer',
-          sender: currentUser,
-          senderAvatar: senderAvatar,
-          receiver: receiver.name,
-          receiverAvatar: receiverAvatar,
-          amount: transfer.amount,
-          senderScoreAfter: sender.score,
-          receiverScoreAfter: receiver.score
-        },
-        hasMe: hasMe,
-        isSystem: false,
-        isReceive: false,
-        segments: segments
-      };
+      const record = this.createTransferRecord({
+        sender: currentUser,
+        receiver,
+        amount: transfer.amount,
+        senderAvatar,
+        receiverAvatar,
+        senderScoreAfter: sender.score,
+        receiverScoreAfter: receiver.score
+      });
       room.records.unshift(record);
     }
 
@@ -1107,31 +1110,89 @@ Page({
    * 确认结算
    * 房主确认后执行结算流程：
    * 1. 计算玩家输赢结果
-   * 2. 生成战绩数据
-   * 3. 绘制战绩图片
-   * 4. 更新房间状态为"已结束"
-   * 5. 显示战绩弹窗
+   * 2. 生成战绩数据（按Excel柱状图排序）
+   * 3. 自动上传战绩到服务器
+   * 4. 绘制战绩图片
+   * 5. 更新房间状态为"已结束"
+   * 6. 显示战绩弹窗
    */
   confirmSettle() {
     const room = this.data.room;
+    const currentUser = this.data.currentUser;
 
-    // 计算玩家战绩
-    const playerList = room.members.map(player => {
-      let result = '平局';
-      let winLose = player.score;
+    // 分离赢家和输家
+    const winners = [];
+    const losers = [];
 
+    room.members.forEach(player => {
       if (player.score > 0) {
-        result = '赢';
+        winners.push({
+          playerName: player.name,
+          avatarUrl: player.avatarUrl || '',
+          score: player.score,
+          displayScore: `+${player.score}`,
+          isCurrentUser: player.name === currentUser
+        });
       } else if (player.score < 0) {
-        result = '输';
+        losers.push({
+          playerName: player.name,
+          avatarUrl: player.avatarUrl || '',
+          score: player.score,
+          displayScore: `${player.score}`,
+          isCurrentUser: player.name === currentUser
+        });
       }
+    });
 
-      return {
-        playerName: player.name,
-        score: player.score,
-        result: result,
-        winLose: winLose
-      };
+    // 计算柱状图长度
+    // 赢家板块：基准值为最大正积分
+    let winMax = 0;
+    if (winners.length > 0) {
+      winMax = Math.max(...winners.map(w => w.score));
+    }
+
+    // 输家板块：基准值为最大负积分的绝对值
+    let loseMax = 0;
+    if (losers.length > 0) {
+      loseMax = Math.max(...losers.map(l => Math.abs(l.score)));
+    }
+
+    // 计算每个玩家的柱状条长度（基准值对应80px）
+    winners.forEach(winner => {
+      let barHeight = (winner.score / winMax) * 80;
+      // 最小长度3px，保留1位小数
+      barHeight = Math.max(3, parseFloat(barHeight.toFixed(1)));
+      winner.barHeight = barHeight;
+    });
+
+    losers.forEach(loser => {
+      let barHeight = (Math.abs(loser.score) / loseMax) * 80;
+      // 最小长度3px，保留1位小数
+      barHeight = Math.max(3, parseFloat(barHeight.toFixed(1)));
+      loser.barHeight = barHeight;
+    });
+
+    // 排序
+    // 赢家：积分从高到低，同分本人优先
+    winners.sort((a, b) => {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      if (a.isCurrentUser && !b.isCurrentUser) return -1;
+      if (!a.isCurrentUser && b.isCurrentUser) return 1;
+      return 0;
+    });
+
+    // 输家：按绝对值从高到低，同绝对值本人优先
+    losers.sort((a, b) => {
+      const absA = Math.abs(a.score);
+      const absB = Math.abs(b.score);
+      if (absA !== absB) {
+        return absB - absA;
+      }
+      if (a.isCurrentUser && !b.isCurrentUser) return -1;
+      if (!a.isCurrentUser && b.isCurrentUser) return 1;
+      return 0;
     });
 
     // 准备战绩数据
@@ -1141,7 +1202,9 @@ Page({
       roomName: room.roomName,
       settlementTime: this.getCurrentTime(),
       creator: room.creator,
-      playerList: playerList,
+      winners: winners,
+      losers: losers,
+      playerList: [...winners, ...losers], // 保留原有playerList用于兼容
       isUploaded: false
     };
 
@@ -1162,6 +1225,8 @@ Page({
       this.setData({ showResultModal: true });
       // 绘制战绩图片
       this.generateResultImage();
+      // 自动上传战绩到服务器
+      this.autoUploadResult();
     }, 300);
 
     // 更新房间状态为已结束
@@ -1208,7 +1273,7 @@ Page({
 
   /**
    * 生成战绩图片
-   * 使用Canvas 2D API绘制战绩卡片
+   * 使用Canvas 2D API绘制Excel柱状图风格的战绩卡片
    */
   generateResultImage() {
     const query = wx.createSelectorQuery();
@@ -1235,67 +1300,240 @@ Page({
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, width, height);
 
-          // 绘制装饰条
-          ctx.fillStyle = '#4CD964';
-          ctx.fillRect(0, 0, width, 120);
+          // 绘制顶部装饰条（橙色渐变）
+          const gradient = ctx.createLinearGradient(0, 0, 0, 140);
+          gradient.addColorStop(0, '#FF7A2F');
+          gradient.addColorStop(1, '#FF9E58');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, width, 140);
 
-          // 绘制房间信息
-          ctx.fillStyle = '#333333';
-          ctx.font = 'bold 36px Arial';
+          // 绘制房间名（居中）
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 40px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText(this.data.resultData.roomName, width / 2, 60);
+          ctx.fillText(this.data.resultData.roomName, width / 2, 70);
 
-          ctx.font = '24px Arial';
-          ctx.fillText(this.data.resultData.roomMode, width / 2, 100);
+          // 绘制结算时间（居中显示在房间名下方）
+          ctx.font = '22px Arial';
+          ctx.fillText(this.data.resultData.settlementTime, width / 2, 105);
 
-          // 绘制玩家列表
-          const startY = 180;
-          const lineHeight = 70;
+          let currentY = 160;
+          const resultData = this.data.resultData;
+          const winners = resultData.winners || [];
+          const losers = resultData.losers || [];
 
-          ctx.font = '28px Arial';
-          ctx.textAlign = 'left';
-          ctx.fillStyle = '#333333';
-
-          this.data.resultData.playerList.forEach((player, index) => {
-            const y = startY + index * lineHeight;
-            const scoreText = player.score >= 0 ? `+${player.score}` : `${player.score}`;
-            const scoreColor = player.score >= 0 ? '#4CD964' : '#FF3B30';
-
-            ctx.fillText(`${player.name}:`, 60, y);
-            ctx.fillStyle = scoreColor;
-            ctx.font = 'bold 28px Arial';
-            ctx.fillText(scoreText, 250, y);
+          // 绘制赢家板块
+          if (winners.length > 0) {
+            // 板块标题
             ctx.fillStyle = '#333333';
-            ctx.font = '28px Arial';
-            ctx.fillText(`(${player.result})`, 380, y);
-          });
-
-          // 下注模式：绘制奖池信息
-          if (this.data.resultData.roomMode === '下注模式' && this.data.resultData.prizePoolInfo) {
-            const prizeInfo = this.data.resultData.prizePoolInfo;
-            const prizeY = startY + this.data.resultData.playerList.length * lineHeight + 60;
-
-            ctx.fillStyle = '#FF7A2F';
-            ctx.fillRect(40, prizeY - 20, width - 80, 100);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '24px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('奖池总额', width / 2, prizeY + 20);
             ctx.font = 'bold 36px Arial';
-            ctx.fillText(`${prizeInfo.totalPrizePool} 积分`, width / 2, prizeY + 60);
+            ctx.textAlign = 'center';
 
-            if (prizeInfo.receiver) {
+            // 绘制绿色图标
+            ctx.fillStyle = '#4CD964';
+            ctx.beginPath();
+            ctx.arc(width / 2 - 60, currentY - 10, 16, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // 绘制标题文字
+            ctx.fillStyle = '#333333';
+            ctx.fillText('赢家（正积分）', width / 2, currentY);
+
+            currentY += 60;
+
+            // 绘制横向柱状图
+            const avatarRadius = 40;
+            const barHeight = 20;
+            const scoreMargin = 10;
+
+            winners.forEach((winner, index) => {
+              const startY = currentY + index * 80;
+              const barWidth = winner.barHeight || 3;
+
+              // 绘制头像占位（圆形）
+              ctx.fillStyle = '#e0e0e0';
+              ctx.beginPath();
+              ctx.arc(40, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
+              ctx.fill();
+
+              // 绘制用户名（右对齐）
+              ctx.fillStyle = '#333333';
               ctx.font = '24px Arial';
-              ctx.fillText(`收取人: ${prizeInfo.receiver}`, width / 2, height - 80);
-            }
+              ctx.textAlign = 'right';  // 右对齐
+
+              // 截断过长用户名（6个字）
+              let displayName = winner.playerName;
+              if (displayName.length > 6) {
+                displayName = displayName.substring(0, 6) + '...';
+              }
+              // 右对齐绘制：用户名区域结束位置x=120+100=220
+              ctx.fillText(displayName, 220, startY + avatarRadius + 8);
+
+              // 绘制横向柱状条（统一起始位置：头像80px + 名字100px = 180px，加间距20px = 200px）
+              const barStartX = 200;
+              ctx.fillStyle = '#4CD964';
+              ctx.fillRect(barStartX, startY + avatarRadius - barHeight / 2, barWidth, barHeight);
+
+              // 绘制积分值
+              ctx.fillStyle = '#4CD964';
+              ctx.font = 'bold 28px Arial';
+              ctx.textAlign = 'left';
+              ctx.fillText(winner.displayScore, barStartX + barWidth + scoreMargin, startY + avatarRadius + 8);
+            });
+
+            currentY += winners.length * 80 + 60;
           }
 
-          // 绘制结算时间
+          // 板块间间距
+          if (winners.length > 0 && losers.length > 0) {
+            currentY += 40;
+          }
+
+          // 绘制输家板块
+          if (losers.length > 0) {
+            // 板块标题
+            ctx.fillStyle = '#333333';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+
+            // 绘制红色图标
+            ctx.fillStyle = '#FF3B30';
+            ctx.beginPath();
+            ctx.arc(width / 2 - 60, currentY - 10, 16, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // 绘制标题文字
+            ctx.fillStyle = '#333333';
+            ctx.fillText('输家（负积分）', width / 2, currentY);
+
+            currentY += 60;
+
+            // 绘制横向柱状图
+            const avatarRadius = 40;
+            const barHeight = 20;
+            const scoreMargin = 10;
+
+            losers.forEach((loser, index) => {
+              const startY = currentY + index * 80;
+              const barWidth = loser.barHeight || 3;
+
+              // 绘制头像占位（圆形）
+              ctx.fillStyle = '#e0e0e0';
+              ctx.beginPath();
+              ctx.arc(40, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
+              ctx.fill();
+
+              // 绘制用户名（右对齐）
+              ctx.fillStyle = '#333333';
+              ctx.font = '24px Arial';
+              ctx.textAlign = 'right';  // 右对齐
+
+              // 截断过长用户名（6个字）
+              let displayName = loser.playerName;
+              if (displayName.length > 6) {
+                displayName = loser.playerName.substring(0, 6) + '...';
+              }
+              // 右对齐绘制：用户名区域结束位置x=120+100=220
+              ctx.fillText(displayName, 220, startY + avatarRadius + 8);
+
+              // 绘制横向柱状条（统一起始位置：头像80px + 名字100px = 180px，加间距20px = 200px）
+              const barStartX = 200;
+              ctx.fillStyle = '#FF3B30';
+              ctx.fillRect(barStartX, startY + avatarRadius - barHeight / 2, barWidth, barHeight);
+
+              // 绘制积分值
+              ctx.fillStyle = '#FF3B30';
+              ctx.font = 'bold 28px Arial';
+              ctx.textAlign = 'left';
+              ctx.fillText(loser.displayScore, barStartX + barWidth + scoreMargin, startY + avatarRadius + 8);
+            });
+
+            currentY += losers.length * 80 + 60;
+          }
+
+          // 无输赢情况
+          if (winners.length === 0 && losers.length === 0) {
+            ctx.fillStyle = '#999999';
+            ctx.font = '28px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('本局无输赢', width / 2, currentY + 50);
+            currentY += 100;
+          } else if (winners.length === 0) {
+            ctx.fillStyle = '#999999';
+            ctx.font = '28px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('本局无赢家', width / 2, currentY + 50);
+            currentY += 100;
+          } else if (losers.length === 0) {
+            ctx.fillStyle = '#999999';
+            ctx.font = '28px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('本局无输家', width / 2, currentY + 50);
+            currentY += 100;
+          }
+
+          // 绘制底部信息区
+          currentY += 40;
+
+          // 绘制分隔线
+          ctx.strokeStyle = '#f5f5f5';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(30, currentY);
+          ctx.lineTo(width - 30, currentY);
+          ctx.stroke();
+
+          // 绘制房间模式
+          ctx.fillStyle = '#666666';
+          ctx.font = '24px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText('房间模式', 50, currentY + 50);
+
+          const modeText = resultData.roomMode;
+          ctx.fillStyle = resultData.roomMode === '下注模式' ? '#FF7A2F' : '#4CD964';
+          ctx.font = 'bold 26px Arial';
+          ctx.textAlign = 'right';
+          ctx.fillText(modeText, width - 50, currentY + 50);
+
+          // 下注模式：绘制奖池信息
+          if (resultData.roomMode === '下注模式' && resultData.prizePoolInfo) {
+            const prizeInfo = resultData.prizePoolInfo;
+
+            ctx.fillStyle = '#666666';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('奖池总额', 50, currentY + 100);
+
+            ctx.fillStyle = '#FF7A2F';
+            ctx.font = 'bold 28px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${prizeInfo.totalPrizePool} 积分`, width - 50, currentY + 100);
+
+            if (prizeInfo.receiver) {
+              ctx.fillStyle = '#666666';
+              ctx.font = '24px Arial';
+              ctx.textAlign = 'left';
+              ctx.fillText('收取人', 50, currentY + 150);
+
+              ctx.fillStyle = '#333333';
+              ctx.font = '26px Arial';
+              ctx.textAlign = 'right';
+              ctx.fillText(prizeInfo.receiver, width - 50, currentY + 150);
+            }
+
+            currentY += prizeInfo.receiver ? 170 : 120;
+          } else {
+            currentY += 60;
+          }
+
+          // 绘制页脚装饰
+          const bottomY = height - 60;
+          ctx.fillStyle = '#f5f5f5';
+          ctx.fillRect(0, bottomY, width, 60);
           ctx.fillStyle = '#999999';
           ctx.font = '20px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText(`结算时间: ${this.data.resultData.settlementTime}`, width / 2, height - 30);
+          ctx.fillText('打牌记账小程序', width / 2, bottomY + 35);
         }
       });
   },
@@ -1358,33 +1596,111 @@ Page({
   },
 
   /**
-   * 上传战绩到服务器
-   * TODO: 需要配置实际的服务器接口地址
+   * 自动上传战绩到服务器
+   * 弹窗弹出后自动执行，支持重试机制
    */
-  uploadResult() {
+  autoUploadResult() {
     if (this.data.resultData.isUploaded) {
       return;
     }
 
-    // TODO: 配置服务器接口地址
+    // TODO: 配置实际的服务器接口地址
     const serverUrl = 'https://your-server.com/api/settlement';
+    
+    // 上传函数
+    const doUpload = (retryCount = 0) => {
+      wx.request({
+        url: serverUrl,
+        method: 'POST',
+        data: this.data.resultData,
+        header: {
+          'content-type': 'application/json'
+        },
+        success: (res) => {
+          if (res.statusCode === 200) {
+            // 上传成功（静默更新状态）
+            const newData = { ...this.data.resultData, isUploaded: true };
+            this.setData({ 
+              resultData: newData
+            });
+          } else {
+            // 服务器返回错误
+            throw new Error('服务器错误');
+          }
+        },
+        fail: () => {
+          // 网络请求失败，判断是否重试
+          if (retryCount < 3) {
+            // 1秒后重试（静默）
+            setTimeout(() => {
+              doUpload(retryCount + 1);
+            }, 1000);
+          } else {
+            // 达到最大重试次数，静默记录失败
+            this.setData({ 
+              uploadFailed: true
+            });
+            
+            // 记录到本地存储，下次进入时重试
+            const failedUploads = wx.getStorageSync('failedUploads') || [];
+            failedUploads.push({
+              data: this.data.resultData,
+              timestamp: Date.now(),
+              roomId: this.data.roomId
+            });
+            wx.setStorageSync('failedUploads', failedUploads);
+          }
+        }
+      });
+    };
 
-    wx.request({
-      url: serverUrl,
-      method: 'POST',
-      data: this.data.resultData,
-      header: {
-        'content-type': 'application/json'
-      },
-      success: () => {
-        const newData = { ...this.data.resultData, isUploaded: true };
-        this.setData({ resultData: newData });
-        this.showTip('上传成功');
-      },
-      fail: () => {
-        this.showTip('网络异常，点击重试');
-      }
-    });
+    // 执行上传
+    doUpload(0);
+  },
+
+  /**
+   * 分享战绩
+   * 调用微信小程序分享API，将战绩图片分享给好友或群聊
+   */
+  shareResult() {
+    const query = wx.createSelectorQuery();
+    query.select('#resultCanvas')
+      .fields({ node: true, size: true })
+      .exec((res) => {
+        if (res && res[0]) {
+          const canvas = res[0].node;
+          wx.canvasToTempFilePath({
+            canvas: canvas,
+            success: (res) => {
+              // 检查分享权限
+              wx.getSetting({
+                success: (setting) => {
+                  // 调用分享接口
+                  wx.shareImageToFriend({
+                    imageUrl: res.tempFilePath,
+                    success: () => {
+                      this.showTip('分享成功');
+                    },
+                    fail: (err) => {
+                      if (err.errMsg.includes('cancel')) {
+                        this.showTip('分享取消');
+                      } else {
+                        this.showTip('分享失败');
+                        console.error('分享失败:', err);
+                      }
+                    }
+                  });
+                }
+              });
+            },
+            fail: () => {
+              this.showTip('图片生成失败，无法分享');
+            }
+          });
+        } else {
+          this.showTip('未找到战绩图片');
+        }
+      });
   },
 
   /**
@@ -1399,9 +1715,6 @@ Page({
    */
   showQrcode() {
     this.setData({ showQrcode: true });
-    setTimeout(() => {
-      this.drawQrcode();
-    }, 300);
   },
 
   /**
@@ -1409,56 +1722,6 @@ Page({
    */
   hideQrcode() {
     this.setData({ showQrcode: false });
-  },
-
-  /**
-   * 绘制房间二维码
-   * 使用Canvas绘制房间ID和提示信息
-   */
-  drawQrcode() {
-    const query = wx.createSelectorQuery();
-    query.select('#qrcodeCanvas')
-      .fields({ node: true, size: true })
-      .exec((res) => {
-        if (res && res[0]) {
-          const canvas = res[0].node;
-          const ctx = canvas.getContext('2d');
-
-          const systemInfo = wx.getSystemInfoSync();
-          const dpr = systemInfo.pixelRatio;
-          const width = res[0].width;
-          const height = res[0].height;
-
-          canvas.width = width * dpr;
-          canvas.height = height * dpr;
-          ctx.scale(dpr, dpr);
-
-          ctx.clearRect(0, 0, width, height);
-
-          // 绘制白色背景
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, width, height);
-
-          // 绘制房间ID
-          ctx.fillStyle = '#333333';
-          ctx.font = 'bold 32px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('房间ID', width / 2, 80);
-
-          ctx.font = 'bold 48px Arial';
-          ctx.fillText(this.data.room._id, width / 2, 150);
-
-          // 绘制提示文字
-          ctx.font = '20px Arial';
-          ctx.fillStyle = '#999999';
-          ctx.fillText('请使用扫码功能加入房间', width / 2, 220);
-
-          // 绘制边框
-          ctx.strokeStyle = '#FF7A2F';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(20, 20, width - 40, height - 40);
-        }
-      });
   },
 
   /**
@@ -1587,125 +1850,33 @@ Page({
     }
 
     const amount = this.data.lastDepositAmount;
-    const currentUser = this.data.currentUser;
     const room = this.data.room;
 
-    // 找到操作玩家
-    const playerIndex = room.members.findIndex(m => m.name === currentUser);
-    if (playerIndex === -1) {
-      this.showTip('找不到当前用户');
-      return;
-    }
+    // 获取玩家头像
+    const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
+    const playerAvatar = room.members[playerIndex].avatarUrl || '';
 
     // 执行转入
-    const player = room.members[playerIndex];
-    player.score -= amount;
-    // 如果奖池已被收取，有新转入时清空收取记录，使收取按钮恢复可用
-    if (room.prizePool.receiver) {
-      room.prizePool.receiver = '';
-      room.prizePool.receivedTime = '';
+    const result = this.processDeposit({
+      amount,
+      playerAvatar,
+      recordType: 'follow',
+      recordTypeText: '跟注'
+    });
+
+    if (!result.success) {
+      return;
     }
-    room.prizePool.total += amount;
-
-    // 更新滚动标志
-    const updateMemberScrollFlags = (member) => {
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      member.scoreScroll = scoreScroll;
-    };
-
-    updateMemberScrollFlags(player);
 
     // 更新跟注状态
     this.setData({
       lastDepositAmount: amount,
-      lastDepositOperator: currentUser,
+      lastDepositOperator: this.data.currentUser,
       canFollow: true
     });
 
-    // 播放动画
-    this.setData({ animateAmount: true });
-    setTimeout(() => this.setData({ animateAmount: false }), 400);
-
-    // 获取玩家头像
-    const playerAvatar = player.avatarUrl || '';
-
-    // 生成跟注记录（下注模式）
-    const description = `${currentUser} 跟注 ${amount} 分`;
-    const processedDescription = description.replace(currentUser, '我');
-    const hasMe = processedDescription.includes('我');
-
-    // 将描述分割成片段，用于单独高亮"我"字和金额
-    let segments = [];
-    if (hasMe) {
-      const parts = processedDescription.split('我');
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i]) {
-          const amountMatch = parts[i].match(/\d+/);
-          if (amountMatch) {
-            const amountStr = amountMatch[0];
-            const amountParts = parts[i].split(amountStr);
-            if (amountParts[0]) {
-              segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-            }
-            segments.push({ text: amountStr, isMe: false, isAmount: true });
-            if (amountParts[1]) {
-              segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-            }
-          } else {
-            segments.push({ text: parts[i], isMe: false, isAmount: false });
-          }
-        }
-        if (i < parts.length - 1) {
-          segments.push({ text: '我', isMe: true, isAmount: false });
-        }
-      }
-    } else {
-      const amountMatch = processedDescription.match(/\d+/);
-      if (amountMatch) {
-        const amountStr = amountMatch[0];
-        const amountParts = processedDescription.split(amountStr);
-        if (amountParts[0]) {
-          segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-        }
-        segments.push({ text: amountStr, isMe: false, isAmount: true });
-        if (amountParts[1]) {
-          segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-        }
-      } else {
-        segments.push({ text: processedDescription, isMe: false, isAmount: false });
-      }
-    }
-
-    const record = {
-      description: description,
-      processedDescription: processedDescription,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'follow',
-        operator: currentUser,
-        operatorAvatar: playerAvatar,
-        avatarUrl: playerAvatar,
-        amount: amount,
-        playerScoreAfter: player.score,
-        prizePoolAfter: room.prizePool.total
-      },
-      hasMe: hasMe,
-      isSystem: false,
-      isReceive: false,
-      segments: segments
-    };
-    room.records.unshift(record);
-
-    // 保存数据
-    this.setData({
-      room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
-    });
-    this.saveRoomData();
-
     // 触发转入奖池飘动动画
-    this.triggerDepositAnimation(playerIndex, amount);
+    this.triggerDepositAnimation(result.playerIndex, result.amount);
 
     // 滚动到底部显示新消息
     this.scrollToBottom();
@@ -1771,128 +1942,33 @@ Page({
     }
 
     const amount = this.data.room.allInValue;
-    const currentUser = this.data.currentUser;
     const room = this.data.room;
 
-    // 找到当前玩家
-    const playerIndex = room.members.findIndex(m => m.name === currentUser);
-    if (playerIndex === -1) {
-      this.showTip('找不到当前用户');
+    // 获取玩家头像
+    const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
+    const playerAvatar = room.members[playerIndex].avatarUrl || '';
+
+    // 执行转入
+    const result = this.processDeposit({
+      amount,
+      playerAvatar,
+      recordType: 'allin',
+      recordTypeText: 'all in'
+    });
+
+    if (!result.success) {
       return;
     }
-
-    const player = room.members[playerIndex];
-
-    // 扣除玩家积分
-    player.score -= amount;
-
-    // 如果奖池已被收取，有新转入时清空收取记录，使收取按钮恢复可用
-    if (room.prizePool.receiver) {
-      room.prizePool.receiver = '';
-      room.prizePool.receivedTime = '';
-    }
-
-    // 增加奖池金额
-    room.prizePool.total += amount;
-
-    // 更新滚动标志
-    const updateMemberScrollFlags = (member) => {
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      member.scoreScroll = scoreScroll;
-    };
-
-    updateMemberScrollFlags(player);
 
     // 更新跟注状态
     this.setData({
       lastDepositAmount: amount,
-      lastDepositOperator: currentUser,
+      lastDepositOperator: this.data.currentUser,
       canFollow: true
     });
 
-    // 播放动画
-    this.setData({ animateAmount: true });
-    setTimeout(() => this.setData({ animateAmount: false }), 400);
-
-    // 生成all in记录
-    const playerAvatar = player.avatarUrl || '';
-    const description = `${currentUser} all in ${amount} 分`;
-    const processedDescription = description.replace(currentUser, '我');
-    const hasMe = processedDescription.includes('我');
-
-    // 将描述分割成片段，用于单独高亮"我"字和金额
-    let segments = [];
-    if (hasMe) {
-      const parts = processedDescription.split('我');
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i]) {
-          const amountMatch = parts[i].match(/\d+/);
-          if (amountMatch) {
-            const amountStr = amountMatch[0];
-            const amountParts = parts[i].split(amountStr);
-            if (amountParts[0]) {
-              segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-            }
-            segments.push({ text: amountStr, isMe: false, isAmount: true });
-            if (amountParts[1]) {
-              segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-            }
-          } else {
-            segments.push({ text: parts[i], isMe: false, isAmount: false });
-          }
-        }
-        if (i < parts.length - 1) {
-          segments.push({ text: '我', isMe: true, isAmount: false });
-        }
-      }
-    } else {
-      const amountMatch = processedDescription.match(/\d+/);
-      if (amountMatch) {
-        const amountStr = amountMatch[0];
-        const amountParts = processedDescription.split(amountStr);
-        if (amountParts[0]) {
-          segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-        }
-        segments.push({ text: amountStr, isMe: false, isAmount: true });
-        if (amountParts[1]) {
-          segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-        }
-      } else {
-        segments.push({ text: processedDescription, isMe: false, isAmount: false });
-      }
-    }
-
-    const record = {
-      description: description,
-      processedDescription: processedDescription,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'allin',
-        operator: currentUser,
-        operatorAvatar: playerAvatar,
-        avatarUrl: playerAvatar,
-        amount: amount,
-        playerScoreAfter: player.score,
-        prizePoolAfter: room.prizePool.total,
-      },
-      hasMe: hasMe,
-      isSystem: false,
-      isReceive: false,
-      segments: segments
-    };
-
-    room.records.unshift(record);
-
-    // 保存数据
-    this.setData({
-      room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
-    });
-    this.saveRoomData();
-
     // 触发转入奖池飘动动画
-    this.triggerDepositAnimation(playerIndex, amount);
+    this.triggerDepositAnimation(result.playerIndex, result.amount);
 
     // 滚动到底部显示新消息
     this.scrollToBottom();
@@ -1965,25 +2041,6 @@ Page({
   },
 
   /**
-   * 点击奖池区域
-   * 功能：打开转入奖池弹窗
-   */
-  transferToPrizePool() {
-    // 游戏已结束，不允许操作
-    if (this.data.room.status !== 'playing') {
-      // this.showTip('游戏已结束，无法操作');
-      return;
-    }
-
-    // 打开转入奖池弹窗
-    this.setData({
-      showPrizeModal: true,
-      prizeAmount: '',
-      showInputError: false
-    });
-  },
-
-  /**
    * 页面分享配置
    * @returns {Object} 分享信息对象
    */
@@ -1996,28 +2053,6 @@ Page({
   },
 
   // ==================== 动画系统 ====================
-
-  /**
-   * 获取元素位置（兼容滚动容器）
-   * @param {string} selector - 元素选择器
-   * @returns {Promise} 返回元素坐标 {left, top}
-   */
-  getElementPosition(selector) {
-    return new Promise((resolve, reject) => {
-      const query = wx.createSelectorQuery();
-      query.select(selector).boundingClientRect();
-      query.exec((res) => {
-        if (res && res[0]) {
-          resolve({
-            left: res[0].left,
-            top: res[0].top
-          });
-        } else {
-          reject(new Error(`Element not found: ${selector}`));
-        }
-      });
-    });
-  },
 
   /**
    * 触发转入奖池飘动动画
