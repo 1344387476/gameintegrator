@@ -1200,7 +1200,7 @@ padding-bottom: 20rpx;
 .player-name-mini {
   font-size: 24rpx;
   color: #333333;
-  width: 160rpx;  /* 固定宽度100px */
+  width: 200rpx;  /* 固定宽度100px，适配6个字符 */
   text-align: left;  /* 左对齐 */
   overflow: hidden;
   text-overflow: ellipsis;

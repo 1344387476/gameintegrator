@@ -81,7 +81,9 @@ Page({
     // 战绩上传提示
     showUploadTip: false, // 是否显示上传提示
     uploadTipText: '', // 上传提示文字
-    uploadFailed: false // 上传是否失败
+    uploadFailed: false, // 上传是否失败
+    // 战绩保存状态
+    savingImage: false // 是否正在保存战绩图片
   },
 
   /**
@@ -1157,16 +1159,16 @@ Page({
       loseMax = Math.max(...losers.map(l => Math.abs(l.score)));
     }
 
-    // 计算每个玩家的柱状条长度（基准值对应80px）
+    // 计算每个玩家的柱状条长度（基准值对应150px，即300rpx）
     winners.forEach(winner => {
-      let barHeight = (winner.score / winMax) * 80;
+      let barHeight = (winner.score / winMax) * 150;
       // 最小长度3px，保留1位小数
       barHeight = Math.max(3, parseFloat(barHeight.toFixed(1)));
       winner.barHeight = barHeight;
     });
 
     losers.forEach(loser => {
-      let barHeight = (Math.abs(loser.score) / loseMax) * 80;
+      let barHeight = (Math.abs(loser.score) / loseMax) * 150;
       // 最小长度3px，保留1位小数
       barHeight = Math.max(3, parseFloat(barHeight.toFixed(1)));
       loser.barHeight = barHeight;
@@ -1272,59 +1274,136 @@ Page({
   },
 
   /**
+   * 预加载头像图片
+   * @param {Object} canvas - Canvas节点
+   * @param {Array} players - 玩家列表
+   * @returns {Promise<Array>} 头像图片数组
+   */
+  loadPlayerAvatars(canvas, players) {
+    return Promise.all(players.map(player => {
+      return new Promise((resolve) => {
+        if (player.avatarUrl) {
+          const img = canvas.createImage();
+          img.onload = () => resolve({ img, player, success: true });
+          img.onerror = () => resolve({ img: null, player, success: false });
+          img.src = player.avatarUrl;
+        } else {
+          resolve({ img: null, player, success: false });
+        }
+      });
+    }));
+  },
+
+  /**
    * 生成战绩图片
    * 使用Canvas 2D API绘制Excel柱状图风格的战绩卡片
+   * 优化：添加异常处理、动态计算Canvas尺寸、确保绘制完整性、预加载头像
    */
   generateResultImage() {
-    const query = wx.createSelectorQuery();
-    query.select('#resultCanvas')
-      .fields({ node: true, size: true })
-      .exec((res) => {
-        if (res && res[0]) {
+    return new Promise((resolve, reject) => {
+      const query = wx.createSelectorQuery();
+      query.select('#resultCanvas')
+        .fields({ node: true, size: true })
+        .exec(async (res) => {
+        try {
+          if (!res || !res[0]) {
+            console.error('Canvas节点获取失败');
+            this.showTip('图片生成失败，请重试');
+            return;
+          }
+
           const canvas = res[0].node;
+          if (!canvas) {
+            console.error('Canvas节点不存在');
+            this.showTip('图片生成失败，请重试');
+            return;
+          }
+
           const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            console.error('Canvas 2D上下文获取失败');
+            this.showTip('图片生成失败，请重试');
+            return;
+          }
 
           const systemInfo = wx.getSystemInfoSync();
-          const dpr = systemInfo.pixelRatio;
-          const width = res[0].width;
-          const height = res[0].height;
+          const dpr = systemInfo.pixelRatio || 2;
 
-          canvas.width = width * dpr;
-          canvas.height = height * dpr;
-          ctx.scale(dpr, dpr);
-
-          // 清空画布
-          ctx.clearRect(0, 0, width, height);
-
-          // 绘制白色背景
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, width, height);
-
-          // 绘制顶部装饰条（橙色渐变）
-          const gradient = ctx.createLinearGradient(0, 0, 0, 140);
-          gradient.addColorStop(0, '#FF7A2F');
-          gradient.addColorStop(1, '#FF9E58');
-          ctx.fillStyle = gradient;
-          ctx.fillRect(0, 0, width, 140);
-
-          // 绘制房间名（居中）
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 40px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText(this.data.resultData.roomName, width / 2, 70);
-
-          // 绘制结算时间（居中显示在房间名下方）
-          ctx.font = '22px Arial';
-          ctx.fillText(this.data.resultData.settlementTime, width / 2, 105);
-
-          let currentY = 160;
+          // 动态计算Canvas尺寸（根据内容自适应）
           const resultData = this.data.resultData;
           const winners = resultData.winners || [];
           const losers = resultData.losers || [];
 
+          // 计算所需高度
+          let contentHeight = 60; // 房间名高度
+
+          // 赢家板块高度
+          if (winners.length > 0) {
+            contentHeight += 40; // 板块间距
+            contentHeight += 60; // 标题区域
+            contentHeight += winners.length * 80; // 用户列表
+            contentHeight += 40; // 底部间距
+          }
+
+          // 输家板块高度
+          if (losers.length > 0) {
+            contentHeight += 40; // 板块间间距（如果有赢家）
+            contentHeight += 60; // 标题区域
+            contentHeight += losers.length * 80; // 用户列表
+            contentHeight += 40; // 底部间距
+          }
+
+          // 无输赢情况
+          if (winners.length === 0 && losers.length === 0) {
+            contentHeight += 50; // 提示区域
+          }
+
+          // 底部信息区高度
+          contentHeight += 40; // 间距
+          contentHeight += 50; // 结算时间
+          contentHeight += 50; // 房间模式
+          contentHeight += 50; // 奖池总额（下注模式）
+          contentHeight += 50; // 收取人（下注模式）
+          contentHeight += 40; // 底部留白
+
+          // 设置Canvas尺寸（最小720px高度确保清晰度）
+          const width = 500;
+          const calculatedHeight = Math.max(contentHeight, 720);
+
+          canvas.width = width * dpr;
+          canvas.height = calculatedHeight * dpr;
+          ctx.scale(dpr, dpr);
+
+          // 清空画布
+          ctx.clearRect(0, 0, width, calculatedHeight);
+
+          // 绘制白色背景
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, calculatedHeight);
+
+          // 绘制房间名（居中，橙色，与弹窗一致）
+          ctx.fillStyle = '#FF7A2F';
+          ctx.font = 'bold 40px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(this.data.resultData.roomName, width / 2, 60);
+
+          let currentY = 100;
+
+          // 预加载所有头像
+          let winnerImages = [];
+          let loserImages = [];
+          
+          if (winners.length > 0) {
+            winnerImages = await this.loadPlayerAvatars(canvas, winners);
+          }
+          
+          if (losers.length > 0) {
+            loserImages = await this.loadPlayerAvatars(canvas, losers);
+          }
+
           // 绘制赢家板块
           if (winners.length > 0) {
-            // 板块标题
+            // 板块标题（居中，与弹窗一致）
             ctx.fillStyle = '#333333';
             ctx.font = 'bold 36px Arial';
             ctx.textAlign = 'center';
@@ -1332,45 +1411,79 @@ Page({
             // 绘制绿色图标
             ctx.fillStyle = '#4CD964';
             ctx.beginPath();
-            ctx.arc(width / 2 - 60, currentY - 10, 16, 0, 2 * Math.PI);
+            ctx.arc(width / 2 - 50, currentY - 10, 16, 0, 2 * Math.PI);
             ctx.fill();
 
             // 绘制标题文字
             ctx.fillStyle = '#333333';
-            ctx.fillText('赢家（正积分）', width / 2, currentY);
+            ctx.fillText('赢家', width / 2, currentY);
 
-            currentY += 60;
+            // 标题下方增加间距，确保不与用户项重叠
+            const userListY = currentY + 80;
 
-            // 绘制横向柱状图
-            const avatarRadius = 40;
+            // 绘制横向柱状图（统一变量 - 与WXSS弹窗样式完全一致）
+            const avatarRadius = 40;      // 头像半径40px（80rpx）
+            const avatarCenterX = 40;     // 头像中心在40px
+            const nameStartX = 96;        // 用户名起始：头像80 + 间距16 = 96px
+            const nameWidth = 80;         // 用户名宽度80px（160rpx）
+            const barStartX = 184;        // 柱状条起始：96 + 80 + 间距8 = 184px
             const barHeight = 20;
             const scoreMargin = 10;
 
             winners.forEach((winner, index) => {
-              const startY = currentY + index * 80;
+              const startY = userListY + index * 80;
               const barWidth = winner.barHeight || 3;
 
-              // 绘制头像占位（圆形）
+              // 绘制头像背景（圆形）
               ctx.fillStyle = '#e0e0e0';
               ctx.beginPath();
-              ctx.arc(40, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
+              ctx.arc(avatarCenterX, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
               ctx.fill();
 
-              // 绘制用户名（右对齐）
+              // 如果有头像，绘制头像（使用预加载的图片）
+              const imageData = winnerImages[index];
+              if (imageData && imageData.img) {
+                // 保存当前状态
+                ctx.save();
+                
+                // 创建圆形裁剪区域
+                ctx.beginPath();
+                ctx.arc(avatarCenterX, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
+                ctx.clip();
+                
+                // 绘制头像图片（居中裁剪）
+                const imgSize = avatarRadius * 2;
+                const imgX = avatarCenterX - avatarRadius;
+                const imgY = startY + avatarRadius - avatarRadius;
+                ctx.drawImage(imageData.img, imgX, imgY, imgSize, imgSize);
+                
+                // 恢复状态
+                ctx.restore();
+              } else {
+                // 没有头像时绘制首字
+                ctx.fillStyle = '#666666';
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const firstChar = winner.playerName.charAt(0);
+                ctx.fillText(firstChar, avatarCenterX, startY + avatarRadius);
+              }
+
+              // 绘制用户名（左对齐，80px宽度）
               ctx.fillStyle = '#333333';
               ctx.font = '24px Arial';
-              ctx.textAlign = 'right';  // 右对齐
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'alphabetic';
 
-              // 截断过长用户名（6个字）
+              // 截断过长用户名（限制最多6个字符）
               let displayName = winner.playerName;
               if (displayName.length > 6) {
-                displayName = displayName.substring(0, 6) + '...';
+                displayName = displayName.substring(0, 6) + '..';
               }
-              // 右对齐绘制：用户名区域结束位置x=120+100=220
-              ctx.fillText(displayName, 220, startY + avatarRadius + 8);
+              // 左对齐绘制：用户名区域 96-176px（80px宽度）
+              ctx.fillText(displayName, nameStartX, startY + avatarRadius + 8);
 
-              // 绘制横向柱状条（统一起始位置：头像80px + 名字100px = 180px，加间距20px = 200px）
-              const barStartX = 200;
+              // 绘制横向柱状条（起始位置184px，与用户名保持8px间距）
               ctx.fillStyle = '#4CD964';
               ctx.fillRect(barStartX, startY + avatarRadius - barHeight / 2, barWidth, barHeight);
 
@@ -1381,17 +1494,12 @@ Page({
               ctx.fillText(winner.displayScore, barStartX + barWidth + scoreMargin, startY + avatarRadius + 8);
             });
 
-            currentY += winners.length * 80 + 60;
-          }
-
-          // 板块间间距
-          if (winners.length > 0 && losers.length > 0) {
-            currentY += 40;
+            currentY = userListY + winners.length * 80 + 40;
           }
 
           // 绘制输家板块
           if (losers.length > 0) {
-            // 板块标题
+            // 板块标题（居中，与弹窗一致）
             ctx.fillStyle = '#333333';
             ctx.font = 'bold 36px Arial';
             ctx.textAlign = 'center';
@@ -1399,45 +1507,79 @@ Page({
             // 绘制红色图标
             ctx.fillStyle = '#FF3B30';
             ctx.beginPath();
-            ctx.arc(width / 2 - 60, currentY - 10, 16, 0, 2 * Math.PI);
+            ctx.arc(width / 2 - 50, currentY - 10, 16, 0, 2 * Math.PI);
             ctx.fill();
 
             // 绘制标题文字
             ctx.fillStyle = '#333333';
-            ctx.fillText('输家（负积分）', width / 2, currentY);
+            ctx.fillText('输家', width / 2, currentY);
 
-            currentY += 60;
+            // 标题下方增加间距，确保不与用户项重叠
+            const userListY = currentY + 80;
 
-            // 绘制横向柱状图
-            const avatarRadius = 40;
+            // 绘制横向柱状图（统一变量 - 与WXSS弹窗样式完全一致）
+            const avatarRadius = 40;      // 头像半径40px（80rpx）
+            const avatarCenterX = 40;     // 头像中心在40px
+            const nameStartX = 96;        // 用户名起始：头像80 + 间距16 = 96px
+            const nameWidth = 80;         // 用户名宽度80px（160rpx）
+            const barStartX = 184;        // 柱状条起始：96 + 80 + 间距8 = 184px
             const barHeight = 20;
             const scoreMargin = 10;
 
             losers.forEach((loser, index) => {
-              const startY = currentY + index * 80;
+              const startY = userListY + index * 80;
               const barWidth = loser.barHeight || 3;
 
-              // 绘制头像占位（圆形）
+              // 绘制头像背景（圆形）
               ctx.fillStyle = '#e0e0e0';
               ctx.beginPath();
-              ctx.arc(40, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
+              ctx.arc(avatarCenterX, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
               ctx.fill();
 
-              // 绘制用户名（右对齐）
+              // 如果有头像，绘制头像（使用预加载的图片）
+              const imageData = loserImages[index];
+              if (imageData && imageData.img) {
+                // 保存当前状态
+                ctx.save();
+                
+                // 创建圆形裁剪区域
+                ctx.beginPath();
+                ctx.arc(avatarCenterX, startY + avatarRadius, avatarRadius, 0, 2 * Math.PI);
+                ctx.clip();
+                
+                // 绘制头像图片（居中裁剪）
+                const imgSize = avatarRadius * 2;
+                const imgX = avatarCenterX - avatarRadius;
+                const imgY = startY + avatarRadius - avatarRadius;
+                ctx.drawImage(imageData.img, imgX, imgY, imgSize, imgSize);
+                
+                // 恢复状态
+                ctx.restore();
+              } else {
+                // 没有头像时绘制首字
+                ctx.fillStyle = '#666666';
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const firstChar = loser.playerName.charAt(0);
+                ctx.fillText(firstChar, avatarCenterX, startY + avatarRadius);
+              }
+
+              // 绘制用户名（左对齐，80px宽度）
               ctx.fillStyle = '#333333';
               ctx.font = '24px Arial';
-              ctx.textAlign = 'right';  // 右对齐
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'alphabetic';
 
-              // 截断过长用户名（6个字）
+              // 截断过长用户名（限制最多6个字符）
               let displayName = loser.playerName;
               if (displayName.length > 6) {
-                displayName = loser.playerName.substring(0, 6) + '...';
+                displayName = displayName.substring(0, 6) + '..';
               }
-              // 右对齐绘制：用户名区域结束位置x=120+100=220
-              ctx.fillText(displayName, 220, startY + avatarRadius + 8);
+              // 左对齐绘制：用户名区域 96-176px（80px宽度）
+              ctx.fillText(displayName, nameStartX, startY + avatarRadius + 8);
 
-              // 绘制横向柱状条（统一起始位置：头像80px + 名字100px = 180px，加间距20px = 200px）
-              const barStartX = 200;
+              // 绘制横向柱状条（起始位置184px，与用户名保持8px间距）
               ctx.fillStyle = '#FF3B30';
               ctx.fillRect(barStartX, startY + avatarRadius - barHeight / 2, barWidth, barHeight);
 
@@ -1448,7 +1590,7 @@ Page({
               ctx.fillText(loser.displayScore, barStartX + barWidth + scoreMargin, startY + avatarRadius + 8);
             });
 
-            currentY += losers.length * 80 + 60;
+            currentY = userListY + losers.length * 80 + 40;
           }
 
           // 无输赢情况
@@ -1472,112 +1614,150 @@ Page({
             currentY += 100;
           }
 
-          // 绘制底部信息区
+          // 绘制底部信息区（与弹窗一致）
           currentY += 40;
 
-          // 绘制分隔线
-          ctx.strokeStyle = '#f5f5f5';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(30, currentY);
-          ctx.lineTo(width - 30, currentY);
-          ctx.stroke();
+          // 绘制结算时间
+          ctx.fillStyle = '#666666';
+          ctx.font = '28px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText('结算时间', 50, currentY + 40);
+
+          ctx.fillStyle = '#333333';
+          ctx.font = '28px Arial';
+          ctx.textAlign = 'right';
+          ctx.fillText(resultData.settlementTime, width - 50, currentY + 40);
 
           // 绘制房间模式
           ctx.fillStyle = '#666666';
-          ctx.font = '24px Arial';
+          ctx.font = '28px Arial';
           ctx.textAlign = 'left';
-          ctx.fillText('房间模式', 50, currentY + 50);
+          ctx.fillText('房间模式', 50, currentY + 90);
 
           const modeText = resultData.roomMode;
           ctx.fillStyle = resultData.roomMode === '下注模式' ? '#FF7A2F' : '#4CD964';
-          ctx.font = 'bold 26px Arial';
+          ctx.font = 'bold 28px Arial';
           ctx.textAlign = 'right';
-          ctx.fillText(modeText, width - 50, currentY + 50);
+          ctx.fillText(modeText, width - 50, currentY + 90);
+
+          currentY += 120;
 
           // 下注模式：绘制奖池信息
           if (resultData.roomMode === '下注模式' && resultData.prizePoolInfo) {
             const prizeInfo = resultData.prizePoolInfo;
 
             ctx.fillStyle = '#666666';
-            ctx.font = '24px Arial';
+            ctx.font = '28px Arial';
             ctx.textAlign = 'left';
-            ctx.fillText('奖池总额', 50, currentY + 100);
+            ctx.fillText('奖池总额', 50, currentY);
 
             ctx.fillStyle = '#FF7A2F';
             ctx.font = 'bold 28px Arial';
             ctx.textAlign = 'right';
-            ctx.fillText(`${prizeInfo.totalPrizePool} 积分`, width - 50, currentY + 100);
+            ctx.fillText(`${prizeInfo.totalPrizePool} 积分`, width - 50, currentY);
+
+            currentY += 50;
 
             if (prizeInfo.receiver) {
               ctx.fillStyle = '#666666';
-              ctx.font = '24px Arial';
+              ctx.font = '28px Arial';
               ctx.textAlign = 'left';
-              ctx.fillText('收取人', 50, currentY + 150);
+              ctx.fillText('收取人', 50, currentY);
 
               ctx.fillStyle = '#333333';
-              ctx.font = '26px Arial';
+              ctx.font = 'bold 28px Arial';
               ctx.textAlign = 'right';
-              ctx.fillText(prizeInfo.receiver, width - 50, currentY + 150);
-            }
+              ctx.fillText(prizeInfo.receiver, width - 50, currentY);
 
-            currentY += prizeInfo.receiver ? 170 : 120;
-          } else {
-            currentY += 60;
+              currentY += 50;
+            }
           }
 
-          // 绘制页脚装饰
-          const bottomY = height - 60;
-          ctx.fillStyle = '#f5f5f5';
-          ctx.fillRect(0, bottomY, width, 60);
-          ctx.fillStyle = '#999999';
-          ctx.font = '20px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('打牌记账小程序', width / 2, bottomY + 35);
+          // 导出图片
+          wx.canvasToTempFilePath({
+            canvas: canvas,
+            success: (res) => {
+              if (!res || !res.tempFilePath) {
+                console.error('图片导出失败');
+                reject(new Error('图片导出失败'));
+                return;
+              }
+              resolve(res.tempFilePath);
+            },
+            fail: (err) => {
+              console.error('图片导出失败:', err);
+              reject(err);
+            }
+          });
+        } catch (error) {
+          console.error('生成战绩图片失败:', error);
+          this.showTip('图片生成失败，请重试');
+          reject(error);
         }
       });
+    });
   },
 
   /**
    * 保存战绩到相册
    * 将Canvas绘制的战绩图片转换为临时文件并保存到相册
+   * 优化：添加异常处理、防止重复点击、重新生成图片确保完整性（头像已预加载）
    */
-  saveResultToAlbum() {
-    const query = wx.createSelectorQuery();
-    query.select('#resultCanvas')
-      .fields({ node: true, size: true })
-      .exec((res) => {
-        if (res && res[0]) {
-          const canvas = res[0].node;
-          wx.canvasToTempFilePath({
-            canvas: canvas,
-            success: (res) => {
-              // 申请相册权限
-              wx.getSetting({
-                success: (setting) => {
-                  if (!setting.authSetting['scope.writePhotosAlbum']) {
-                    wx.authorize({
-                      scope: 'scope.writePhotosAlbum',
-                      success: () => {
-                        this.saveToAlbum(res.tempFilePath);
-                      },
-                      fail: () => {
-                        this.showTip('需要相册权限才能保存图片');
-                      }
-                    });
-                  } else {
-                    this.saveToAlbum(res.tempFilePath);
-                  }
-                }
-              });
-            },
-            fail: () => {
-              this.showTip('图片生成失败');
-            }
-          });
+  async saveResultToAlbum() {
+  try {
+    // 防止重复点击，添加保存中状态
+    if (this.data.savingImage) {
+      this.showTip('正在保存中，请稍候...');
+      return;
+    }
+    
+    this.setData({ savingImage: true });
+
+    // 生成图片并获取临时文件路径
+    const tempFilePath = await this.generateResultImage();
+    
+    if (!tempFilePath) {
+      this.showTip('图片生成失败');
+      this.setData({ savingImage: false });
+      return;
+    }
+
+    // 申请相册权限（使用Promise包装）
+    await new Promise((resolve, reject) => {
+      wx.getSetting({
+        success: (setting) => {
+          if (!setting.authSetting['scope.writePhotosAlbum']) {
+            wx.authorize({
+              scope: 'scope.writePhotosAlbum',
+              success: () => {
+                resolve();
+              },
+              fail: () => {
+                this.showTip('需要相册权限才能保存图片');
+                this.setData({ savingImage: false });
+                reject(new Error('用户拒绝授权'));
+              }
+            });
+          } else {
+            resolve();
+          }
+        },
+        fail: () => {
+          this.showTip('获取权限失败，请重试');
+          this.setData({ savingImage: false });
+          reject(new Error('获取权限失败'));
         }
       });
-  },
+    });
+
+    // 权限获取成功后保存图片
+    this.saveToAlbum(tempFilePath);
+  } catch (error) {
+    console.error('保存战绩图片失败:', error);
+    this.showTip('保存失败，请重试');
+    this.setData({ savingImage: false });
+  }
+},
 
   /**
    * 保存图片到相册
@@ -1588,9 +1768,11 @@ Page({
       filePath: filePath,
       success: () => {
         this.showTip('保存成功');
+        this.setData({ savingImage: false });
       },
       fail: () => {
         this.showTip('保存失败');
+        this.setData({ savingImage: false });
       }
     });
   },
@@ -1707,7 +1889,10 @@ Page({
    * 关闭战绩弹窗
    */
   closeResultModal() {
-    this.setData({ showResultModal: false });
+    this.setData({ 
+      showResultModal: false,
+      savingImage: false // 重置保存状态
+    });
   },
 
   /**

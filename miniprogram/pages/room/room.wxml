@@ -274,7 +274,7 @@
     <view class="result-section" wx:if="{{resultData.winners.length > 0}}">
       <view class="section-title">
         <view class="title-icon win-icon"></view>
-        <text class="title-text">赢家（正积分）</text>
+        <text class="title-text">赢家</text>
       </view>
       <view class="bar-chart-container-vertical">
         <view class="chart-item-horizontal" wx:for="{{resultData.winners}}" wx:key="playerName">
@@ -292,7 +292,7 @@
     <view class="result-section" wx:if="{{resultData.losers.length > 0}}">
       <view class="section-title">
         <view class="title-icon lose-icon"></view>
-        <text class="title-text">输家（负积分）</text>
+        <text class="title-text">输家</text>
       </view>
       <view class="bar-chart-container-vertical">
         <view class="chart-item-horizontal" wx:for="{{resultData.losers}}" wx:key="playerName">
