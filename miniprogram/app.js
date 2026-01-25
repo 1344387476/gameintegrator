@@ -1,9 +1,5 @@
-/**
- * 打牌记账小程序 - 主应用入口
- * 功能：应用初始化、用户信息管理、登录状态维护
- * 作者：Craft
- * 创建时间：2026-01-19
- */
+
+
 App({
   /**
    * 生命周期函数 - 应用启动
@@ -13,6 +9,17 @@ App({
     const logs = wx.getStorageSync('logs') || []
     logs.unshift(Date.now())
     wx.setStorageSync('logs', logs)
+
+    if(!wx.cloud){
+      console.error('云开发初始化错误')
+    }else{
+      wx.cloud.init({
+        env:'cloud1-5gv2wyv347737dc9',
+        traceUser:true,
+      })
+    }
+    
+    this.cloud = wx.cloud
 
     // 微信登录
     wx.login({
@@ -38,4 +45,7 @@ App({
   globalData: {
     userInfo: null
   }
+
+  
+
 })

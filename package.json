@@ -17,5 +17,15 @@
   "license": "MIT",
   "dependencies": {
     "weui-wxss": "^2.4.4"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1344387476/gameintegrator.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/1344387476/gameintegrator/issues"
+  },
+  "homepage": "https://github.com/1344387476/gameintegrator#readme"
 }

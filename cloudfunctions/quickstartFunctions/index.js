@@ -5,6 +5,13 @@ cloud.init({
 
 const db = cloud.database();
 // 获取openid
+/**
+ * 获取当前微信用户的上下文信息
+ * @returns {Promise&lt;Object&gt;} 包含用户身份信息的对象
+ * @property {string} openid - 用户的openid
+ * @property {string} appid - 小程序的appid
+ * @property {string} unionid - 用户的unionid（如果已绑定开放平台）
+ */
 const getOpenId = async () => {
   // 获取基础信息
   const wxContext = cloud.getWXContext();

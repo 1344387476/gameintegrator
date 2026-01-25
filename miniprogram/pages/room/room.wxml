@@ -269,81 +269,103 @@
     <text class="result-room-name">{{resultData.roomName}}</text>
     <text class="modal-close" bindtap="closeResultModal">✕</text>
   </view>
-  <view class="modal-body result-body">
-    <!-- 赢家板块 -->
-    <view class="result-section" wx:if="{{resultData.winners.length > 0}}">
-      <view class="section-title">
-        <view class="title-icon win-icon"></view>
-        <text class="title-text">赢家</text>
-      </view>
-      <view class="bar-chart-container-vertical">
-        <view class="chart-item-horizontal" wx:for="{{resultData.winners}}" wx:key="playerName">
-          <image class="player-avatar-mini" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
-          <text class="player-name-mini">{{item.playerName}}</text>
-          <view class="bar-container">
-            <view class="bar win-bar-horizontal" style="width: {{item.barHeight}}px;"></view>
+  <scroll-view class="result-scroll-view" scroll-y="true" scroll-with-animation>
+    <view class="modal-body result-body">
+      <!-- 结算信息区域（置顶） -->
+      <view class="settlement-info-section">
+        <view class="info-header">
+          <text class="info-title">结算信息</text>
+        </view>
+        <view class="info-content" wx:if="{{resultData}}">
+          <view class="info-row">
+            <text class="info-label">房间名</text>
+            <text class="info-value bold-text">{{resultData.roomName}}</text>
           </view>
-          <text class="score-label win-score">{{item.displayScore}}</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 输家板块 -->
-    <view class="result-section" wx:if="{{resultData.losers.length > 0}}">
-      <view class="section-title">
-        <view class="title-icon lose-icon"></view>
-        <text class="title-text">输家</text>
-      </view>
-      <view class="bar-chart-container-vertical">
-        <view class="chart-item-horizontal" wx:for="{{resultData.losers}}" wx:key="playerName">
-          <image class="player-avatar-mini" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
-          <text class="player-name-mini">{{item.playerName}}</text>
-          <view class="bar-container">
-            <view class="bar lose-bar-horizontal" style="width: {{item.barHeight}}px;"></view>
+          <view class="info-row">
+            <text class="info-label">结算时间</text>
+            <text class="info-value">{{resultData.settlementTime}}</text>
           </view>
-          <text class="score-label lose-score">{{item.displayScore}}</text>
+          <view class="info-row">
+            <text class="info-label">房间模式</text>
+            <text class="info-value mode-badge result-mode-badge {{resultData.roomMode === '下注模式' ? 'bet-mode' : 'normal-mode'}}">{{resultData.roomMode}}</text>
+          </view>
+          <view class="info-row" wx:if="{{resultData.creator}}">
+            <text class="info-label">结算触发人</text>
+            <text class="info-value">{{resultData.creator}}</text>
+          </view>
+          <block wx:if="{{resultData.roomMode === '下注模式' && resultData.prizePoolInfo}}">
+            <view class="info-row">
+              <text class="info-label">奖池总额</text>
+              <text class="info-value prize-amount">{{resultData.prizePoolInfo.totalPrizePool}} 积分</text>
+            </view>
+            <view class="info-row" wx:if="{{resultData.prizePoolInfo.receiver}}">
+              <text class="info-label">收取人</text>
+              <text class="info-value">{{resultData.prizePoolInfo.receiver}}</text>
+            </view>
+          </block>
+        </view>
+        <view class="no-info-tip" wx:elif="{{!resultData}}">
+          <text class="tip-text">暂无结算事件信息</text>
         </view>
       </view>
-    </view>
 
-    <!-- 无输赢提示 -->
-    <view class="no-result-tip" wx:if="{{resultData.winners.length === 0 && resultData.losers.length === 0}}">
-      <text class="tip-text">本局无输赢</text>
-    </view>
-    <view class="no-winners-tip" wx:elif="{{resultData.winners.length === 0 && resultData.losers.length > 0}}">
-      <text class="tip-text">本局无赢家</text>
-    </view>
-    <view class="no-losers-tip" wx:elif="{{resultData.winners.length > 0 && resultData.losers.length === 0}}">
-      <text class="tip-text">本局无输家</text>
-    </view>
+      <!-- 分隔线 -->
+      <view class="section-divider"></view>
 
-    <view class="result-footer-info">
-      <view class="info-item">
-        <text class="info-label">结算时间</text>
-        <text class="info-value">{{resultData.settlementTime}}</text>
-      </view>
-      <view class="info-item">
-        <text class="info-label">房间模式</text>
-        <text class="info-value mode-badge result-mode-badge {{resultData.roomMode === '下注模式' ? 'bet-mode' : 'normal-mode'}}">{{resultData.roomMode}}</text>
-      </view>
-      <block wx:if="{{resultData.roomMode === '下注模式' && resultData.prizePoolInfo}}">
-        <view class="info-item">
-          <text class="info-label">奖池总额</text>
-          <text class="info-value prize-amount">{{resultData.prizePoolInfo.totalPrizePool}} 积分</text>
+      <!-- 赢家板块 -->
+      <view class="result-section" wx:if="{{resultData.winners.length > 0}}">
+        <view class="section-title">
+          <view class="title-icon win-icon"></view>
+          <text class="title-text">赢家</text>
         </view>
-        <view class="info-item" wx:if="{{resultData.prizePoolInfo.receiver}}">
-          <text class="info-label">收取人</text>
-          <text class="info-value">{{resultData.prizePoolInfo.receiver}}</text>
+        <view class="bar-chart-container-vertical">
+          <view class="chart-item-horizontal" wx:for="{{resultData.winners}}" wx:key="playerName">
+            <image class="player-avatar-mini" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
+            <text class="player-name-mini">{{item.playerName}}</text>
+            <view class="bar-container">
+              <view class="bar win-bar-horizontal" style="width: {{item.barHeight}}px;"></view>
+            </view>
+            <text class="score-label win-score">{{item.displayScore}}</text>
+          </view>
         </view>
-      </block>
-    </view>
+      </view>
 
-    <view class="result-actions">
-      <view class="action-btn share-btn" bindtap="shareResult">分享</view>
-      <view class="action-btn save-btn" bindtap="saveResultToAlbum">保存到相册</view>
+      <!-- 输家板块 -->
+      <view class="result-section" wx:if="{{resultData.losers.length > 0}}">
+        <view class="section-title">
+          <view class="title-icon lose-icon"></view>
+          <text class="title-text">输家</text>
+        </view>
+        <view class="bar-chart-container-vertical">
+          <view class="chart-item-horizontal" wx:for="{{resultData.losers}}" wx:key="playerName">
+            <image class="player-avatar-mini" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
+            <text class="player-name-mini">{{item.playerName}}</text>
+            <view class="bar-container">
+              <view class="bar lose-bar-horizontal" style="width: {{item.barHeight}}px;"></view>
+            </view>
+            <text class="score-label lose-score">{{item.displayScore}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 无输赢提示 -->
+      <view class="no-result-tip" wx:if="{{resultData.winners.length === 0 && resultData.losers.length === 0}}">
+        <text class="tip-text">本局无输赢</text>
+      </view>
+      <view class="no-winners-tip" wx:elif="{{resultData.winners.length === 0 && resultData.losers.length > 0}}">
+        <text class="tip-text">本局无赢家</text>
+      </view>
+      <view class="no-losers-tip" wx:elif="{{resultData.winners.length > 0 && resultData.losers.length === 0}}">
+        <text class="tip-text">本局无输家</text>
+      </view>
     </view>
+  </scroll-view>
+
+  <!-- 底部按钮区域（固定，不滚动） -->
+  <view class="result-actions">
+    <view class="action-btn share-btn" bindtap="shareResult">分享</view>
+    <view class="action-btn save-btn" bindtap="saveResultToAlbum">保存到相册</view>
   </view>
-
 </view>
 
 <canvas type="2d" id="resultCanvas" class="result-canvas-hidden" wx:if="{{showResultModal}}"></canvas>
