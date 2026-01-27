@@ -23,12 +23,16 @@
       </scroll-view>
     </view>
 
-    <view class="left-bottom-buttons" wx:if="{{isCreator}}">
-      <view class="left-btn invite-btn" bindtap="showQrcode">
+    <view class="left-bottom-buttons">
+      <view class="left-btn exit-btn" bindtap="openExitConfirm">
+        <text class="left-btn-icon">🚪</text>
+        <text class="left-btn-text">退出</text>
+      </view>
+      <view class="left-btn invite-btn" wx:if="{{isCreator}}" bindtap="showQrcode">
         <text class="left-btn-icon">📤</text>
         <text class="left-btn-text">邀请</text>
       </view>
-      <view class="left-btn settings-btn" bindtap="openSettingsModal">
+      <view class="left-btn settings-btn" wx:if="{{isCreator}}" bindtap="openSettingsModal">
         <text class="left-btn-icon">⚙️</text>
         <text class="left-btn-text">设置</text>
       </view>
@@ -350,6 +354,22 @@
 
 <view class="all-in-tip {{showAllInTip ? 'show' : ''}}" wx:if="{{showAllInTip}}">
   <text class="tip-content-text">请先设置all in值</text>
+</view>
+
+<view class="modal-mask {{showExitConfirm ? 'show' : ''}}" wx:if="{{showExitConfirm}}" bindtap="closeExitConfirm"></view>
+<view class="confirm-modal {{showExitConfirm ? 'show' : ''}}" wx:if="{{showExitConfirm}}">
+  <view class="modal-header">
+    <text class="modal-title">确认退出</text>
+    <text class="modal-close" bindtap="closeExitConfirm">✕</text>
+  </view>
+  <view class="modal-body">
+    <view class="confirm-text">确认退出本房间？</view>
+    <view class="confirm-sub">退出后需要重新扫码才能加入</view>
+    <view class="modal-actions">
+      <view class="action-btn cancel" bindtap="closeExitConfirm">取消</view>
+      <view class="action-btn confirm" bindtap="confirmExit">确认退出</view>
+    </view>
+  </view>
 </view>
 
 <view class="modal-mask {{showSettingsModal ? 'show' : ''}}" wx:if="{{showSettingsModal}}" bindtap="closeSettingsModal"></view>

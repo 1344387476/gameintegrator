@@ -39,6 +39,7 @@ Page({
     showResultModal: false, // 战绩弹窗
     showQrcode: false, // 二维码弹窗
     showExpenseModal: false, // 支出弹窗
+    showExitConfirm: false, // 退出房间确认弹窗
     // 转账相关数据
     targetMemberIndex: -1, // 目标成员索引
     targetMember: '', // 目标成员昵称
@@ -121,42 +122,11 @@ Page({
   /**
    * 重试失败的上传
    * 从本地存储中获取未上传的战绩，尝试重新上传
+   * 注释：此功能暂时禁用，避免服务器地址占位符导致连接失败
    */
   retryFailedUploads() {
-    const failedUploads = wx.getStorageSync('failedUploads') || [];
-    if (failedUploads.length === 0) {
-      return;
-    }
-
-    // TODO: 配置实际的服务器接口地址
-    const serverUrl = 'https://your-server.com/api/settlement';
-    const successfulUploads = [];
-
-    failedUploads.forEach((upload, index) => {
-      wx.request({
-        url: serverUrl,
-        method: 'POST',
-        data: upload.data,
-        header: {
-          'content-type': 'application/json'
-        },
-        success: (res) => {
-          if (res.statusCode === 200) {
-            successfulUploads.push(index);
-            
-            // 如果所有失败的上传都成功了，清空本地存储
-            if (successfulUploads.length === failedUploads.length) {
-              wx.removeStorageSync('failedUploads');
-              this.showTip('历史战绩上传成功');
-            }
-          }
-        },
-        fail: () => {
-          // 仍然失败，保留在本地，下次再试
-          console.error('重试上传失败:', upload);
-        }
-      });
-    });
+    // 暂时禁用战绩上传功能
+    return;
   },
 
   /**
@@ -1780,71 +1750,24 @@ Page({
   /**
    * 自动上传战绩到服务器
    * 弹窗弹出后自动执行，支持重试机制
+   * 注释：此功能暂时禁用，避免服务器地址占位符导致连接失败
    */
   autoUploadResult() {
-    if (this.data.resultData.isUploaded) {
-      return;
-    }
-
-    // TODO: 配置实际的服务器接口地址
-    const serverUrl = 'https://your-server.com/api/settlement';
-    
-    // 上传函数
-    const doUpload = (retryCount = 0) => {
-      wx.request({
-        url: serverUrl,
-        method: 'POST',
-        data: this.data.resultData,
-        header: {
-          'content-type': 'application/json'
-        },
-        success: (res) => {
-          if (res.statusCode === 200) {
-            // 上传成功（静默更新状态）
-            const newData = { ...this.data.resultData, isUploaded: true };
-            this.setData({ 
-              resultData: newData
-            });
-          } else {
-            // 服务器返回错误
-            throw new Error('服务器错误');
-          }
-        },
-        fail: () => {
-          // 网络请求失败，判断是否重试
-          if (retryCount < 3) {
-            // 1秒后重试（静默）
-            setTimeout(() => {
-              doUpload(retryCount + 1);
-            }, 1000);
-          } else {
-            // 达到最大重试次数，静默记录失败
-            this.setData({ 
-              uploadFailed: true
-            });
-            
-            // 记录到本地存储，下次进入时重试
-            const failedUploads = wx.getStorageSync('failedUploads') || [];
-            failedUploads.push({
-              data: this.data.resultData,
-              timestamp: Date.now(),
-              roomId: this.data.roomId
-            });
-            wx.setStorageSync('failedUploads', failedUploads);
-          }
-        }
-      });
-    };
-
-    // 执行上传
-    doUpload(0);
+    // 暂时禁用战绩上传功能
+    return;
   },
 
   /**
    * 分享战绩
-   * 调用微信小程序分享API，将战绩图片分享给好友或群聊
+   * 注释：此功能暂时禁用，避免未实现的 wx.shareImageToFriend API 导致错误
    */
   shareResult() {
+    wx.showToast({
+      title: '分享功能暂未开放',
+      icon: 'none'
+    });
+
+    /*
     const query = wx.createSelectorQuery();
     query.select('#resultCanvas')
       .fields({ node: true, size: true })
@@ -1883,6 +1806,7 @@ Page({
           this.showTip('未找到战绩图片');
         }
       });
+    */
   },
 
   /**
@@ -2006,7 +1930,27 @@ Page({
       content: '确认退出当前房间？',
       success: (res) => {
         if (res.confirm) {
-          wx.navigateBack();
+          // 新增：调用 clearMyStatus 接口清除用户房间状态
+          wx.cloud.callFunction({
+            name: 'userFunctions',
+            data: {
+              action: 'clearMyStatus'
+            },
+            success: (cloudRes) => {
+              console.log('清除房间状态成功:', cloudRes.result);
+              if (cloudRes.result.success) {
+                // 清除本地存储的房间ID
+                wx.removeStorageSync('currentRoomId');
+              }
+            },
+            fail: (err) => {
+              console.error('调用 clearMyStatus 接口失败:', err);
+            },
+            complete: () => {
+              // 无论接口调用是否成功，都返回上一页
+              wx.navigateBack();
+            }
+          });
         }
       }
     });
@@ -2175,6 +2119,59 @@ Page({
     setTimeout(() => {
       this.setData({ showAllInTip: false });
     }, 2000);
+  },
+
+  /**
+   * ==================== 设置功能 ==================== */
+
+  /**
+   * ==================== 退出房间功能 ==================== */
+
+  /**
+   * 打开退出确认弹窗
+   */
+  openExitConfirm() {
+    this.setData({ showExitConfirm: true });
+  },
+
+  /**
+   * 关闭退出确认弹窗
+   */
+  closeExitConfirm() {
+    this.setData({ showExitConfirm: false });
+  },
+
+  /**
+   * 确认退出房间
+   */
+  confirmExit() {
+    // 调用云函数清除用户状态
+    wx.cloud.callFunction({
+      name: 'userFunctions',
+      data: {
+        action: 'clearMyStatus'
+      },
+      success: (res) => {
+        console.log('清除用户状态成功:', res.result);
+
+        // 清除本地存储的当前房间ID
+        wx.removeStorageSync('currentRoomId');
+
+        // 返回首页
+        wx.navigateBack({
+          delta: 1
+        });
+      },
+      fail: (err) => {
+        console.error('清除用户状态失败:', err);
+
+        // 即使清除失败也允许退出房间
+        wx.removeStorageSync('currentRoomId');
+        wx.navigateBack({
+          delta: 1
+        });
+      }
+    });
   },
 
   /**

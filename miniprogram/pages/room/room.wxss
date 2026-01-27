@@ -482,7 +482,8 @@ padding-bottom: 20rpx;
 }
 
 .left-btn.invite-btn,
-.left-btn.settings-btn {
+.left-btn.settings-btn,
+.left-btn.exit-btn {
   background: linear-gradient(135deg, #757575 0%, #959595 100%);
 }
 
