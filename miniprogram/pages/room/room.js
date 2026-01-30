@@ -68,7 +68,6 @@ Page({
       isUploaded: false // 是否已上传
     },
     scrollIntoView: '', // 聊天记录滚动位置
-    showWelcome: false, // 是否显示欢迎消息
     // 动画相关数据（转入奖池飘动动画）
     showFloatAnimation: false, // 是否显示飘动动画
     floatAmount: 0, // 飘动金额
@@ -84,7 +83,19 @@ Page({
     uploadTipText: '', // 上传提示文字
     uploadFailed: false, // 上传是否失败
     // 战绩保存状态
-    savingImage: false // 是否正在保存战绩图片
+    savingImage: false, // 是否正在保存战绩图片
+    // 消息监听和分页相关
+    messagesWatcher: null, // watch 监听器引用
+    pollingTimer: null, // 轮询定时器
+    watchRetryCount: 0, // watch 重试计数
+    maxWatchRetries: 3, // 最大重试次数
+    messagesPageSize: 32, // 每页消息数
+    messagesLoaded: 0, // 已加载数量
+    messagesMaxLimit: 100, // 最大加载数量
+    isLoadingMore: false, // 是否正在加载更多
+    hasMore: true, // 是否还有更多消息
+    loadingMoreText: '', // 加载提示文案
+    localMessageIds: [] // 本地消息ID集合（用于去重）
   },
 
   /**
@@ -94,40 +105,43 @@ Page({
   onLoad(options) {
     const { roomId } = options;
     this.setData({ roomId });
-
-    // 获取当前用户昵称和头像
+    console.log("房间id"+roomId)
     const userInfo = wx.getStorageSync('userInfo') || {};
     this.setData({ currentUser: userInfo.nickName || '' });
 
     this.loadRoom(roomId);
+    this.initMessagesWatch(roomId);
   },
 
   /**
    * 生命周期函数 - 页面显示
-   * 每次显示页面时重新加载房间数据
-   * 并检查是否有未上传的战绩，尝试重新上传
+   * 刷新消息列表并检查是否有未上传的战绩
    */
   onShow() {
-    if (this.data.roomId) {
-      this.loadRoom(this.data.roomId);
-    }
 
-    // 检查是否有未上传的战绩，尝试重新上传
-    this.retryFailedUploads();
-
-    // TODO: 临时测试动画（正式使用请注释掉此行）
-    // setTimeout(() => this.createFloatAnimation(100, 100, 100), 1000);
   },
 
   /**
-   * 重试失败的上传
-   * 从本地存储中获取未上传的战绩，尝试重新上传
-   * 注释：此功能暂时禁用，避免服务器地址占位符导致连接失败
+   * 生命周期函数 - 页面卸载
+   * 关闭 watch 监听器和轮询定时器
    */
-  retryFailedUploads() {
-    // 暂时禁用战绩上传功能
-    return;
+  onUnload() {
+    // 关闭 watch 监听器
+    if (this.data.messagesWatcher) {
+      this.data.messagesWatcher.close();
+    }
+    // 关闭轮询定时器
+    if (this.data.pollingTimer) {
+      clearInterval(this.data.pollingTimer);
+    }
+
+    // 如果是通过返回按钮退出，清空本地房间状态
+    if (this.data.roomId) {
+      this.executeExitRoom();
+
+    }
   },
+
 
   /**
    * 滚动到底部
@@ -141,218 +155,474 @@ Page({
   },
 
   /**
-   * 添加欢迎消息
-   * 在聊天记录中添加系统欢迎消息
+   * 初始化消息实时监听
+   * @param {string} roomId - 房间ID
    */
-  addWelcomeMessage() {
-    const room = this.data.room;
-    const description = `欢迎进入【${room.roomName}】`;
-    const record = {
-      description: description,
-      processedDescription: description,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'welcome'
-      },
-      hasMe: false,
-      isSystem: true,
-      isReceive: false,
-      segments: [{ text: description, isMe: false }]
+  initMessagesWatch(roomId) {
+    const that = this;
+    const { messagesPageSize } = that.data;
+
+    try {
+      const watcher = wx.cloud.database()
+        .collection('messages')
+        .where({ roomId })
+        .orderBy('timestamp', 'desc')
+        .limit(messagesPageSize)
+        .watch({
+          onChange: (snapshot) => {
+            const messages = snapshot.docs;
+            const records = that.convertMessagesToRecords(messages);
+            // 消息按时间正序排列（最新的在最后）
+            const sortedRecords = [...records].reverse();
+
+            that.setData({
+              'room.records': sortedRecords,
+              watchRetryCount: 0
+            });
+
+            // 滚动到底部
+            setTimeout(() => {
+              that.scrollToBottom();
+            }, 100);
+          },
+          onError: (err) => {
+            console.error('消息监听失败:', err);
+            that.handleWatchError(err, roomId);
+          }
+        });
+
+      that.setData({ messagesWatcher: watcher });
+    } catch (error) {
+      console.error('初始化 watch 失败:', error);
+      that.startPolling(roomId);
+    }
+  },
+
+  /**
+   * 处理 watch 错误并重试
+   * @param {Object} err - 错误对象
+   * @param {string} roomId - 房间ID
+   */
+  handleWatchError(err, roomId) {
+    const that = this;
+    const retryCount = that.data.watchRetryCount + 1;
+
+    if (retryCount <= that.data.maxWatchRetries) {
+      that.setData({ watchRetryCount: retryCount });
+      console.log(`尝试重新建立 watch 连接 (${retryCount}/${that.data.maxWatchRetries})`);
+
+      setTimeout(() => {
+        that.initMessagesWatch(roomId);
+      }, 2000 * retryCount);
+    } else {
+      console.error('Watch 连接重试次数已达上限，切换到轮询模式');
+      that.setData({ messagesWatcher: null });
+      that.startPolling(roomId);
+    }
+  },
+
+  /**
+   * 启动轮询（降级方案）
+   * @param {string} roomId - 房间ID
+   */
+  startPolling(roomId) {
+    const that = this;
+
+    if (that.data.pollingTimer) {
+      clearInterval(that.data.pollingTimer);
+    }
+
+    const pollingTimer = setInterval(() => {
+      that.loadMessages(roomId, true);
+    }, 3000);
+
+    that.setData({ pollingTimer });
+  },
+
+  /**
+   * 保存房间数据到云数据库
+   * 注：此函数已废弃，所有数据更新通过云函数完成
+   * 数据同步通过 loadRoom() 重新加载实现
+   */
+  saveRoomData() {
+    console.log('saveRoomData已废弃，使用云函数更新数据');
+  },
+
+  /**
+   * 加载消息列表
+   * 从 messages 集合加载所有消息并转换为 records 格式
+   * @param {string} roomId - 房间ID
+   * @param {boolean} isInitialLoad - 是否为初始加载
+   */
+  loadMessages(roomId, isInitialLoad = true) {
+    const { messagesPageSize, messagesMaxLimit } = this.data;
+
+    wx.cloud.database().collection('messages')
+      .where({ roomId })
+      .orderBy('timestamp', 'desc')
+      .limit(messagesPageSize)
+      .get({
+        success: (res) => {
+          if (res.data) {
+            const messages = res.data;
+            const records = this.convertMessagesToRecords(messages);
+            // 将消息按时间正序排列（最新的在最后）
+            const sortedRecords = [...records].reverse();
+            const hasMore = messages.length >= messagesPageSize && messages.length < messagesMaxLimit;
+
+            this.setData({
+              'room.records': sortedRecords,
+              messagesLoaded: sortedRecords.length,
+              hasMore,
+              loadingMoreText: hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
+            });
+            // 初始加载时滚动到底部
+            if (isInitialLoad && sortedRecords.length > 0) {
+              setTimeout(() => {
+                this.scrollToBottom();
+              }, 100);
+            }
+          }
+        },
+        fail: (err) => {
+          console.error('加载消息失败:', err);
+        }
+      });
+  },
+
+  /**
+   * 加载更多历史消息
+   */
+  loadMoreMessages() {
+    const { roomId, messagesLoaded, messagesPageSize, messagesMaxLimit, isLoadingMore, hasMore } = this.data;
+
+    if (isLoadingMore || !hasMore) {
+      return;
+    }
+
+    if (messagesLoaded >= messagesMaxLimit) {
+      this.setData({
+        hasMore: false,
+        loadingMoreText: '最多显示100条历史消息'
+      });
+      return;
+    }
+
+    this.setData({ isLoadingMore: true, loadingMoreText: '加载中...' });
+
+    const limit = Math.min(messagesLoaded + messagesPageSize, messagesMaxLimit);
+
+    wx.cloud.database().collection('messages')
+      .where({ roomId })
+      .orderBy('timestamp', 'desc')
+      .limit(limit)
+      .get({
+        success: (res) => {
+          if (res.data) {
+            const messages = res.data;
+            const records = this.convertMessagesToRecords(messages);
+            // 将消息按时间正序排列（最新的在最后）
+            const sortedRecords = [...records].reverse();
+            const hasMore = messages.length >= limit && messages.length < messagesMaxLimit;
+
+            this.setData({
+              'room.records': sortedRecords,
+              messagesLoaded: sortedRecords.length,
+              hasMore,
+              isLoadingMore: false,
+              loadingMoreText: hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
+            });
+          }
+        },
+        fail: (err) => {
+          console.error('加载更多失败:', err);
+          this.setData({
+            isLoadingMore: false,
+            loadingMoreText: '加载失败，点击重试'
+          });
+        }
+      });
+  },
+
+  /**
+   * 滚动到顶部时触发
+   */
+  onScrollToUpper() {
+    this.loadMoreMessages();
+  },
+
+  /**
+   * 点击加载更多提示
+   */
+  onLoadingMoreTap() {
+    const { isLoadingMore, loadingMoreText } = this.data;
+    if (!isLoadingMore && loadingMoreText.includes('加载失败')) {
+      this.loadMoreMessages();
+    }
+  },
+
+  /**
+   * 生成消息唯一ID（用于去重）
+   * @param {Object} record - 消息记录
+   * @returns {string} 消息ID
+   */
+  generateMessageId(record) {
+    return `${record.description}_${record.time}`;
+  },
+
+  /**
+   * 添加消息ID到本地集合
+   * @param {Object} record - 消息记录
+   */
+  addLocalMessageId(record) {
+    const msgId = this.generateMessageId(record);
+    const localMessageIds = this.data.localMessageIds || [];
+    if (!localMessageIds.includes(msgId)) {
+      localMessageIds.push(msgId);
+      this.setData({ localMessageIds });
+    }
+  },
+
+  /**
+   * 转换数据库消息为前端记录格式
+   * @param {Array} messages - 数据库消息数组
+   * @returns {Array} 前端记录数组
+   */
+  convertMessagesToRecords(messages) {
+    const currentUser = this.data.currentUser;
+    const roomMembers = this.data.room.members || [];
+    const defaultAvatar = '/images/avatar.png';
+
+    const getAvatar = (msgAvatar, nickname) => {
+      if (msgAvatar) return msgAvatar;
+      const member = roomMembers.find(m => m.name === nickname);
+      return member ? (member.avatarUrl || defaultAvatar) : defaultAvatar;
     };
-    
-    room.records.unshift(record);
-    this.setData({ room });
-    this.saveRoomData();
-    
-    // 滚动到底部显示欢迎消息
-    this.scrollToBottom();
+
+    return messages.map(msg => {
+      const description = msg.content;
+      const time = this.formatMessageTime(msg.timestamp);
+      const { processedDescription, hasMe, segments } = this.generateSegments(description, currentUser);
+
+      let detail = { type: 'other' };
+      let isSystem = false;
+
+      if (msg.messageType === 'welcome') {
+        const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
+        detail = {
+          type: 'welcome',
+          operator: msg.fromNickname,
+          operatorAvatar
+        };
+        isSystem = true;
+      } else if (description.includes('转给')) {
+        const transferMatch = description.match(/转给 (\S+) (\d+) 分/);
+        if (transferMatch) {
+          const senderAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
+          const receiverNickname = transferMatch[1];
+          const receiverAvatar = getAvatar(msg.toAvatar, receiverNickname);
+
+          detail = {
+            type: 'transfer',
+            sender: msg.fromNickname,
+            senderAvatar,
+            receiver: receiverNickname,
+            receiverAvatar,
+            amount: parseInt(transferMatch[2])
+          };
+        }
+      } else if (description.includes('下注')) {
+        const betMatch = description.match(/下注 (\d+) 分/);
+        if (betMatch) {
+          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
+          detail = {
+            type: 'bet',
+            operator: msg.fromNickname,
+            operatorAvatar,
+            amount: parseInt(betMatch[1])
+          };
+        }
+      } else if (description.includes('All-in')) {
+        const allinMatch = description.match(/All-in (\d+) 分/);
+        if (allinMatch) {
+          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
+          detail = {
+            type: 'allin',
+            operator: msg.fromNickname,
+            operatorAvatar,
+            amount: parseInt(allinMatch[1])
+          };
+        }
+      } else if (description.includes('收走了奖池')) {
+        const claimMatch = description.match(/收走了奖池 (\d+) 分/);
+        if (claimMatch) {
+          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
+          detail = {
+            type: 'claim',
+            operator: msg.fromNickname,
+            operatorAvatar,
+            amount: parseInt(claimMatch[1])
+          };
+        }
+      } else if (description.includes('跳过了这回合')) {
+        const passMatch = description.match(/(\S+) 跳过了这回合/);
+        if (passMatch) {
+          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
+          detail = {
+            type: 'pass',
+            operator: msg.fromNickname,
+            operatorAvatar
+          };
+          isSystem = true;
+        }
+      }
+
+      return { description, processedDescription, time, detail, hasMe, isSystem, isReceive: false, segments };
+    });
+  },
+
+  /**
+   * 格式化消息时间
+   * 今天的消息只显示时间，非今天的显示完整日期
+   * @param {Date|string} timestamp - 时间戳或日期对象
+   * @returns {string} 格式化的时间字符串
+   */
+  formatMessageTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.getDate() === now.getDate() &&
+                    date.getMonth() === now.getMonth() &&
+                    date.getFullYear() === now.getFullYear();
+
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    if (isToday) {
+      return `${hours}:${minutes}`;
+    } else {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    }
   },
 
   /**
    * 加载房间数据
-   * 从本地存储加载房间信息并初始化显示
+   * 从云数据库加载房间信息并初始化显示
    * @param {string} roomId - 房间ID
    */
   loadRoom(roomId) {
-    const rooms = wx.getStorageSync('rooms') || [];
-    const room = rooms.find(r => r._id === roomId);
-    if (room) {
-      // 设置导航栏标题
-      if (room.roomName) {
-        wx.setNavigationBarTitle({
-          title: room.roomName
-        });
-      }
-
-      // 初始化members数据结构（向后兼容）
-      if (room.members && room.members.length > 0 && typeof room.members[0] === 'string') {
-        room.members = room.members.map(name => ({ name, avatarUrl: '', score: 0 }));
-      }
-
-      // 为没有avatarUrl的成员添加默认头像，并检测是否需要滚动
-      if (room.members) {
-        room.members = room.members.map(member => {
-          // 检测积分是否需要滚动（超过7位数字，包括符号）
-          const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-          const scoreScroll = scoreText.length > 7;
-          
-          return {
-            ...member,
-            avatarUrl: member.avatarUrl || '',
-            scoreScroll
-          };
-        });
-      }
-
-      // 初始化records数据结构
-      if (!room.records) {
-        room.records = [];
-        // 首次进入时添加欢迎消息
-        this.addWelcomeMessage();
-      }
-
-      // 处理操作记录，将当前用户的信息替换为"我"并生成分段数据
-      // 同时添加isMe、isSystem、isReceive字段用于聊天室样式
-      if (room.records && room.records.length > 0) {
-        // 移除已存在的欢迎消息（避免重复）
-        room.records = room.records.filter(r => r.detail && r.detail.type !== 'welcome');
-
-        const currentUser = this.data.currentUser;
-        room.records = room.records.map(record => {
-          const processedDescription = currentUser ? record.description.replace(currentUser, '我') : record.description;
-          const hasMe = processedDescription.includes('我');
-
-          // 判断是否为系统消息（结算等）
-          const isSystem = record.detail && (record.detail.type === 'settle' || record.detail.type === 'welcome');
-
-          // 判断是否为收取奖池
-          const isReceive = record.detail && (record.detail.type === 'receive' || record.description.includes('收取了奖池'));
-
-          // 将描述分割成片段，用于单独高亮"我"字和金额
-          let segments = [];
-          if (hasMe) {
-            const parts = processedDescription.split('我');
-            for (let i = 0; i < parts.length; i++) {
-              if (parts[i]) {
-                // 提取金额数字进行高亮
-                const amountMatch = parts[i].match(/\d+/);
-                if (amountMatch) {
-                  const amountStr = amountMatch[0];
-                  const amountParts = parts[i].split(amountStr);
-                  if (amountParts[0]) {
-                    segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-                  }
-                  segments.push({ text: amountStr, isMe: false, isAmount: true });
-                  if (amountParts[1]) {
-                    segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-                  }
-                } else {
-                  segments.push({ text: parts[i], isMe: false, isAmount: false });
-                }
-              }
-              if (i < parts.length - 1) {
-                segments.push({ text: '我', isMe: true, isAmount: false });
-              }
-            }
-          } else {
-            // 处理不包含"我"的情况，但要高亮金额
-            const amountMatch = processedDescription.match(/\d+/);
-            if (amountMatch) {
-              const amountStr = amountMatch[0];
-              const amountParts = processedDescription.split(amountStr);
-              if (amountParts[0]) {
-                segments.push({ text: amountParts[0], isMe: false, isAmount: false });
-              }
-              segments.push({ text: amountStr, isMe: false, isAmount: true });
-              if (amountParts[1]) {
-                segments.push({ text: amountParts[1], isMe: false, isAmount: false });
-              }
-            } else {
-              segments.push({ text: processedDescription, isMe: false, isAmount: false });
-            }
-          }
-
-          return {
-            ...record,
-            processedDescription: processedDescription,
-            hasMe: hasMe,
-            isSystem: isSystem,
-            isReceive: isReceive,
-            segments: segments
-          };
-        });
-      }
-
-      // 初始化prizePool
-      if (room.gameMode === 'bet' && !room.prizePool) {
-        room.prizePool = { total: 0, receiver: '', receivedTime: '' };
-      }
-
-      // 初始化allInValue（下注模式）
-      if (room.gameMode === 'bet' && room.allInValue === undefined) {
-        room.allInValue = 0;
-      }
-
-      // 初始化status
-      if (!room.status) {
-        room.status = 'playing';
-      }
-
-      // 下注模式：找到最后一个转入记录，判断是否可以跟注
-      let lastDepositAmount = 0;
-      let lastDepositOperator = '';
-      let canFollow = false;
-      
-      if (room.gameMode === 'bet') {
-        const depositRecords = room.records.filter(r => r.detail && (r.detail.type === 'deposit' || r.detail.type === 'follow' || r.detail.type === 'allin'));
-        if (depositRecords.length > 0) {
-          const lastRecord = depositRecords[0];
-          lastDepositAmount = lastRecord.detail.amount;
-          lastDepositOperator = lastRecord.detail.operator;
-          canFollow = true;
-        }
-      }
-
-      // 判断是否为房主
-      const isCreator = room.creator === this.data.currentUser;
-
-      this.setData({ 
-        room, 
-        showWelcome: true,
-        lastDepositAmount,
-        lastDepositOperator,
-        canFollow,
-        isCreator
-      });
-
-      // 如果有历史记录且不是首次加载，滚动到底部
-      if (room.records && room.records.length > 1) {
-        setTimeout(() => {
-          this.scrollToBottom();
-        }, 300);
-      }
-    } else {
+    if (!roomId) {
       wx.showToast({
-        title: '房间不存在',
+        title: '房间ID不存在',
         icon: 'none'
       });
-      setTimeout(() => {
-        wx.navigateBack();
-      }, 1500);
+      setTimeout(() => wx.navigateBack(), 1500);
+      return;
     }
+
+    wx.cloud.database().collection('rooms').doc(roomId).get({
+      success: (res) => {
+        if (res.data) {
+          const room = res.data;
+          this.processRoomData(room);
+          // 加载消息列表
+          this.loadMessages(roomId);
+        } else {
+          wx.showToast({
+            title: '房间不存在',
+            icon: 'none'
+          });
+          setTimeout(() => wx.navigateBack(), 1500);
+        }
+      },
+      fail: (err) => {
+        console.error('加载房间失败:', err);
+        // 房间不存在，清理本地状态并返回
+        wx.removeStorageSync('currentRoomId');
+        wx.showToast({
+          title: '房间不存在或已解散',
+          icon: 'none'
+        });
+        setTimeout(() => wx.navigateBack(), 1500);
+      }
+    });
   },
 
   /**
-   * 保存房间数据
-   * 将当前房间数据保存到本地存储
+   * 处理房间数据
+   * 将云数据库的房间数据格式化并设置到页面
+   * @param {Object} room - 房间数据
+   */
+  processRoomData(room) {
+    // 设置导航栏标题
+    if (room.roomName) {
+      wx.setNavigationBarTitle({
+        title: room.roomName
+      });
+    }
+
+    // 数据字段映射：云数据库字段 -> 页面显示字段
+    const processedRoom = {
+      _id: room._id,
+      roomName: room.roomName,
+      gameMode: room.mode === 'bet' ? 'bet' : 'normal',
+      members: room.players.map(player => ({
+        openid: player.openid,
+        name: player.nickname,
+        avatarUrl: player.avatar,
+        score: player.score,
+        isExited: player.isExited || false
+      })),
+      records: [],
+      creator: room.owner,
+      // 状态映射：云函数 'active'/'settled' -> 前端 'playing'/'ended'
+      status: room.status === 'active' ? 'playing' : (room.status === 'settled' ? 'ended' : room.status),
+      prizePool: {
+        total: room.pot || 0,
+        receiver: '',
+        receivedTime: ''
+      },
+      allInValue: room.allInVal || 0
+    };
+
+    // 判断当前用户是否为房主
+    const myOpenid = wx.getStorageSync('openid');
+    const isCreator = room.owner === myOpenid;
+
+    // 为members添加默认头像和积分滚动检测
+    processedRoom.members = processedRoom.members.map(member => {
+      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
+      const scoreScroll = scoreText.length > 7;
+      return {
+        ...member,
+        avatarUrl: member.avatarUrl || '',
+        scoreScroll
+      };
+    });
+
+    // 下注模式：初始化跟注相关数据
+    let lastDepositAmount = 0;
+    let lastDepositOperator = '';
+    let canFollow = false;
+
+    this.setData({
+      room: processedRoom,
+      lastDepositAmount,
+      lastDepositOperator,
+      canFollow,
+      isCreator
+    });
+  },
+
+  /**
+   * 保存房间数据到云数据库
+   * 注：此函数已废弃，所有数据更新通过云函数完成
+   * 数据同步通过 loadRoom() 重新加载实现
    */
   saveRoomData() {
-    const rooms = wx.getStorageSync('rooms') || [];
-    const roomIndex = rooms.findIndex(r => r._id === this.data.roomId);
-    if (roomIndex !== -1) {
-      rooms[roomIndex] = this.data.room;
-      wx.setStorageSync('rooms', rooms);
-    }
+    console.log('saveRoomData已废弃，使用云函数更新数据');
   },
 
   /**
@@ -408,10 +678,8 @@ Page({
    * 出参：无
    * 逻辑步骤：
    *   1. 验证输入是否为正整数
-   *   2. 找到转出方（当前用户）和接收方（被点击玩家）
-   *   3. 转出方积分 -= 金额，接收方积分 += 金额
-   *   4. 生成转账记录
-   *   5. 更新房间数据并保存
+   *   2. 调用云函数执行转账
+   *   3. 重新加载房间数据
    */
   confirmTransfer() {
     const amount = parseInt(this.data.transferAmount);
@@ -426,53 +694,41 @@ Page({
     const currentUser = this.data.currentUser;
     const targetIndex = this.data.targetMemberIndex;
 
-    // 找到转出方和接收方
-    const senderIndex = room.members.findIndex(m => m.name === currentUser);
-    if (senderIndex === -1) {
-      // this.showTip('找不到当前用户');
-      return;
-    }
-
-    // 执行转账
-    const sender = room.members[senderIndex];
+    // 找到接收方
     const receiver = room.members[targetIndex];
 
-    sender.score -= amount;
-    receiver.score += amount;
-
-    // 更新滚动标志
-    this.updateMemberScrollFlags(sender);
-    this.updateMemberScrollFlags(receiver);
-
-    // 获取双方头像
-    const senderAvatar = sender.avatarUrl || '';
-    const receiverAvatar = receiver.avatarUrl || '';
-
-    // 生成转账记录
-    const record = this.createTransferRecord({
-      sender: currentUser,
-      receiver,
-      amount,
-      senderAvatar,
-      receiverAvatar,
-      senderScoreAfter: sender.score,
-      receiverScoreAfter: receiver.score
+    // 调用云函数执行转账
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'TRANSFER',
+        payload: {
+          roomId: this.data.roomId,
+          amount: amount,
+          toOpenid: receiver.openid,
+          nickname: currentUser,
+          toNickname: receiver.name
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          this.closeTransferModal();
+          // 消息由 watch 监听器自动同步
+        } else {
+          wx.showToast({
+            title: res.result.msg || '转账失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('转账失败:', err);
+        wx.showToast({
+          title: '转账失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-    room.records.unshift(record);
-
-    // 保存数据
-    this.setData({ 
-      room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
-    });
-    this.saveRoomData();
-
-    // 关闭弹窗并提示
-    this.closeTransferModal();
-    // this.showTip('转账成功');
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
   },
 
   /**
@@ -522,7 +778,7 @@ Page({
    *   5. 播放数字跳动动画
    *   6. 生成转入记录
    *   7. 更新房间数据并保存
-   */
+    */
   confirmPrizeTransfer() {
     const amount = parseInt(this.data.prizeAmount);
 
@@ -532,39 +788,43 @@ Page({
       return;
     }
 
-    const room = this.data.room;
-    const currentUser = this.data.currentUser;
+    // 调用云函数执行转入
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'BET',
+        payload: {
+          roomId: this.data.roomId,
+          amount: amount,
+          nickname: this.data.currentUser
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          this.closePrizeModal();
 
-    // 找到操作玩家
-    const playerIndex = room.members.findIndex(m => m.name === currentUser);
-    if (playerIndex === -1) {
-      this.showTip('找不到当前用户');
-      return;
-    }
-
-    // 获取玩家头像
-    const playerAvatar = room.members[playerIndex].avatarUrl || '';
-
-    // 执行转入
-    const result = this.processDeposit({
-      amount,
-      playerAvatar,
-      recordType: 'deposit',
-      recordTypeText: '下注'
+          // 找到当前玩家位置（用于动画）
+          const room = this.data.room;
+          const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
+          if (playerIndex !== -1) {
+            this.triggerDepositAnimation(playerIndex, amount);
+          }
+          // 消息由 watch 监听器自动同步
+        } else {
+          wx.showToast({
+            title: res.result.msg || '转入失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('转入失败:', err);
+        wx.showToast({
+          title: '转入失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-
-    if (!result.success) {
-      return;
-    }
-
-    // 关闭弹窗
-    this.closePrizeModal();
-
-    // 触发转入奖池飘动动画
-    this.triggerDepositAnimation(result.playerIndex, result.amount);
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
   },
 
   /**
@@ -695,55 +955,6 @@ Page({
   },
 
   /**
-   * 处理奖池转入
-   * @param {Object} params - 参数对象
-   */
-  processDeposit(params) {
-    const { amount, playerAvatar, recordType, recordTypeText } = params;
-    const room = this.data.room;
-    const currentUser = this.data.currentUser;
-
-    const playerIndex = room.members.findIndex(m => m.name === currentUser);
-    if (playerIndex === -1) {
-      this.showTip('找不到当前用户');
-      return false;
-    }
-
-    const player = room.members[playerIndex];
-    player.score -= amount;
-
-    if (room.prizePool.receiver) {
-      room.prizePool.receiver = '';
-      room.prizePool.receivedTime = '';
-    }
-    room.prizePool.total += amount;
-
-    this.updateMemberScrollFlags(player);
-
-    this.setData({ animateAmount: true });
-    setTimeout(() => this.setData({ animateAmount: false }), 400);
-
-    const record = this.createDepositRecord({
-      operator: currentUser,
-      amount,
-      playerAvatar,
-      playerScoreAfter: player.score,
-      prizePoolAfter: room.prizePool.total,
-      recordType,
-      recordTypeText
-    });
-    room.records.unshift(record);
-
-    this.setData({
-      room,
-      'room.prizePool.total': room.prizePool.total
-    });
-    this.saveRoomData();
-
-    return { success: true, playerIndex, amount };
-  },
-
-  /**
    * 关闭奖池转入弹窗
    */
   closePrizeModal() {
@@ -784,79 +995,59 @@ Page({
    * 逻辑步骤：
    *   1. 获取当前奖池总额
    *   2. 找到操作玩家
-   *   3. 玩家积分 += 奖池总额
-   *   4. 奖池总额重置为0
-   *   5. 设置收取人信息（永久显示）
-   *   6. 生成收取记录
-   *   7. 更新房间数据并保存
-   */
+    *   3. 玩家积分 += 奖池总额
+    *   4. 奖池总额重置为0
+    *   5. 设置收取人信息（永久显示）
+    *   6. 生成收取记录
+    *   7. 更新房间数据并保存
+    */
   confirmReceive() {
     const room = this.data.room;
-    const currentUser = this.data.currentUser;
-    const prizeAmount = room.prizePool.total;
 
-    // 找到操作玩家
-    const playerIndex = room.members.findIndex(m => m.name === currentUser);
-    if (playerIndex === -1) {
-      this.showTip('找不到当前用户');
+    // 验证
+    if (room.prizePool.receiver) {
+      this.showTip('奖池已被收取');
       return;
     }
 
-    // 执行收取
-    const player = room.members[playerIndex];
-    player.score += prizeAmount;
+    if (room.prizePool.total <= 0) {
+      this.showTip('奖池为空');
+      return;
+    }
 
-    this.updateMemberScrollFlags(player);
+    // 保存奖池金额用于动画（在清零之前）
+    const displayAmount = room.prizePool.total;
 
-    // 保存奖池金额用于动画显示（在清零之前）
-    const displayAmount = prizeAmount;
-
-    // 重置奖池并记录收取信息
-    room.prizePool.total = 0;
-    room.prizePool.receiver = currentUser;
-    room.prizePool.receivedTime = this.getCurrentTime();
-
-    // 生成收取记录
-    const description = `${currentUser} 收取了奖池 ${prizeAmount} 分`;
-    const { processedDescription, hasMe, segments } = this.generateSegments(description, currentUser);
-
-    const playerAvatar = player.avatarUrl || '';
-
-    const record = {
-      description,
-      processedDescription,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'receive',
-        operator: currentUser,
-        operatorAvatar: playerAvatar,
-        avatarUrl: playerAvatar,
-        amount: prizeAmount,
-        playerScoreAfter: player.score,
-        prizePoolAfter: 0
+    // 调用云函数执行收取
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'CLAIM',
+        payload: {
+          roomId: this.data.roomId,
+          nickname: this.data.currentUser
+        }
       },
-      hasMe,
-      isSystem: false,
-      isReceive: true,
-      segments
-    };
-    room.records.unshift(record);
-
-    // 保存数据
-    this.setData({
-      room,
-      'room.prizePool.total': room.prizePool.total
+      success: (res) => {
+        if (res.result.success) {
+          this.closeReceiveModal();
+          this.triggerReceiveAnimation(displayAmount);
+          // 消息由 watch 监听器自动同步
+        } else {
+          wx.showToast({
+            title: res.result.msg || '收取失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('收取失败:', err);
+        wx.showToast({
+          title: '收取失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-    this.saveRoomData();
-
-    // 关闭弹窗
-    this.closeReceiveModal();
-
-    // 触发收取奖池动画（彩带+金币），传入保存的金额
-    this.triggerReceiveAnimation(displayAmount);
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
   },
 
   /**
@@ -968,23 +1159,14 @@ Page({
       return;
     }
 
-    // 找到当前用户索引
-    const senderIndex = room.members.findIndex(m => m.name === currentUser);
-    if (senderIndex === -1) {
-      // this.showTip('找不到当前用户');
-      return;
-    }
-
-    const sender = room.members[senderIndex];
+    // 准备转账列表
+    const transferList = [];
     let totalAmount = 0;
-    const transfers = [];
 
-    // 验证所有输入并准备转账数据
     for (const memberName in expenseAmounts) {
       const amount = parseInt(expenseAmounts[memberName]) || 0;
       if (amount > 0) {
         const receiver = room.members.find(m => m.name === memberName);
-
         if (!receiver) {
           this.showTip('找不到接收玩家');
           return;
@@ -996,78 +1178,78 @@ Page({
           return;
         }
 
-        transfers.push({ memberName, amount, receiver: receiver.name });
+        transferList.push({
+          openid: receiver.openid,
+          nickname: receiver.name,
+          amount: amount
+        });
         totalAmount += amount;
       }
     }
 
-    // 执行批量转账
-    for (const transfer of transfers) {
-      const receiver = room.members.find(m => m.name === transfer.memberName);
-      sender.score -= transfer.amount;
-      receiver.score += transfer.amount;
-    }
+    // 调用云函数执行批量转账
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'BATCH_TRANSFER',
+        payload: {
+          roomId: this.data.roomId,
+          transferList: transferList,
+          nickname: currentUser
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          // 本地优先显示消息
+          transferList.forEach(item => {
+            this.addLocalTransferMessage('transfer', {
+              sender: currentUser,
+              receiver: item.nickname,
+              amount: item.amount,
+              senderAvatar: room.members.find(m => m.name === currentUser)?.avatarUrl || '/images/avatar.png',
+              receiverAvatar: room.members.find(m => m.name === item.nickname)?.avatarUrl || '/images/avatar.png'
+            });
+          });
 
-    // 更新滚动标志
-    this.updateMemberScrollFlags(sender);
-    for (const transfer of transfers) {
-      const receiver = room.members.find(m => m.name === transfer.memberName);
-      this.updateMemberScrollFlags(receiver);
+          this.closeExpenseModal();
 
-      // 生成转账记录
-      const senderAvatar = sender.avatarUrl || '';
-      const receiverAvatar = receiver.avatarUrl || '';
-
-      const record = this.createTransferRecord({
-        sender: currentUser,
-        receiver,
-        amount: transfer.amount,
-        senderAvatar,
-        receiverAvatar,
-        senderScoreAfter: sender.score,
-        receiverScoreAfter: receiver.score
-      });
-      room.records.unshift(record);
-    }
-
-    // 保存数据
-    this.setData({ 
-      room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+          // 不需要重新加载房间，watch监听器会自动同步消息
+        } else {
+          wx.showToast({
+            title: res.result.msg || '支出失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('支出失败:', err);
+        wx.showToast({
+          title: '支出失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-    this.saveRoomData();
-
-    // 关闭弹窗并提示
-    this.closeExpenseModal();
-    // this.showTip(`支出成功，共转出 ${totalAmount} 积分`);
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
   },
 
   /**
    * 处理结算按钮点击事件
-   * 根据用户权限执行不同操作：
-   * - 房主：弹出确认弹窗
-   * - 非房主：显示提示消息
-   * - 游戏已结束：显示无需结算提示
+   * 新增：房主判断逻辑 room.owner == myOpenid
+   * 非房主点击直接禁用 / 提示 "只有房主可以结算"
    */
   handleSettleBtn() {
     const room = this.data.room;
-
-    // 游戏已结束
-    if (room.status !== 'playing') {
-      this.showTip('本局游戏已结束，无需结算');
+    const myOpenid = wx.getStorageSync('openid');
+    
+    // 新增：房主判断逻辑 room.owner == myOpenid
+    if (room.owner !== myOpenid) {
+      wx.showToast({
+        title: '只有房主可以结算',
+        icon: 'none'
+      });
       return;
     }
-
-    // 非房主点击
-    if (room.creator !== this.data.currentUser) {
-      this.showTip('只有房主可以结算本局游戏');
-      return;
-    }
-
-    // 房主点击：弹出确认弹窗
+    
+    // 原有的结算确认弹窗逻辑
     this.setData({ showSettleConfirm: true });
   },
 
@@ -1080,151 +1262,102 @@ Page({
 
   /**
    * 确认结算
-   * 房主确认后执行结算流程：
-   * 1. 计算玩家输赢结果
-   * 2. 生成战绩数据（按Excel柱状图排序）
-   * 3. 自动上传战绩到服务器
-   * 4. 绘制战绩图片
-   * 5. 更新房间状态为"已结束"
-   * 6. 显示战绩弹窗
+   * 调用 roomFunctions 云函数的 settle 动作
+   * 参数标准化：仅传递 roomId
    */
   confirmSettle() {
+    const roomId = this.data.roomId;
+
+    // 参数标准化：云函数期望 { roomId }
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'settle',
+        payload: {
+          roomId: roomId  // ✅ 标准化参数：roomId
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          // 重新加载房间数据（状态变为'settled'，映射为'ended'）
+          this.closeSettleConfirm();
+          this.loadRoom(roomId);
+          // 显示结算结果弹窗
+          this.showResultModal();
+        } else {
+          // 失败：获取 msg，保留原有错误提示逻辑
+          wx.showToast({
+            title: res.result.msg || '结算失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('结算失败:', err);
+        wx.showToast({
+          title: '结算失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  /**
+   * 显示结算结果弹窗
+   * 根据当前房间成员的积分生成战绩数据
+   */
+  showResultModal() {
     const room = this.data.room;
-    const currentUser = this.data.currentUser;
+    const settlementTime = this.getCurrentTime();
 
-    // 分离赢家和输家
-    const winners = [];
-    const losers = [];
+    // 赢家：score > 0
+    const winners = room.members
+      .filter(m => m.score > 0)
+      .map(m => ({
+        playerName: m.name,
+        avatarUrl: m.avatarUrl,
+        score: m.score,
+        displayScore: `+${m.score}`,
+        barHeight: Math.max(3, m.score * 3) // 简单映射积分到柱状条长度
+      }))
+      .sort((a, b) => b.score - a.score); // 按积分降序排列
 
-    room.members.forEach(player => {
-      if (player.score > 0) {
-        winners.push({
-          playerName: player.name,
-          avatarUrl: player.avatarUrl || '',
-          score: player.score,
-          displayScore: `+${player.score}`,
-          isCurrentUser: player.name === currentUser
-        });
-      } else if (player.score < 0) {
-        losers.push({
-          playerName: player.name,
-          avatarUrl: player.avatarUrl || '',
-          score: player.score,
-          displayScore: `${player.score}`,
-          isCurrentUser: player.name === currentUser
-        });
-      }
-    });
+    // 输家：score < 0
+    const losers = room.members
+      .filter(m => m.score < 0)
+      .map(m => ({
+        playerName: m.name,
+        avatarUrl: m.avatarUrl,
+        score: m.score,
+        displayScore: `${m.score}`,
+        barHeight: Math.max(3, Math.abs(m.score) * 3) // 简单映射积分到柱状条长度
+      }))
+      .sort((a, b) => a.score - b.score); // 按积分升序排列
 
-    // 计算柱状图长度
-    // 赢家板块：基准值为最大正积分
-    let winMax = 0;
-    if (winners.length > 0) {
-      winMax = Math.max(...winners.map(w => w.score));
-    }
+    // 房间模式
+    const roomMode = room.gameMode === 'bet' ? '下注模式' : '普通模式';
 
-    // 输家板块：基准值为最大负积分的绝对值
-    let loseMax = 0;
-    if (losers.length > 0) {
-      loseMax = Math.max(...losers.map(l => Math.abs(l.score)));
-    }
-
-    // 计算每个玩家的柱状条长度（基准值对应150px，即300rpx）
-    winners.forEach(winner => {
-      let barHeight = (winner.score / winMax) * 150;
-      // 最小长度3px，保留1位小数
-      barHeight = Math.max(3, parseFloat(barHeight.toFixed(1)));
-      winner.barHeight = barHeight;
-    });
-
-    losers.forEach(loser => {
-      let barHeight = (Math.abs(loser.score) / loseMax) * 150;
-      // 最小长度3px，保留1位小数
-      barHeight = Math.max(3, parseFloat(barHeight.toFixed(1)));
-      loser.barHeight = barHeight;
-    });
-
-    // 排序
-    // 赢家：积分从高到低，同分本人优先
-    winners.sort((a, b) => {
-      if (a.score !== b.score) {
-        return b.score - a.score;
-      }
-      if (a.isCurrentUser && !b.isCurrentUser) return -1;
-      if (!a.isCurrentUser && b.isCurrentUser) return 1;
-      return 0;
-    });
-
-    // 输家：按绝对值从高到低，同绝对值本人优先
-    losers.sort((a, b) => {
-      const absA = Math.abs(a.score);
-      const absB = Math.abs(b.score);
-      if (absA !== absB) {
-        return absB - absA;
-      }
-      if (a.isCurrentUser && !b.isCurrentUser) return -1;
-      if (!a.isCurrentUser && b.isCurrentUser) return 1;
-      return 0;
-    });
-
-    // 准备战绩数据
-    const resultData = {
-      roomId: room._id,
-      roomMode: room.gameMode === 'normal' ? '普通模式' : '下注模式',
-      roomName: room.roomName,
-      settlementTime: this.getCurrentTime(),
-      creator: room.creator,
-      winners: winners,
-      losers: losers,
-      playerList: [...winners, ...losers], // 保留原有playerList用于兼容
-      isUploaded: false
-    };
-
-    // 下注模式：添加奖池信息
-    if (room.gameMode === 'bet') {
-      resultData.prizePoolInfo = {
-        totalPrizePool: room.prizePool.receiver ? this.calculateTotalPrizePool(room.records) : room.prizePool.total,
-        receiver: room.prizePool.receiver,
-        receiveTime: room.prizePool.receivedTime
+    // 奖池信息（仅下注模式）
+    let prizePoolInfo = null;
+    if (room.gameMode === 'bet' && room.prizePool.total > 0) {
+      prizePoolInfo = {
+        totalPrizePool: room.prizePool.total,
+        receiver: room.prizePool.receiver || ''
       };
     }
 
-    this.setData({ resultData, showSettleConfirm: false });
-    this.closeSettleConfirm();
-
-    // 显示战绩弹窗
-    setTimeout(() => {
-      this.setData({ showResultModal: true });
-      // 绘制战绩图片
-      this.generateResultImage();
-      // 自动上传战绩到服务器
-      this.autoUploadResult();
-    }, 300);
-
-    // 更新房间状态为已结束
-    room.status = 'ended';
-    this.setData({ room });
-    this.saveRoomData();
-
-    // 生成结算记录
-    const description = `房主已结算本局，积分已重置`;
-    const record = {
-      description: description,
-      processedDescription: description,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'settle'
+    this.setData({
+      resultData: {
+        roomName: room.roomName,
+        roomMode,
+        settlementTime,
+        winners,
+        losers,
+        prizePoolInfo,
+        isUploaded: false
       },
-      hasMe: false,
-      isSystem: true,
-      isReceive: false,
-      segments: [{ text: description, isMe: false }]
-    };
-    room.records.unshift(record);
-    this.saveRoomData();
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
+      showResultModal: true
+    });
   },
 
   /**
@@ -1921,46 +2054,53 @@ Page({
 
 
   /**
-   * 处理退出按钮点击事件
-   * 弹出确认对话框，确认后返回上一页
+   * 执行退出房间逻辑
    */
-  handleExitBtn() {
-    wx.showModal({
-      title: '退出房间',
-      content: '确认退出当前房间？',
-      success: (res) => {
-        if (res.confirm) {
-          // 新增：调用 clearMyStatus 接口清除用户房间状态
-          wx.cloud.callFunction({
-            name: 'userFunctions',
-            data: {
-              action: 'clearMyStatus'
-            },
-            success: (cloudRes) => {
-              console.log('清除房间状态成功:', cloudRes.result);
-              if (cloudRes.result.success) {
-                // 清除本地存储的房间ID
-                wx.removeStorageSync('currentRoomId');
-              }
-            },
-            fail: (err) => {
-              console.error('调用 clearMyStatus 接口失败:', err);
-            },
-            complete: () => {
-              // 无论接口调用是否成功，都返回上一页
-              wx.navigateBack();
-            }
+  executeExitRoom() {
+    const roomId = this.data.roomId;
+
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'leave',
+        payload: {
+          roomId: roomId
+        }
+      },
+      success: (cloudRes) => {
+        if (cloudRes.result.success) {
+          wx.reLaunch({
+            url: '/pages/home/home'
+          });
+        } else {
+          console.log("777"+cloudRes.result.msg);
+          wx.showToast({
+            title: cloudRes.result.msg || '退出失败',
+            icon: 'none'
           });
         }
+      },
+      fail: (err) => {
+        console.error('退出房间失败:', err);
+        wx.showToast({
+          title: '退出失败',
+          icon: 'none'
+        });
       }
     });
   },
 
   /**
+   * 处理退出按钮点击事件
+   * 调用 roomFunctions 的 leave 动作
+   * 参数标准化：{ roomId }
+   * 无需前端处理房主继承逻辑（由后台事务完成）
+   */
+  /**
    * ==================== 下注模式新增功能 ==================== */
 
   /**
-   * 点击"跟"按钮
+   * 点击"跟注"按钮
    * 功能：跟上一个转入玩家的积分金额
    * 激活条件：有上一个转入记录
    */
@@ -1979,36 +2119,49 @@ Page({
     }
 
     const amount = this.data.lastDepositAmount;
-    const room = this.data.room;
 
-    // 获取玩家头像
-    const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
-    const playerAvatar = room.members[playerIndex].avatarUrl || '';
+    // 调用云函数执行下注
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'BET',
+        payload: {
+          roomId: this.data.roomId,
+          amount: amount,
+          nickname: this.data.currentUser
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          // 找到当前玩家位置（用于动画）
+          const room = this.data.room;
+          const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
+          if (playerIndex !== -1) {
+            this.triggerDepositAnimation(playerIndex, amount);
+          }
 
-    // 执行转入
-    const result = this.processDeposit({
-      amount,
-      playerAvatar,
-      recordType: 'follow',
-      recordTypeText: '跟注'
+          // 更新跟注状态
+          this.setData({
+            lastDepositAmount: amount,
+            lastDepositOperator: this.data.currentUser,
+            canFollow: true
+          });
+          // 消息由 watch 监听器自动同步
+        } else {
+          wx.showToast({
+            title: res.result.msg || '跟注失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('跟注失败:', err);
+        wx.showToast({
+          title: '跟注失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-
-    if (!result.success) {
-      return;
-    }
-
-    // 更新跟注状态
-    this.setData({
-      lastDepositAmount: amount,
-      lastDepositOperator: this.data.currentUser,
-      canFollow: true
-    });
-
-    // 触发转入奖池飘动动画
-    this.triggerDepositAnimation(result.playerIndex, result.amount);
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
   },
 
   /**
@@ -2016,41 +2169,60 @@ Page({
    * 功能：跳过当前回合，生成系统消息
    */
   handlePass() {
-    // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      // this.showTip('游戏已结束，无法操作');
       return;
     }
 
     const currentUser = this.data.currentUser;
-    const room = this.data.room;
 
-    // 生成跳过记录（系统消息）
-    const description = `${currentUser} 跳过了这回合`;
-
-    const record = {
-      description: description,
-      processedDescription: description,
-      time: this.getCurrentTime(),
-      detail: {
-        type: 'pass',
-        operator: currentUser
+    // 调用云函数执行"过"
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'PASS',
+        payload: {
+          roomId: this.data.roomId,
+          nickname: currentUser
+        }
       },
-      hasMe: false,
-      isSystem: true,
-      isReceive: false,
-      segments: [{ text: description, isMe: false }]
-    };
-    room.records.unshift(record);
-
-    // 保存数据
-    this.setData({ 
-      room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
+      success: (res) => {
+        if (res.result.success) {
+          // 消息由 watch 监听器自动同步
+        } else {
+          wx.showToast({
+            title: res.result.msg || '操作失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('跳过失败:', err);
+        wx.showToast({
+          title: '操作失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-    this.saveRoomData();
+  },
 
-    this.scrollToBottom();
+  /**
+   * 本地添加消息（已废弃）
+   * 注意：此方法已废弃，消息由 watch 监听器自动同步
+   * @param {string} type - 消息类型
+   * @param {Object} params - 消息参数
+   */
+  addLocalMessage(type, params) {
+    // 不再本地添加消息，等待 watch 监听器自动同步
+  },
+
+  /**
+   * 本地添加转账/下注消息（已废弃）
+   * 注意：此方法已废弃，消息由 watch 监听器自动同步
+   * @param {string} type - 消息类型
+   * @param {Object} params - 消息参数
+   */
+  addLocalTransferMessage(type, params) {
+    // 不再本地添加消息，等待 watch 监听器自动同步
   },
 
   /**
@@ -2071,36 +2243,49 @@ Page({
     }
 
     const amount = this.data.room.allInValue;
-    const room = this.data.room;
 
-    // 获取玩家头像
-    const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
-    const playerAvatar = room.members[playerIndex].avatarUrl || '';
+    // 调用云函数执行 all in
+    wx.cloud.callFunction({
+      name: 'gameLogic',
+      data: {
+        action: 'ALLIN',
+        payload: {
+          roomId: this.data.roomId,
+          amount: amount,
+          nickname: this.data.currentUser
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          // 找到当前玩家位置（用于动画）
+          const room = this.data.room;
+          const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
+          if (playerIndex !== -1) {
+            this.triggerDepositAnimation(playerIndex, amount);
+          }
 
-    // 执行转入
-    const result = this.processDeposit({
-      amount,
-      playerAvatar,
-      recordType: 'allin',
-      recordTypeText: 'all in'
+          // 更新跟注状态
+          this.setData({
+            lastDepositAmount: amount,
+            lastDepositOperator: this.data.currentUser,
+            canFollow: true
+          });
+          // 消息由 watch 监听器自动同步
+        } else {
+          wx.showToast({
+            title: res.result.msg || 'All-in失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('All-in失败:', err);
+        wx.showToast({
+          title: 'All-in失败，请重试',
+          icon: 'none'
+        });
+      }
     });
-
-    if (!result.success) {
-      return;
-    }
-
-    // 更新跟注状态
-    this.setData({
-      lastDepositAmount: amount,
-      lastDepositOperator: this.data.currentUser,
-      canFollow: true
-    });
-
-    // 触发转入奖池飘动动画
-    this.triggerDepositAnimation(result.playerIndex, result.amount);
-
-    // 滚动到底部显示新消息
-    this.scrollToBottom();
   },
 
   /**
@@ -2120,13 +2305,9 @@ Page({
       this.setData({ showAllInTip: false });
     }, 2000);
   },
-
-  /**
-   * ==================== 设置功能 ==================== */
-
+  
   /**
    * ==================== 退出房间功能 ==================== */
-
   /**
    * 打开退出确认弹窗
    */
@@ -2143,33 +2324,59 @@ Page({
 
   /**
    * 确认退出房间
+   * 调用 roomFunctions 的 leave 动作
+   * 参数标准化：{ roomId }
    */
   confirmExit() {
-    // 调用云函数清除用户状态
+    const roomId = this.data.roomId;
+
+    // 关闭退出确认弹窗
+    this.closeExitConfirm();
+
+    // 参数标准化：云函数期望 { roomId }
     wx.cloud.callFunction({
-      name: 'userFunctions',
+      name: 'roomFunctions',
       data: {
-        action: 'clearMyStatus'
+        action: 'leave',
+        payload: {
+          roomId: roomId  // ✅ 标准化参数：roomId
+        }
       },
-      success: (res) => {
-        console.log('清除用户状态成功:', res.result);
+      success: (cloudRes) => {
+        if (cloudRes.result.success) {
+          // 返回首页
+          wx.navigateBack({
+            delta: 1
+          });
+        } else {
+          console.log("888"+cloudRes.result.msg);
+          
+          wx.showToast({
+            title: cloudRes.result.msg || '退出失败',
+            icon: 'none'
+          });
 
-        // 清除本地存储的当前房间ID
-        wx.removeStorageSync('currentRoomId');
-
-        // 返回首页
-        wx.navigateBack({
-          delta: 1
-        });
+          // 返回首页（即使退出失败也返回，避免卡在房间页面）
+          setTimeout(() => {
+            wx.navigateBack({
+              delta: 1
+            });
+          }, 1500);
+        }
       },
       fail: (err) => {
-        console.error('清除用户状态失败:', err);
-
-        // 即使清除失败也允许退出房间
-        wx.removeStorageSync('currentRoomId');
-        wx.navigateBack({
-          delta: 1
+        console.error('退出房间失败:', err);
+        wx.showToast({
+          title: '退出失败',
+          icon: 'none'
         });
+
+        // 返回首页（即使退出失败也返回，避免卡在房间页面）
+        setTimeout(() => {
+          wx.navigateBack({
+            delta: 1
+          });
+        }, 1500);
       }
     });
   },

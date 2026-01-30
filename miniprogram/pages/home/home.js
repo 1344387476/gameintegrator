@@ -53,18 +53,6 @@ Page({
       // 使用定时器轮询获取用户信息
       this.waitForUserInfo();
     }
-
-    // 根据 currentRoomId 切换按钮文字
-    const currentRoomId = wx.getStorageSync('currentRoomId');
-    if (currentRoomId) {
-      this.setData({
-        joinButtonText: '回到房间'
-      });
-    } else {
-      this.setData({
-        joinButtonText: '加入房间'
-      });
-    }
   },
 
   /**
@@ -101,36 +89,10 @@ Page({
   },
 
   /**
-   * 调用 userFunctions 登录接口
-   * 更新用户资料到服务器
+   * 生命周期函数 - 页面显示
    */
-  loginUser() {
-    const userInfo = this.data.userInfo;
-    if (!userInfo || !userInfo.nickName) {
-      console.log('用户信息不完整，暂不调用登录接口');
-      return;
-    }
-
-    wx.cloud.callFunction({
-      name: 'userFunctions',
-      data: {
-        action: 'login',
-        userData: userInfo
-      },
-      success: (res) => {
-        console.log('更新用户信息成功:', res.result);
-        if (res.result.success) {
-          // 保存 openid 到本地存储（用于后续判断）
-          wx.setStorageSync('openid', res.result.openid);
-        } else {
-          console.error('更新用户信息失败:', res.result.error);
-        }
-      },
-      fail: (err) => {
-        console.error('调用 login 接口失败:', err);
-        // 更新失败不影响后续流程
-      }
-    });
+  onShow() {
+    // 不需要检查房间状态（由 app.js 处理）
   },
 
   /**
@@ -240,12 +202,8 @@ Page({
     const isNicknameChanged = originalUserInfo.nickName !== nickname;
     const isAvatarChanged = originalUserInfo.avatarUrl !== this.data.userInfo.avatarUrl;
 
-    console.log('=== 加入房间 - 判断用户资料是否改变 ===');
-    console.log('原始昵称:', originalUserInfo.nickName);
-    console.log('当前昵称:', nickname);
+    console.log('=== 创建房间 - 判断用户资料是否改变 ===');
     console.log('昵称是否改变:', isNicknameChanged);
-    console.log('原始头像:', originalUserInfo.avatarUrl);
-    console.log('当前头像:', this.data.userInfo.avatarUrl);
     console.log('头像是否改变:', isAvatarChanged);
 
     // 更新用户信息到本地存储和页面数据
@@ -262,45 +220,55 @@ Page({
       console.log('用户资料未改变，跳过更新接口');
     }
 
-    // 创建新房间（包含所有必要字段）
-    const newRoom = {
-      _id: Date.now().toString(),
-      roomName: roomName,
-      members: [{ name: userInfo.nickName, avatarUrl: userInfo.avatarUrl || '', score: 0 }],
-      records: [],
-      gameMode: this.data.gameMode,
-      status: 'playing',
-      createTime: new Date().toISOString(),
-      creator: userInfo.nickName,
-      creatorAvatar: userInfo.avatarUrl || '',
-      prizePool: {
-        total: 0,
-        receiver: '',
-        receivedTime: ''
+    // 调用 roomFunctions 创建房间
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'create',
+        payload: {
+          roomName: roomName,
+          mode: this.data.gameMode,
+          nickname: userInfo.nickName,
+          avatar: userInfo.avatarUrl || ''
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          // 成功：获取 roomId，更新前端缓存的 currentRoomId
+          const roomId = res.result.roomId;
+
+          wx.showToast({
+            title: '创建成功',
+            icon: 'success'
+          });
+
+          // 关闭弹窗
+          this.setData({
+            showCreateModal: false
+          });
+
+          // 进入新房间
+          setTimeout(() => {
+            wx.navigateTo({
+              url: `/pages/room/room?roomId=${roomId}`
+            });
+          }, 500);
+        } else {
+          // 失败：获取 msg
+          wx.showToast({
+            title: res.result.msg || '创建失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('创建房间失败:', err);
+        wx.showToast({
+          title: '创建失败',
+          icon: 'none'
+        });
       }
-    };
-
-    // 保存到本地存储
-    const rooms = wx.getStorageSync('rooms') || [];
-    rooms.unshift(newRoom);
-    wx.setStorageSync('rooms', rooms);
-
-    wx.showToast({
-      title: '创建成功',
-      icon: 'success'
     });
-
-    // 关闭弹窗
-    this.setData({
-      showCreateModal: false
-    });
-
-    // 进入新房间
-    setTimeout(() => {
-      wx.navigateTo({
-        url: `/pages/room/room?roomId=${newRoom._id}`
-      });
-    }, 500);
   },
 
   /**
@@ -324,12 +292,8 @@ Page({
     const isNicknameChanged = originalUserInfo.nickName !== nickname;
     const isAvatarChanged = originalUserInfo.avatarUrl !== this.data.userInfo.avatarUrl;
 
-    console.log('=== 加入房间 - 判断用户资料是否改变 ===');
-    console.log('原始昵称:', originalUserInfo.nickName);
-    console.log('当前昵称:', nickname);
+    console.log('=== 创建房间 - 判断用户资料是否改变 ===');
     console.log('昵称是否改变:', isNicknameChanged);
-    console.log('原始头像:', originalUserInfo.avatarUrl);
-    console.log('当前头像:', this.data.userInfo.avatarUrl);
     console.log('头像是否改变:', isAvatarChanged);
 
     // 更新用户信息到本地存储和页面数据
@@ -345,32 +309,14 @@ Page({
     } else {
       console.log('用户资料未改变，跳过更新接口');
     }
-
-    // 判断是回到房间还是扫码加入
-    if (this.data.joinButtonText === '回到房间') {
-      // 回到当前房间
-      const currentRoomId = wx.getStorageSync('currentRoomId');
-      if (currentRoomId) {
-        wx.navigateTo({
-          url: `/pages/room/room?roomId=${currentRoomId}`
-        });
-      } else {
-        wx.showToast({
-          title: '房间不存在',
-          icon: 'none'
-        });
-      }
-    } else {
       // 扫码加入房间
       wx.scanCode({
         scanType: 'qrCode',
         success: (res) => {
           console.log('扫码结果:', res.result);
-
           // 解析二维码结果，提取房间ID
           // 假设二维码格式为: https://xxx.com/pages/room/room?roomId=xxx 或直接是roomId
           let roomId = '';
-
           if (res.result.includes('roomId=')) {
             // 从URL中提取roomId
             const match = res.result.match(/roomId=([^&]+)/);
@@ -387,17 +333,47 @@ Page({
           }
 
           if (roomId) {
-            wx.showToast({
-              title: '扫描成功',
-              icon: 'success'
-            });
+            // 调用 roomFunctions 加入房间
+            wx.cloud.callFunction({
+              name: 'roomFunctions',
+              data: {
+                action: 'join',
+                payload: {
+                  roomId: roomId,
+                  nickname: userInfo.nickName,
+                  avatar: userInfo.avatarUrl || ''
+                }
+              },
+              success: (joinRes) => {
+                if (joinRes.result.success) {
+                  // 成功：保存 roomId，跳转到房间
 
-            // 跳转到房间
-            setTimeout(() => {
-              wx.navigateTo({
-                url: `/pages/room/room?roomId=${roomId}`
-              });
-            }, 500);
+                  wx.showToast({
+                    title: '加入成功',
+                    icon: 'success'
+                  });
+
+                  setTimeout(() => {
+                    wx.navigateTo({
+                      url: `/pages/room/room?roomId=${roomId}`
+                    });
+                  }, 500);
+                } else {
+                  // 失败：获取 msg
+                  wx.showToast({
+                    title: joinRes.result.msg || '加入失败',
+                    icon: 'none'
+                  });
+                }
+              },
+              fail: (err) => {
+                console.error('加入房间失败:', err);
+                wx.showToast({
+                  title: '加入失败',
+                  icon: 'none'
+                });
+              }
+            });
           } else {
             wx.showToast({
               title: '二维码无效',
@@ -418,6 +394,6 @@ Page({
           });
         }
       });
-    }
+    
   }
 });

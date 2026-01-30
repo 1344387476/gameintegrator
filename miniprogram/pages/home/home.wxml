@@ -46,7 +46,7 @@
       <view class="button-group">
         <view class="weui-btn weui-btn_primary" bindtap="openCreateRoomModal">创建房间</view>
         <!-- 新增：按钮文字动态绑定 -->
-        <view class="weui-btn weui-btn_default" bindtap="joinRoom">{{joinButtonText}}</view>
+        <view class="weui-btn weui-btn_default" bindtap="joinRoom">加入房间</view>
       </view>
     </view>
 

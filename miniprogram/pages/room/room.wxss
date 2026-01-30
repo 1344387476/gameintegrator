@@ -3,45 +3,58 @@
 /* ==================== 全局与容器 ==================== */
 page {
   background-color: #ffffff;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+.page-content {
+  display: flex;
+  height: 100%;
+  background-color: #ffffff;
 }
 
 .main-container {
   display: flex;
-  height: 100vh;
-  background-color: #ffffff;
+  flex: 1;
+  height: 100%;
+  width: 100%;
 }
 
-/* 左侧区域：玩家列表（25%宽度） */
+/* 左侧区域：玩家列表 */
 .left-section {
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
   border-right: 1rpx solid #e8e8e8;
-  box-shadow: 2rpx 0 8rpx rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
-padding-top: 20rpx;
-padding-bottom: 20rpx;
+  padding: 20rpx 0;  /* 移除左右padding */
+  height: 100%;
+  width: 120rpx;  /* 最小宽度 */
+  min-width: 120rpx;
+  max-width: 120rpx;
+  overflow: visible;  /* 允许内容超出 */
 }
 
-/* 右侧区域：操作记录（75%宽度） */
+/* 右侧区域：操作记录 */
 .right-section {
-  flex: 3.2;
+  flex: 1;  /* 占据剩余空间 */
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
   box-sizing: border-box;
   min-width: 500rpx;
+  height: 100%;
 }
 
 /* ==================== 左侧：玩家列表 ==================== */
 .members-section {
-  margin-top: 10rpx;
-  padding-top: 5rp;
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 0 12rpx 16rpx 0;
+  padding: 10rpx 8rpx 16rpx 8rpx;  /* 调整padding，确保内容不溢出 */
+  box-sizing: border-box;
 }
 
 .members-scroll {
@@ -62,10 +75,12 @@ padding-bottom: 20rpx;
   justify-content: center;
   background-color: transparent;
   position: relative;
+  width: 100%;  /* 占满容器宽度 */
+  margin: 0;
 }
 
 .member-square {
-  width: 104rpx;
+  width: 104rpx;  /* 恢复原始大小 */
   height: 128rpx;
   background-color: transparent;
   border-radius: 8rpx;
@@ -90,11 +105,47 @@ padding-bottom: 20rpx;
 }
 
 .member-avatar {
-  width: 88rpx;
+  width: 88rpx;  /* 恢复原始大小 */
   height: 88rpx;
   border-radius: 50%;
   border: 3rpx solid #ffffff;
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
+}
+
+.invite-avatar {
+  width: 88rpx;  /* 恢复原始大小 */
+  height: 88rpx;
+  border-radius: 8rpx;
+  border: none;
+  box-shadow: none;
+}
+
+/* 邀请按钮文字 - 在图标下方，黑色字体 */
+.invite-name {
+  font-size: 18rpx;  /* 恢复原始大小 */
+  color: #000000;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4rpx;
+  line-height: 1;
+}
+
+/* 邀请按钮 - 确保和用户组样式完全一致 */
+.invite-member .member-square {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 6rpx;
+  height: 128rpx; /* 恢复原始高度 */
+}
+
+.invite-member:active .member-square {
+  transform: scale(0.95);
+  background-color: #f0f0f0;
 }
 
 .member-name {
@@ -102,7 +153,7 @@ padding-bottom: 20rpx;
   top: 0;
   left: 0;
   width: 100%;
-  font-size: 18rpx;
+  font-size: 18rpx;  /* 恢复原始大小 */
   color: #ffffff;
   font-weight: 600;
   text-align: center;
@@ -177,6 +228,7 @@ padding-bottom: 20rpx;
   background-color: #f7f7f7;
   border: 2rpx dashed #c5c5c5;
   border-radius: 8rpx;
+  height: 90rpx;
 }
 
 .add-square {
@@ -195,7 +247,7 @@ padding-bottom: 20rpx;
 }
 
 .add-avatar {
-  font-size: 32rpx;
+  font-size: 32rpx;  /* 恢复原始大小 */
   color: #999999;
   font-weight: 600;
 }
@@ -455,8 +507,8 @@ padding-bottom: 20rpx;
 .left-bottom-buttons {
   display: flex;
   flex-direction: column-reverse;
-  gap: 20rpx;
-  padding: 20rpx 24rpx;
+  gap: 16rpx;
+  padding: 16rpx 8rpx;  /* 调整padding */
   margin-top: auto;
   position: relative;
   z-index: 1;
@@ -467,8 +519,8 @@ padding-bottom: 20rpx;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 88rpx;
-  height: 88rpx;
+  width: 80rpx;  /* 稍微增大按钮 */
+  height: 80rpx;
   border-radius: 50%;
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
   transition: all 0.25s;
@@ -488,14 +540,14 @@ padding-bottom: 20rpx;
 }
 
 .left-btn-icon {
-  font-size: 32rpx;
+  font-size: 28rpx;  /* 减小图标大小 */
   color: #ffffff;
   line-height: 1;
   margin-bottom: 2rpx;
 }
 
 .left-btn-text {
-  font-size: 18rpx;
+  font-size: 16rpx;  /* 减小文字大小 */
   font-weight: 500;
   color: #ffffff;
   line-height: 1;
@@ -1944,9 +1996,42 @@ padding-bottom: 20rpx;
 }
 
 .coin-text {
-  display: block;
-  font-size: 12px;
-  font-weight: bold;
-  color: #B8860B;
-  text-shadow: 0 1rpx 2rpx rgba(0, 0, 0, 0.3);
+   display: block;
+   font-size: 12px;
+   font-weight: bold;
+   color: #B8860B;
+   text-shadow: 0 1rpx 2rpx rgba(0, 0, 0, 0.3);
+ }
+
+/* 加载更多提示样式 */
+.load-more-container {
+  padding: 20rpx 0;
+  text-align: center;
+  font-size: 24rpx;
+  color: #999;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.load-more-container.clickable {
+  color: #576b95;
+  cursor: pointer;
+}
+
+.load-more-container.clickable:active {
+  background: #e8e8e8;
+}
+
+.loading-icon {
+  display: inline-block;
+  animation: rotate 1s linear infinite;
+  margin-right: 8rpx;
+  font-size: 28rpx;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

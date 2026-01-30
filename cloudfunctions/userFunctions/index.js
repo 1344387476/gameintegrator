@@ -32,12 +32,13 @@ exports.main = async (event, context) => {
   // --- 动作 2：授权登录/更新资料 ---
   if (action === 'login') {
     try {
-      // 使用 upsert 逻辑：有则更新，无则插入
+      // 参数标准化：接收 { nickName, avatarUrl }
+      // 存储到数据库：{ nickname, avatar }
       await db.collection('users').doc(OPENID).set({
         data: {
+          _openid: OPENID,
           nickname: userData.nickName,
           avatar: userData.avatarUrl,
-          // 如果是新用户，初始化房间ID，如果是老用户，保持原样（使用 _.setOnInsert 更好，但 doc.set 简单直接）
           createTime: db.serverDate()
         }
       })

@@ -16,6 +16,7 @@
   "author": "Craft",
   "license": "MIT",
   "dependencies": {
-    "weui-wxss": "^2.4.4"
+    "weui-wxss": "^2.4.4",
+    "wx-server-sdk": "^3.0.1"
   }
 }

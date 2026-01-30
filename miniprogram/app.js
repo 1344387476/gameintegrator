@@ -44,18 +44,16 @@ App({
       success: (res) => {
         console.log('获取用户信息成功:', res.result);
         if (res.result.success) {
-          // 保存 openid 到本地存储（用于后续判断）
           wx.setStorageSync('openid', res.result.openid);
-
-          // 根据 currentRoomId 切换按钮文字
+          
           if (res.result.currentRoomId) {
-            wx.setStorageSync('currentRoomId', res.result.currentRoomId);
+            // 新增：验证房间有效性并自动跳转
+            this.checkAndNavigateToRoom(res.result.currentRoomId);
           }
-
+          
           // 判断是否为新用户
           if (res.result.isNewUser) {
-            // 新用户：显示默认头像和随机用户名
-            const randomNickName = '玩家' + Math.floor(Math.random() * 1000);
+            // 新用户：显示默认头像和 randomNickName = '玩家' + Math.floor(Math.random() * 1000);
             const userInfo = {
               nickName: randomNickName,
               avatarUrl: ''
@@ -66,9 +64,14 @@ App({
           } else {
             // 老用户：从接口获取头像和用户名
             const userInfo = res.result.userInfo;
-            wx.setStorageSync('userInfo', userInfo);
-            this.globalData.userInfo = userInfo;
+            const mappedUserInfo = {
+              nickName: userInfo.nickname || '',
+              avatarUrl: userInfo.avatar || ''
+            };
+            wx.setStorageSync('userInfo', mappedUserInfo);
+            this.globalData.userInfo = mappedUserInfo;
             console.log('老用户信息:', userInfo);
+            console.log('映射后的用户信息:', mappedUserInfo);
           }
         } else {
           console.error('获取用户信息失败:', res.result.error);
@@ -77,6 +80,25 @@ App({
       fail: (err) => {
         console.error('调用 getUserInfo 接口失败:', err);
         // 接口调用失败也允许继续使用本地默认信息
+      }
+    });
+  },
+
+  checkAndNavigateToRoom(roomId) {
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'checkUserStatus'
+      },
+      success: (res) => {
+        if (res.result.success && res.result.inRoom && res.result.status === 'active') {
+          wx.reLaunch({
+            url: `/pages/room/room?roomId=${roomId}`
+          });
+        } 
+      },
+      fail: (err) => {
+        console.error('检查房间状态失败:', err);
       }
     });
   }

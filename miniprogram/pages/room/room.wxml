@@ -4,6 +4,14 @@
     <view class="members-section">
       <scroll-view class="members-scroll" scroll-y scroll-with-animation>
         <view class="members-list">
+          <!-- 邀请按钮 -->
+          <view class="member-item invite-member" bindtap="showQrcode">
+            <view class="member-square">
+              <image class="member-avatar invite-avatar" src="/images/weixin.png"></image>
+              <text class="invite-name">邀请</text>
+            </view>
+          </view>
+          
           <view class="member-item" wx:for="{{room.members}}" wx:key="index" bindtap="handleMemberTap" data-index="{{index}}">
             <view class="creator-tag" wx:if="{{item.name === room.creator}}">房主</view>
             <view class="member-square">
@@ -27,10 +35,6 @@
       <view class="left-btn exit-btn" bindtap="openExitConfirm">
         <text class="left-btn-icon">🚪</text>
         <text class="left-btn-text">退出</text>
-      </view>
-      <view class="left-btn invite-btn" wx:if="{{isCreator}}" bindtap="showQrcode">
-        <text class="left-btn-icon">📤</text>
-        <text class="left-btn-text">邀请</text>
       </view>
       <view class="left-btn settings-btn" wx:if="{{isCreator}}" bindtap="openSettingsModal">
         <text class="left-btn-icon">⚙️</text>
@@ -77,14 +81,26 @@
 
 
     <view class="chat-section">
-      <scroll-view class="chat-scroll" scroll-y scroll-with-animation scroll-into-view="{{scrollIntoView}}">
+      <scroll-view 
+        class="chat-scroll" 
+        scroll-y 
+        scroll-with-animation 
+        scroll-into-view="{{scrollIntoView}}"
+        bindscrolltoupper="onScrollToUpper">
         <view class="chat-list">
-          <view class="chat-message system" wx:if="{{showWelcome}}">
-            <view class="bubble system">
-              <text class="message-content">欢迎进入【{{room.roomName}}】</text>
-            </view>
+          <!-- 加载更多提示 -->
+          <view 
+            wx:if="{{room.records.length > 0}}" 
+            class="load-more-container {{hasMore ? 'clickable' : ''}}" 
+            bindtap="onLoadingMoreTap">
+            <block wx:if="{{isLoadingMore}}">
+              <text class="loading-icon">⟳</text>
+              <text>加载中...</text>
+            </block>
+            <block wx:else>
+              <text>{{loadingMoreText}}</text>
+            </block>
           </view>
-
           <view class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.detail && item.detail.type === 'transfer' ? 'transfer' : ''}}" wx:for="{{room.records}}" wx:key="index" bindtap="onRecordTap" data-record="{{item}}">
             <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}" wx:if="{{item.detail && item.detail.type !== 'settle' && item.detail.type !== 'welcome' && item.detail.type !== 'pass'}}">
               <block wx:if="{{room.gameMode === 'normal' && item.detail.type === 'transfer'}}">
