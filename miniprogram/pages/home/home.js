@@ -54,6 +54,26 @@ Page({
       this.waitForUserInfo();
     }
   },
+// 测试云开发
+    testCloudDB() {
+    const db = wx.cloud.database();
+    db.collection('test').add({
+      data:{
+        content:'云开发测试'
+      },
+      success: () => {
+        wx.showToast({
+          title:'测试成功',icon:'success'
+        });fail:(err) =>{
+          wx.showToast({
+            title: '测试失败',icon:'none'
+          });
+          console.log(err);
+        }
+      }
+    })
+  },
+
 
   /**
    * 等待用户信息初始化完成

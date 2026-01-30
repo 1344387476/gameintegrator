@@ -1439,6 +1439,20 @@ Page({
 
           // 计算所需高度
           let contentHeight = 60; // 房间名高度
+          contentHeight += 40; // 结算信息区域顶部间距
+
+          // 结算信息区域高度
+          contentHeight += 40; // 标题
+          contentHeight += 15; // 分隔线间距
+          contentHeight += 50; // 房间名
+          contentHeight += 50; // 结算时间
+          contentHeight += 50; // 房间模式
+          contentHeight += 50; // 奖池总额（下注模式）
+          contentHeight += 50; // 收取人（下注模式）
+          if (resultData.creator) {
+            contentHeight += 50; // 结算触发人
+          }
+          contentHeight += 20; // 分隔线间距
 
           // 赢家板块高度
           if (winners.length > 0) {
@@ -1461,12 +1475,6 @@ Page({
             contentHeight += 50; // 提示区域
           }
 
-          // 底部信息区高度
-          contentHeight += 40; // 间距
-          contentHeight += 50; // 结算时间
-          contentHeight += 50; // 房间模式
-          contentHeight += 50; // 奖池总额（下注模式）
-          contentHeight += 50; // 收取人（下注模式）
           contentHeight += 40; // 底部留白
 
           // 设置Canvas尺寸（最小720px高度确保清晰度）
@@ -1490,7 +1498,95 @@ Page({
           ctx.textAlign = 'center';
           ctx.fillText(this.data.resultData.roomName, width / 2, 60);
 
-          let currentY = 100;
+          let currentY = 120;
+
+          // 绘制结算信息区域（置顶）
+          ctx.fillStyle = '#fafafa';
+          ctx.fillRect(20, currentY - 20, width - 40, 180);
+
+          // 绘制结算信息标题
+          ctx.fillStyle = '#333333';
+          ctx.font = 'bold 36px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText('结算信息', 30, currentY + 10);
+
+          // 绘制分隔线
+          ctx.fillStyle = '#e8e8e8';
+          ctx.fillRect(20, currentY + 35, width - 40, 1);
+
+          // 绘制结算信息内容
+          currentY += 70;
+          ctx.font = '28px Arial';
+          ctx.textAlign = 'left';
+
+          // 房间名
+          ctx.fillStyle = '#666666';
+          ctx.fillText('房间名:', 30, currentY);
+          ctx.fillStyle = '#333333';
+          ctx.font = 'bold 28px Arial';
+          ctx.fillText(this.data.resultData.roomName, 100, currentY);
+
+          currentY += 40;
+          ctx.font = '28px Arial';
+          ctx.fillStyle = '#666666';
+
+          // 结算时间
+          ctx.fillText('结算时间:', 30, currentY);
+          ctx.fillStyle = '#333333';
+          ctx.fillText(this.data.resultData.settlementTime, 100, currentY);
+
+          currentY += 40;
+
+          // 房间模式
+          ctx.fillStyle = '#666666';
+          ctx.fillText('房间模式:', 30, currentY);
+          ctx.fillStyle = this.data.resultData.roomMode === '下注模式' ? '#FF7A2F' : '#4CD964';
+          ctx.font = 'bold 28px Arial';
+          ctx.fillText(this.data.resultData.roomMode, 100, currentY);
+
+          currentY += 40;
+
+          // 结算触发人
+          if (this.data.resultData.creator) {
+            ctx.font = '28px Arial';
+            ctx.fillStyle = '#666666';
+            ctx.fillText('结算触发人:', 30, currentY);
+            ctx.fillStyle = '#333333';
+            ctx.fillText(this.data.resultData.creator, 130, currentY);
+            currentY += 40;
+          }
+
+          // 下注模式奖池信息
+          if (this.data.resultData.roomMode === '下注模式' && this.data.resultData.prizePoolInfo) {
+            const prizeInfo = this.data.resultData.prizePoolInfo;
+
+            // 奖池总额
+            ctx.font = '28px Arial';
+            ctx.fillStyle = '#666666';
+            ctx.fillText('奖池总额:', 30, currentY);
+            ctx.fillStyle = '#FF7A2F';
+            ctx.font = 'bold 28px Arial';
+            ctx.fillText(`${prizeInfo.totalPrizePool} 积分`, 130, currentY);
+            currentY += 40;
+
+            // 收取人
+            if (prizeInfo.receiver) {
+              ctx.font = '28px Arial';
+              ctx.fillStyle = '#666666';
+              ctx.fillText('收取人:', 30, currentY);
+              ctx.fillStyle = '#333333';
+              ctx.fillText(prizeInfo.receiver, 100, currentY);
+              currentY += 40;
+            }
+          }
+
+          currentY += 30;
+
+          // 绘制分隔线
+          ctx.fillStyle = '#e8e8e8';
+          ctx.fillRect(20, currentY - 10, width - 40, 1);
+
+          currentY += 30;
 
           // 预加载所有头像
           let winnerImages = [];
@@ -1715,65 +1811,6 @@ Page({
             ctx.textAlign = 'center';
             ctx.fillText('本局无输家', width / 2, currentY + 50);
             currentY += 100;
-          }
-
-          // 绘制底部信息区（与弹窗一致）
-          currentY += 40;
-
-          // 绘制结算时间
-          ctx.fillStyle = '#666666';
-          ctx.font = '28px Arial';
-          ctx.textAlign = 'left';
-          ctx.fillText('结算时间', 50, currentY + 40);
-
-          ctx.fillStyle = '#333333';
-          ctx.font = '28px Arial';
-          ctx.textAlign = 'right';
-          ctx.fillText(resultData.settlementTime, width - 50, currentY + 40);
-
-          // 绘制房间模式
-          ctx.fillStyle = '#666666';
-          ctx.font = '28px Arial';
-          ctx.textAlign = 'left';
-          ctx.fillText('房间模式', 50, currentY + 90);
-
-          const modeText = resultData.roomMode;
-          ctx.fillStyle = resultData.roomMode === '下注模式' ? '#FF7A2F' : '#4CD964';
-          ctx.font = 'bold 28px Arial';
-          ctx.textAlign = 'right';
-          ctx.fillText(modeText, width - 50, currentY + 90);
-
-          currentY += 120;
-
-          // 下注模式：绘制奖池信息
-          if (resultData.roomMode === '下注模式' && resultData.prizePoolInfo) {
-            const prizeInfo = resultData.prizePoolInfo;
-
-            ctx.fillStyle = '#666666';
-            ctx.font = '28px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText('奖池总额', 50, currentY);
-
-            ctx.fillStyle = '#FF7A2F';
-            ctx.font = 'bold 28px Arial';
-            ctx.textAlign = 'right';
-            ctx.fillText(`${prizeInfo.totalPrizePool} 积分`, width - 50, currentY);
-
-            currentY += 50;
-
-            if (prizeInfo.receiver) {
-              ctx.fillStyle = '#666666';
-              ctx.font = '28px Arial';
-              ctx.textAlign = 'left';
-              ctx.fillText('收取人', 50, currentY);
-
-              ctx.fillStyle = '#333333';
-              ctx.font = 'bold 28px Arial';
-              ctx.textAlign = 'right';
-              ctx.fillText(prizeInfo.receiver, width - 50, currentY);
-
-              currentY += 50;
-            }
           }
 
           // 导出图片
