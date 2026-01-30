@@ -25,10 +25,13 @@ App({
 
     // 微信登录
     wx.login({
-      success: () => {
+      success: (res) => {
+        console.log(res);
         // TODO: 将 code 发送到后台换取 openId, sessionKey, unionId
       }
     })
+
+    this.initUserInfo();
 
     // 初始化用户信息（首次启动）
     const userInfo = wx.getStorageSync('userInfo');

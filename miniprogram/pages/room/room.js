@@ -2486,7 +2486,6 @@ Page({
    * @param {number} amount - 转入金额
    */
   triggerDepositAnimation(playerIndex, amount) {
-    console.log('[动画] 触发转入动画', { playerIndex, amount });
 
     const systemInfo = wx.getSystemInfoSync();
     const screenWidth = systemInfo.windowWidth;
@@ -2496,8 +2495,6 @@ Page({
     const sectionWidth = screenWidth * 0.25;
     const startX = sectionWidth / 2 + 20; // 左侧区域中心偏右
     const startY = 100 + playerIndex * 140; // 根据索引垂直排列
-
-    console.log('[动画] 计算的动画起始位置:', { startX, startY, playerIndex, screenWidth, sectionWidth });
 
     // 直接使用计算的位置触发动画
     this.createFloatAnimation(startX, startY, amount);
@@ -2510,7 +2507,6 @@ Page({
    * @param {number} amount - 金额
    */
   createFloatAnimation(startX, startY, amount) {
-    console.log('[动画] 创建飘动动画', { startX, startY, amount });
 
     // 设置动画数据（纯 CSS 动画，不使用 wx.createAnimation）
     this.setData({
@@ -2520,12 +2516,8 @@ Page({
       floatTop: startY
     });
 
-    console.log('[动画] setData 完成，showFloatAnimation:', true);
-    console.log('[动画] 元素位置:', { left: startX, top: startY });
-
     // 动画结束后清理
     setTimeout(() => {
-      console.log('[动画] 清理飘动动画');
       this.setData({
         showFloatAnimation: false
       });
@@ -2537,7 +2529,6 @@ Page({
    * @param {number} amount - 收取的金额
    */
   triggerReceiveAnimation(amount) {
-    console.log('[动画] 触发收取奖池动画，金额:', amount);
     const systemInfo = wx.getSystemInfoSync();
     const screenWidth = systemInfo.windowWidth;
     const screenHeight = systemInfo.windowHeight;
@@ -2546,9 +2537,6 @@ Page({
     const isLowPerformance = screenWidth < 375;
     const confettiCount = isLowPerformance ? 2 : 4; // 从 3-6 减少到 2-4
     const coinCount = isLowPerformance ? 5 : 8; // 从 8-12 减少到 5-8
-
-    console.log('[动画] 屏幕尺寸:', { width: screenWidth, height: screenHeight, isLowPerformance });
-    console.log('[动画] 元素数量:', { confetti: confettiCount, coin: coinCount });
 
     // 生成彩带列表
     const confettiList = [];
@@ -2587,10 +2575,6 @@ Page({
       });
     }
 
-    console.log('[动画] 彩带列表:', confettiList);
-    console.log('[动画] 金币列表:', coinList);
-    console.log('[动画] 显示金额:', amount);
-
     // 设置动画数据
     this.setData({
       showReceiveAnimation: true,
@@ -2599,11 +2583,9 @@ Page({
       receiveAmount: amount // 保存显示金额
     });
 
-    console.log('[动画] setData 完成，showReceiveAnimation:', true);
 
     // 动画结束后清理（缩短清理时间）
     setTimeout(() => {
-      console.log('[动画] 清理动画');
       this.setData({
         showReceiveAnimation: false,
         confettiList: [],

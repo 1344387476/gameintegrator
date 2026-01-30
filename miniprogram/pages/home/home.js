@@ -235,7 +235,6 @@ Page({
     // 只有用户资料改变时才调用更新接口
     if (isNicknameChanged || isAvatarChanged) {
       console.log('用户资料已改变，调用更新接口');
-      this.loginUser();
     } else {
       console.log('用户资料未改变，跳过更新接口');
     }
@@ -325,7 +324,6 @@ Page({
     // 只有用户资料改变时才调用更新接口
     if (isNicknameChanged || isAvatarChanged) {
       console.log('用户资料已改变，调用更新接口');
-      this.loginUser();
     } else {
       console.log('用户资料未改变，跳过更新接口');
     }
