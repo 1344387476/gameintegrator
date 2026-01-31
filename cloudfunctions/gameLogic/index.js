@@ -91,8 +91,6 @@ exports.main = async (event, context) => {
       // === D. 领取奖池 ===
       else if (action === 'CLAIM') {
         const potAmount = room.pot
-        if (potAmount <= 0) throw new Error('奖池里没分啦')
-
         const player = players.find(p => p.openid === OPENID)
         if (player) {
           player.score += potAmount

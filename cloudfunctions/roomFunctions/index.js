@@ -105,6 +105,7 @@ exports.main = async (event, context) => {
             fromNickname: nickname,
             fromAvatar: avatar,
             content: `欢迎 ${nickname} 进入房间【${room.roomName}】`,
+            displayContent: `${nickname} 进入了房间`,
             messageType: 'welcome',
             timestamp: db.serverDate()
           }
@@ -162,6 +163,7 @@ exports.main = async (event, context) => {
             fromNickname: payload.nickname,
             fromAvatar: payload.avatar,
             content: `欢迎 ${payload.nickname} 创建了房间【${payload.roomName}】`,
+            displayContent: `${payload.nickname} 创建了房间`,
             messageType: 'welcome',
             timestamp: db.serverDate()
           }

@@ -274,7 +274,7 @@ Page({
               'room.records': sortedRecords,
               messagesLoaded: sortedRecords.length,
               hasMore,
-              loadingMoreText: hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
+              loadingMoreText: ''
             });
             // 初始加载时滚动到底部
             if (isInitialLoad && sortedRecords.length > 0) {
@@ -362,12 +362,65 @@ Page({
   },
 
   /**
-   * 生成消息唯一ID（用于去重）
-   * @param {Object} record - 消息记录
-   * @returns {string} 消息ID
+   * 转换数据库消息为前端记录格式
+   * @param {Array} messages - 数据库消息数组
+   * @returns {Array} 前端记录数组
    */
-  generateMessageId(record) {
-    return `${record.description}_${record.time}`;
+  convertMessagesToRecords(messages) {
+    const currentUser = this.data.currentUser;
+    
+    return messages.map(msg => {
+      const description = msg.content;
+      const time = this.formatMessageTime(msg.timestamp);
+      const isMe = msg.fromNickname === currentUser;
+      
+      // 简化的 detail 对象
+      const detail = {
+        type: msg.messageType || 'other',
+        operator: msg.fromNickname,
+        operatorAvatar: msg.fromAvatar || '/images/avatar.png'
+      };
+      
+      // 简化的"我"高亮处理（排除系统消息）
+      let processedDescription = description;
+      let segments = null;
+      
+      if (isMe && description.includes(currentUser) && !['welcome', 'pass'].includes(msg.messageType)) {
+        processedDescription = description.replace(currentUser, '我');
+        const parts = processedDescription.split('我');
+        if (parts.length > 1) {
+          segments = [];
+          parts.forEach((part, index) => {
+            if (part) segments.push({ text: part, isMe: false });
+            if (index < parts.length - 1) segments.push({ text: '我', isMe: true });
+          });
+        }
+      }
+      
+      // 使用 displayContent（如果存在且不是本人）
+      if (msg.displayContent && !isMe) {
+        processedDescription = msg.displayContent;
+      }
+      
+      // 本人看到简化版欢迎消息
+      if (msg.messageType === 'welcome' && isMe) {
+        const roomNameMatch = description.match(/【(.+?)】/);
+        const roomName = roomNameMatch ? roomNameMatch[1] : '';
+        processedDescription = '欢迎进入【' + roomName + '】';
+        segments = null; // 欢迎消息不使用分段
+      }
+      
+      return {
+        description,
+        processedDescription,
+        time,
+        detail,
+        isMe,
+        isSystem: ['welcome', 'pass'].includes(msg.messageType),
+        isReceive: false,
+        segments
+      };
+    });
   },
 
   /**
@@ -383,103 +436,6 @@ Page({
     }
   },
 
-  /**
-   * 转换数据库消息为前端记录格式
-   * @param {Array} messages - 数据库消息数组
-   * @returns {Array} 前端记录数组
-   */
-  convertMessagesToRecords(messages) {
-    const currentUser = this.data.currentUser;
-    const roomMembers = this.data.room.members || [];
-    const defaultAvatar = '/images/avatar.png';
-
-    const getAvatar = (msgAvatar, nickname) => {
-      if (msgAvatar) return msgAvatar;
-      const member = roomMembers.find(m => m.name === nickname);
-      return member ? (member.avatarUrl || defaultAvatar) : defaultAvatar;
-    };
-
-    return messages.map(msg => {
-      const description = msg.content;
-      const time = this.formatMessageTime(msg.timestamp);
-      const { processedDescription, hasMe, segments } = this.generateSegments(description, currentUser);
-
-      let detail = { type: 'other' };
-      let isSystem = false;
-
-      if (msg.messageType === 'welcome') {
-        const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
-        detail = {
-          type: 'welcome',
-          operator: msg.fromNickname,
-          operatorAvatar
-        };
-        isSystem = true;
-      } else if (description.includes('转给')) {
-        const transferMatch = description.match(/转给 (\S+) (\d+) 分/);
-        if (transferMatch) {
-          const senderAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
-          const receiverNickname = transferMatch[1];
-          const receiverAvatar = getAvatar(msg.toAvatar, receiverNickname);
-
-          detail = {
-            type: 'transfer',
-            sender: msg.fromNickname,
-            senderAvatar,
-            receiver: receiverNickname,
-            receiverAvatar,
-            amount: parseInt(transferMatch[2])
-          };
-        }
-      } else if (description.includes('下注')) {
-        const betMatch = description.match(/下注 (\d+) 分/);
-        if (betMatch) {
-          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
-          detail = {
-            type: 'bet',
-            operator: msg.fromNickname,
-            operatorAvatar,
-            amount: parseInt(betMatch[1])
-          };
-        }
-      } else if (description.includes('All-in')) {
-        const allinMatch = description.match(/All-in (\d+) 分/);
-        if (allinMatch) {
-          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
-          detail = {
-            type: 'allin',
-            operator: msg.fromNickname,
-            operatorAvatar,
-            amount: parseInt(allinMatch[1])
-          };
-        }
-      } else if (description.includes('收走了奖池')) {
-        const claimMatch = description.match(/收走了奖池 (\d+) 分/);
-        if (claimMatch) {
-          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
-          detail = {
-            type: 'claim',
-            operator: msg.fromNickname,
-            operatorAvatar,
-            amount: parseInt(claimMatch[1])
-          };
-        }
-      } else if (description.includes('跳过了这回合')) {
-        const passMatch = description.match(/(\S+) 跳过了这回合/);
-        if (passMatch) {
-          const operatorAvatar = getAvatar(msg.fromAvatar, msg.fromNickname);
-          detail = {
-            type: 'pass',
-            operator: msg.fromNickname,
-            operatorAvatar
-          };
-          isSystem = true;
-        }
-      }
-
-      return { description, processedDescription, time, detail, hasMe, isSystem, isReceive: false, segments };
-    });
-  },
 
   /**
    * 格式化消息时间
@@ -803,6 +759,12 @@ Page({
         if (res.result.success) {
           this.closePrizeModal();
 
+          // 使用 setData 更新奖池积分
+          const currentTotal = this.data.room.prizePool.total;
+          this.setData({
+            'room.prizePool.total': currentTotal + amount
+          });
+
           // 找到当前玩家位置（用于动画）
           const room = this.data.room;
           const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
@@ -1031,6 +993,13 @@ Page({
       success: (res) => {
         if (res.result.success) {
           this.closeReceiveModal();
+          
+          // 使用 setData 清零奖池并设置收取人
+          this.setData({
+            'room.prizePool.total': 0,
+            'room.prizePool.receiver': this.data.currentUser
+          });
+          
           this.triggerReceiveAnimation(displayAmount);
           // 消息由 watch 监听器自动同步
         } else {

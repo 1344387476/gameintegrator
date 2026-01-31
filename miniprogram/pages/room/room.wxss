@@ -577,7 +577,7 @@ page {
 
 .chat-message {
   display: flex;
-  margin-bottom: 8rpx;
+  margin-bottom: 16rpx;
   animation: messageFadeIn 0.3s ease-out;
 }
 
@@ -594,7 +594,6 @@ page {
 
 .chat-message.mine {
   justify-content: flex-end;
-  flex-direction: row-reverse;
 }
 
 .chat-message.others {
@@ -604,6 +603,51 @@ page {
 .chat-message.system {
   justify-content: center;
   margin: 16rpx 0;
+}
+
+/* 新增：消息组件容器 */
+.message-component {
+  display: flex;
+  flex-direction: column;
+  max-width: 75%;
+}
+
+/* 时间戳样式 */
+.message-time {
+  font-size: 18rpx;
+  color: rgba(0, 0, 0, 0.4);
+  margin-bottom: 4rpx;
+}
+
+.chat-message.mine .message-time {
+  text-align: right;
+}
+
+.chat-message.others .message-time {
+  text-align: left;
+}
+
+.chat-message.system .message-time {
+  text-align: center;
+}
+
+/* 内容行（头像+气泡） */
+.message-content-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.chat-message.mine .message-content-row {
+  flex-direction: row-reverse;
+}
+
+.chat-message.others .message-content-row {
+  flex-direction: row;
+}
+
+.chat-message.system .message-content-row {
+  justify-content: center;
 }
 
 .bubble {
@@ -620,12 +664,7 @@ page {
   background: #07C160;
   color: #ffffff;
   border-radius: 12rpx;
-  order: 1; /* 气泡在左 */
   max-width: 75%;
-}
-
-.chat-message.mine .message-time {
-  text-align: right;
 }
 
 /* 他人的操作：白色气泡，左对齐，头像在气泡左边 */
@@ -633,38 +672,19 @@ page {
   background: #FFFFFF;
   color: #333333;
   border-radius: 12rpx;
-  order: 1; /* 气泡在右 */
   max-width: 75%;
 }
 
-.chat-message.others .message-time {
-  text-align: left;
-}
-
 /* 系统消息：浅灰色气泡，居中对齐 */
-.chat-message.system {
-  justify-content: center;
-  margin: 16rpx 0;
-}
-
 .chat-message.system .bubble {
   background: #D1D1D1;
   color: #999999;
   text-align: center;
   border-radius: 8rpx;
-  order: 0;
 }
 
-.chat-message.system .message-time {
-  text-align: center;
-}
-
-.message-time {
-  display: block;
-  font-size: 18rpx;
-  color: #999999;
-  margin-bottom: 6rpx;
-  opacity: 0.8;
+.chat-message.system .message-component {
+  max-width: 80%;
 }
 
 .message-content {
@@ -693,32 +713,6 @@ page {
   font-weight: 600;
 }
 
-
-/* 转账消息：双头像布局 */
-.chat-message.transfer {
-  gap: 16rpx;
-}
-
-.chat-message.transfer.mine {
-  justify-content: flex-end;
-}
-
-.chat-message.transfer.others {
-  justify-content: flex-start;
-}
-
-.chat-message.transfer .avatar-container {
-  width: 96rpx;
-  height: 48rpx;
-}
-
-/* 转账消息气泡：圆角灰色气泡 */
-.chat-message.transfer .bubble {
-  background: #F5F5F5 !important;
-  color: #333333;
-  border-radius: 20rpx !important;
-  max-width: 75%;
-}
 
 /* 被转账人昵称高亮显示 */
 .receiver-name {
@@ -778,59 +772,6 @@ page {
   border-color: #E5E5E5;
   position: absolute;
   left: 0;
-}
-
-/* 双头像样式（普通模式转账消息） */
-.sender-avatar {
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 50%;
-  border: 2rpx solid #07C160;
-  position: absolute;
-  z-index: 2;
-}
-
-.receiver-avatar {
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 50%;
-  border: 2rpx solid #E5E5E5;
-  position: absolute;
-  z-index: 1;
-}
-
-/* 自己发送的转账：发送者头像在右，接收者在左，发送者覆盖接收者20% */
-.chat-message.mine .sender-avatar {
-  right: 0;
-}
-
-.chat-message.mine .receiver-avatar {
-  left: 0;
-}
-
-.chat-message.mine .sender-me {
-  right: 0;
-}
-
-.chat-message.mine .receiver-me {
-  right: 38rpx;
-}
-
-/* 别人发送的转账：发送者头像在左，接收者在右，发送者覆盖接收者20% */
-.chat-message.others .sender-avatar {
-  left: 0;
-}
-
-.chat-message.others .receiver-avatar {
-  right: 0;
-}
-
-.chat-message.others .sender-other {
-  left: 0;
-}
-
-.chat-message.others .receiver-other {
-  left: 38rpx;
 }
 
 /* ==================== 弹窗通用样式 ==================== */

@@ -90,7 +90,7 @@
         <view class="chat-list">
           <!-- 加载更多提示 -->
           <view 
-            wx:if="{{room.records.length > 0}}" 
+            wx:if="{{room.records.length > 0 && (loadingMoreText || isLoadingMore)}}" 
             class="load-more-container {{hasMore ? 'clickable' : ''}}" 
             bindtap="onLoadingMoreTap">
             <block wx:if="{{isLoadingMore}}">
@@ -101,24 +101,29 @@
               <text>{{loadingMoreText}}</text>
             </block>
           </view>
-          <view class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.detail && item.detail.type === 'transfer' ? 'transfer' : ''}}" wx:for="{{room.records}}" wx:key="index" bindtap="onRecordTap" data-record="{{item}}">
-            <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}" wx:if="{{item.detail && item.detail.type !== 'settle' && item.detail.type !== 'welcome' && item.detail.type !== 'pass'}}">
-              <block wx:if="{{room.gameMode === 'normal' && item.detail.type === 'transfer'}}">
-                <image class="receiver-avatar {{item.isMe ? 'receiver-me' : 'receiver-other'}}" src="{{item.isMe ? item.detail.senderAvatar : item.detail.receiverAvatar || '/images/avatar.png'}}"></image>
-                <image class="sender-avatar {{item.isMe ? 'sender-me' : 'sender-other'}}" src="{{item.isMe ? item.detail.receiverAvatar : item.detail.senderAvatar || '/images/avatar.png'}}"></image>
-              </block>
-              <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" wx:elif="{{room.gameMode === 'normal'}}" src="{{item.detail.operatorAvatar || item.detail.avatarUrl || '/images/avatar.png'}}"></image>
-              <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" wx:elif="{{room.gameMode === 'bet'}}" src="{{item.detail.operatorAvatar || item.detail.avatarUrl || '/images/avatar.png'}}"></image>
-            </view>
-
-            <view class="bubble {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.isReceive ? 'receive' : ''}}">
+          <view class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}}" wx:for="{{room.records}}" wx:key="index" bindtap="onRecordTap" data-record="{{item}}">
+            <!-- 消息组件容器 -->
+            <view class="message-component">
+              
+              <!-- 第一行：时间戳 -->
               <text class="message-time">{{item.time}}</text>
-              <text class="message-content {{item.isReceive ? 'receive-text' : ''}}">
-                <block wx:if="{{item.segments}}">
-                  <text wx:for="{{item.segments}}" wx:for-item="segment" wx:key="index" class="{{segment.isMe ? 'me' : ''}} {{segment.isAmount ? 'transfer-amount' : ''}}">{{segment.text}}</text>
-                </block>
-                <block wx:else>{{item.processedDescription || item.description}}</block>
-              </text>
+              
+              <!-- 第二行：内容行（头像+气泡） -->
+              <view class="message-content-row">
+                <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}" wx:if="{{item.detail && item.detail.type !== 'settle' && item.detail.type !== 'welcome' && item.detail.type !== 'pass'}}">
+                  <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" src="{{item.detail.operatorAvatar || '/images/avatar.png'}}"></image>
+                </view>
+                
+                <view class="bubble {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.isReceive ? 'receive' : ''}}">
+                  <text class="message-content {{item.isReceive ? 'receive-text' : ''}}">
+                    <block wx:if="{{item.segments}}">
+                      <text wx:for="{{item.segments}}" wx:for-item="segment" wx:key="index" class="{{segment.isMe ? 'me' : ''}} {{segment.isAmount ? 'transfer-amount' : ''}}">{{segment.text}}</text>
+                    </block>
+                    <block wx:else>{{item.processedDescription || item.description}}</block>
+                  </text>
+                </view>
+              </view>
+              
             </view>
           </view>
         </view>
