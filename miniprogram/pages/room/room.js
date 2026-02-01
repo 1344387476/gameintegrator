@@ -473,7 +473,9 @@ loadRoom(roomId) {
           title: '房间ID不存在',
           icon: 'none'
         });
-        setTimeout(() => wx.navigateBack(), 1500);
+        setTimeout(() => wx.reLaunch({
+          url: '/pages/home/home'
+        }), 1500);
         reject(new Error('房间ID不存在'));
         return;
       }
@@ -491,7 +493,9 @@ loadRoom(roomId) {
               title: '房间不存在',
               icon: 'none'
             });
-            setTimeout(() => wx.navigateBack(), 1500);
+            setTimeout(() => wx.reLaunch({
+              url: '/pages/home/home'
+            }), 1500);
             reject(new Error('房间不存在'));
           }
         },
@@ -509,7 +513,9 @@ loadRoom(roomId) {
             title: '房间已结束或不存在',
             icon: 'none'
           });
-          setTimeout(() => wx.navigateBack(), 1500);
+          setTimeout(() => wx.reLaunch({
+            url: '/pages/home/home'
+          }), 1500);
           reject(err);
         }
       });
@@ -580,6 +586,140 @@ loadRoom(roomId) {
       canFollow,
       isCreator
     });
+  },
+
+  /**
+   * 统一刷新房间和消息数据
+   * 同时获取 rooms 和 messages，一次性 setData，避免重复刷新
+   */
+  async refreshAllData() {
+    const { roomId } = this.data;
+    if (!roomId) return;
+    
+    try {
+      // 并行获取房间数据和消息数据
+      const [roomRes, messagesRes] = await Promise.all([
+        // 获取房间数据（积分等）
+        new Promise((resolve, reject) => {
+          wx.cloud.database().collection('rooms').doc(roomId).get({
+            success: (res) => resolve(res.data),
+            fail: reject
+          });
+        }),
+        
+        // 获取消息数据
+        new Promise((resolve, reject) => {
+          wx.cloud.database().collection('messages').doc(roomId).get({
+            success: (res) => resolve(res.data?.messages || []),
+            fail: reject
+          });
+        })
+      ]);
+      
+      // 处理房间数据
+      const processedRoom = this.processRoomDataForRefresh(roomRes);
+      
+      // 处理消息数据
+      const messages = messagesRes.sort((a, b) => 
+        new Date(b.timestamp) - new Date(a.timestamp)
+      );
+      const records = this.convertMessagesToRecords(messages);
+      
+      // 一次性 setData（关键！同时更新积分和消息）
+      this.setData({
+        'room.members': processedRoom.members,
+        'room.records': records,
+        'room.status': processedRoom.status,
+        'room.prizePool': processedRoom.prizePool,
+        'room.allInValue': processedRoom.allInValue,
+        'room.creator': processedRoom.creator,
+        lastDepositAmount: processedRoom.lastDepositAmount,
+        lastDepositOperator: processedRoom.lastDepositOperator,
+        canFollow: processedRoom.canFollow,
+        isCreator: processedRoom.isCreator
+      });
+      
+    } catch (err) {
+      console.error('刷新数据失败:', err);
+    }
+  },
+
+  /**
+   * 处理房间数据（用于 refreshAllData，不调用 setData）
+   * @param {Object} room - 房间数据
+   * @returns {Object} 处理后的房间数据
+   */
+  processRoomDataForRefresh(room) {
+    // 设置导航栏标题
+    if (room.roomName) {
+      wx.setNavigationBarTitle({
+        title: room.roomName
+      });
+    }
+
+    // 数据字段映射：云数据库字段 -> 页面显示字段
+    const processedRoom = {
+      _id: room._id,
+      roomName: room.roomName,
+      gameMode: room.mode === 'bet' ? 'bet' : 'normal',
+      members: room.players.map(player => {
+        // 检查积分是否需要滚动（超过7位数字）
+        const scoreText = player.score > 0 ? `+${player.score}` : `${player.score}`;
+        const scoreScroll = scoreText.length > 7;
+        
+        return {
+          openid: player.openid,
+          name: player.nickname,
+          avatarUrl: player.avatar,
+          score: player.score,
+          isExited: player.isExited || false,
+          scoreScroll
+        };
+      }),
+      records: [],
+      creator: room.owner,
+      status: room.status === 'active' ? 'playing' : (room.status === 'settled' ? 'ended' : room.status),
+      prizePool: {
+        total: room.pot || 0,
+        receiver: room.prizePoolReceiver || '',
+        receivedTime: room.prizePoolReceivedTime || ''
+      },
+      allInValue: room.allInVal || 0
+    };
+
+    // 判断当前用户是否为房主
+    const currentUserOpenid = wx.getStorageSync('openid');
+    const isCreator = room.owner === currentUserOpenid;
+
+    // 下注模式：初始化跟注相关数据
+    let lastDepositAmount = 0;
+    let lastDepositOperator = '';
+    let canFollow = false;
+
+    if (processedRoom.gameMode === 'bet' && room.players) {
+      const lastDepositPlayer = room.players
+        .filter(p => p.lastDepositAmount > 0)
+        .sort((a, b) => new Date(b.lastDepositTime || 0) - new Date(a.lastDepositTime || 0))[0];
+      
+      if (lastDepositPlayer) {
+        lastDepositAmount = lastDepositPlayer.lastDepositAmount;
+        lastDepositOperator = lastDepositPlayer.nickname;
+        
+        const currentPlayer = room.players.find(p => p.openid === currentUserOpenid);
+        canFollow = lastDepositPlayer.openid !== currentUserOpenid && 
+                    room.allInVal > 0 &&
+                    currentPlayer && 
+                    !currentPlayer.isExited;
+      }
+    }
+
+    return {
+      ...processedRoom,
+      lastDepositAmount,
+      lastDepositOperator,
+      canFollow,
+      isCreator
+    };
   },
 
   /**
@@ -679,8 +819,11 @@ confirmTransfer() {
           toNickname: receiver.name
         }
       },
-      success: (res) => {
-        if (!res.result.success) {
+success: (res) => {
+        if (res.result.success) {
+          // 转账成功，统一刷新房间和消息数据（避免重复刷新）
+          this.refreshAllData();
+        } else {
           wx.showToast({
             title: res.result.msg || '转账失败',
             icon: 'none'
@@ -770,19 +913,15 @@ confirmTransfer() {
       },
       success: (res) => {
         if (res.result.success) {
-          // 使用 setData 更新奖池积分
-          const currentTotal = this.data.room.prizePool.total;
-          this.setData({
-            'room.prizePool.total': currentTotal + amount
-          });
-
           // 找到当前玩家位置（用于动画）
           const room = this.data.room;
           const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
           if (playerIndex !== -1) {
             this.triggerDepositAnimation(playerIndex, amount);
           }
-          // 消息由 watch 监听器自动同步
+          
+          // 统一刷新房间和消息数据（同时更新积分和消息）
+          this.refreshAllData();
         } else {
           wx.showToast({
             title: res.result.msg || '转入失败',
@@ -1072,14 +1211,11 @@ confirmTransfer() {
         if (res.result.success) {
           this.closeReceiveModal();
           
-          // 使用 setData 清零奖池并设置收取人
-          this.setData({
-            'room.prizePool.total': 0,
-            'room.prizePool.receiver': this.data.currentUser
-          });
-          
+          // 触发动画
           this.triggerReceiveAnimation(displayAmount);
-          // 消息由 watch 监听器自动同步
+          
+          // 统一刷新房间和消息数据（同时更新积分和消息）
+          this.refreshAllData();
         } else {
           wx.showToast({
             title: res.result.msg || '收取失败',
@@ -2223,14 +2359,9 @@ success: (res) => {
           if (playerIndex !== -1) {
             this.triggerDepositAnimation(playerIndex, amount);
           }
-
-          // 更新跟注状态
-          this.setData({
-            lastDepositAmount: amount,
-            lastDepositOperator: this.data.currentUser,
-            canFollow: true
-          });
-          // 消息由 watch 监听器自动同步
+          
+          // 统一刷新房间和消息数据（同时更新积分和消息）
+          this.refreshAllData();
         } else {
           wx.showToast({
             title: res.result.msg || '跟注失败',
@@ -2271,7 +2402,8 @@ success: (res) => {
       },
       success: (res) => {
         if (res.result.success) {
-          // 消息由 watch 监听器自动同步
+          // 统一刷新房间和消息数据（同时更新积分和消息）
+          this.refreshAllData();
         } else {
           wx.showToast({
             title: res.result.msg || '操作失败',
@@ -2347,14 +2479,9 @@ success: (res) => {
           if (playerIndex !== -1) {
             this.triggerDepositAnimation(playerIndex, amount);
           }
-
-          // 更新跟注状态
-          this.setData({
-            lastDepositAmount: amount,
-            lastDepositOperator: this.data.currentUser,
-            canFollow: true
-          });
-          // 消息由 watch 监听器自动同步
+          
+          // 统一刷新房间和消息数据（同时更新积分和消息）
+          this.refreshAllData();
         } else {
           wx.showToast({
             title: res.result.msg || 'All-in失败',
@@ -2438,14 +2565,14 @@ success: (res) => {
               icon: 'success'
             })
             setTimeout(() => {
-              wx.navigateBack({
-                delta: 1
+              wx.reLaunch({
+                url: '/pages/home/home'
               })
             }, 1500)
           } else {
             // 返回首页
-            wx.navigateBack({
-              delta: 1
+            wx.reLaunch({
+              url: '/pages/home/home'
             });
           }
         } else {
@@ -2458,8 +2585,8 @@ success: (res) => {
 
           // 返回首页（即使退出失败也返回，避免卡在房间页面）
           setTimeout(() => {
-            wx.navigateBack({
-              delta: 1
+            wx.reLaunch({
+              url: '/pages/home/home'
             });
           }, 1500);
         }
@@ -2473,8 +2600,8 @@ success: (res) => {
 
         // 返回首页（即使退出失败也返回，避免卡在房间页面）
         setTimeout(() => {
-          wx.navigateBack({
-            delta: 1
+          wx.reLaunch({
+            url: '/pages/home/home'
           });
         }, 1500);
       }

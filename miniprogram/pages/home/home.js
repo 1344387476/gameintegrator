@@ -267,7 +267,7 @@ Page({
 
           // 进入新房间
           setTimeout(() => {
-            wx.navigateTo({
+            wx.reLaunch({
               url: `/pages/room/room?roomId=${roomId}`
             });
           }, 500);
@@ -371,7 +371,7 @@ Page({
                   });
 
                   setTimeout(() => {
-                    wx.navigateTo({
+                    wx.reLaunch({
                       url: `/pages/room/room?roomId=${roomId}`
                     });
                   }, 500);

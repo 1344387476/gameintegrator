@@ -442,22 +442,41 @@
 <view class="modal-mask {{showQrcode ? 'show' : ''}}" wx:if="{{showQrcode}}" bindtap="hideQrcode"></view>
 <view class="qrcode-modal {{showQrcode ? 'show' : ''}}" wx:if="{{showQrcode}}">
   <view class="qrcode-header">
-    <text class="qrcode-title">房间二维码</text>
+    <text class="qrcode-title">邀请好友</text>
     <text class="qrcode-close" bindtap="hideQrcode">✕</text>
   </view>
   <view class="qrcode-body">
     <view class="room-info-card">
-      <image class="room-avatar" src="/images/avatar.png"></image>
-      <view class="room-info-text">
-        <text class="info-name">{{room.roomName}}</text>
-        <text class="info-id">ID: {{room._id}}</text>
+      <text class="info-name">{{room.roomName}}</text>
+      <text class="info-id">房间号: {{room._id}}</text>
+    </view>
+    
+    <!-- 小程序码图片 -->
+    <view class="qrcode-image-wrapper">
+      <image 
+        class="qrcode-image" 
+        src="{{qrCodeFileID}}"
+        mode="aspectFit"
+        wx:if="{{qrCodeFileID && !qrCodeError}}"
+      ></image>
+      
+      <!-- 生成中状态 -->
+      <view class="qrcode-loading" wx:if="{{isGeneratingQR && !qrCodeFileID}}">
+        <text class="loading-text">二维码生成中...</text>
+      </view>
+      
+      <!-- 生成失败状态 -->
+      <view class="qrcode-error" wx:if="{{qrCodeError}}" bindtap="getRoomQRCode">
+        <text class="error-text">二维码生成失败</text>
+        <text class="retry-text">点击重试</text>
       </view>
     </view>
-    <canvas type="2d" id="qrcodeCanvas" class="qrcode-canvas"></canvas>
-    <text class="qrcode-tip">请使用扫码功能扫描二维码加入房间</text>
+    
+    <text class="qrcode-tip" wx:if="{{!qrCodeError}}">微信扫码即可加入房间</text>
+    
     <view class="qrcode-actions">
-      <view class="action-btn confirm" bindtap="saveQrcode">保存图片</view>
-      <view class="action-btn secondary" bindtap="shareQrcode">分享给好友</view>
+      <view class="action-btn confirm {{!qrCodeFileID || qrCodeError ? 'disabled' : ''}}" bindtap="{{qrCodeFileID && !qrCodeError ? 'saveQrcode' : ''}}">保存图片</view>
+      <button class="action-btn secondary share-btn" open-type="share">分享给好友</button>
     </view>
   </view>
 </view>

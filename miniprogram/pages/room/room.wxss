@@ -1536,13 +1536,15 @@ page {
   bottom: -100%;
   width: 100%;
   background-color: #ffffff;
-  border-radius: 20rpx 20rpx 0 0;
+  border-radius: 24rpx 24rpx 0 0;
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   box-shadow: 0 -6rpx 24rpx rgba(0, 0, 0, 0.12);
   max-height: 90vh;
   overflow-y: auto;
   overflow-x: hidden;
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .qrcode-modal.show {
@@ -1637,6 +1639,66 @@ page {
   gap: 16rpx;
   width: 100%;
   margin-top: 20rpx;
+}
+
+/* 小程序码图片容器 */
+.qrcode-image-wrapper {
+  width: 400rpx;
+  height: 400rpx;
+  margin: 30rpx auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  border-radius: 12rpx;
+  position: relative;
+}
+
+/* 小程序码图片 */
+.qrcode-image {
+  width: 400rpx;
+  height: 400rpx;
+  border-radius: 12rpx;
+}
+
+/* 生成中状态 */
+.qrcode-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* 生成失败状态 */
+.qrcode-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.error-text {
+  font-size: 28rpx;
+  color: #ff4d4f;
+  margin-bottom: 10rpx;
+}
+
+.retry-text {
+  font-size: 24rpx;
+  color: #FF7A2F;
+  text-decoration: underline;
+}
+
+/* 按钮禁用状态 */
+.action-btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* all in未设置提示 */
@@ -2061,4 +2123,25 @@ page {
 @keyframes rotate {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* 分享按钮 - 去除 button 默认样式 */
+.share-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  line-height: inherit;
+  font-size: inherit;
+  color: inherit;
+  font-weight: inherit;
+  border-radius: 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-btn::after {
+  border: none;
 }

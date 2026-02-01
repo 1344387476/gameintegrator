@@ -5,94 +5,94 @@ const _ = db.command
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext()
+  // 参数标准化：使用 action/payload 格式
   const { action, payload } = event
 
   try {
-    const userRef = db.collection('users').doc(OPENID)
-
-    // === 动作 1：获取用户当前状态 (自愈系统) ===
+    // 动作：检查用户状态
     if (action === 'checkUserStatus') {
-      const userRes = await userRef.get().catch(() => ({ data: {} }))
-      const roomId = userRes.data ? userRes.data.currentRoomId : null
-
-      if (!roomId) return { success: true, inRoom: false }
-
-      const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
+      const userRes = await db.collection('users').doc(OPENID).get().catch(() => ({ data: null }))
+      const currentRoomId = userRes.data?.currentRoomId
       
-      // 判定逻辑：如果房间不存在，或者房间已结算且超过1小时
-      //（这里 checkUserStatus 发现过期也会清理用户状态）
-      if (!roomRes) {
-        await userRef.update({ data: { currentRoomId: null } })
-        return { success: true, inRoom: false }
+      if (currentRoomId) {
+        // 检查用户是否真正在房间中
+        const roomRes = await db.collection('rooms').doc(currentRoomId).get().catch(() => null)
+        if (roomRes && roomRes.data) {
+          const room = roomRes.data
+          const player = room.players.find(p => p.openid === OPENID && !p.isExited)
+          
+          if (player && room.status === 'active') {
+            return { 
+              success: true, 
+              inRoom: true, 
+              roomId: currentRoomId,
+              roomName: room.roomName 
+            }
+          }
+        }
       }
-
-      const room = roomRes.data
-      // 如果房间已结算，检查是否超过1小时（物理删除交由定时器或后续逻辑，这里先判定为不可用）
-      if (room.status === 'settled') {
-         // 前端收到 settled 状态可以展示结算页，但不能再进行转账
-         return { success: true, inRoom: true, status: 'settled', roomInfo: room }
-      }
-
-      return { success: true, inRoom: true, status: 'active', roomInfo: room }
+      
+      return { success: true, inRoom: false }
     }
 
-    // === 动作 A：加入房间 ===
+    // 动作 A：加入房间
     if (action === 'join') {
       const { roomId, nickname, avatar } = payload
-      
-      // 先检查房间是否存在（非事务查询）
-      const roomCheck = await db.collection('rooms').doc(roomId).get().catch(() => null)
-      
-      if (!roomCheck || !roomCheck.data) {
+
+      const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
+
+      if (!roomRes || !roomRes.data) {
         throw new Error('房间不存在')
       }
 
-      const room = roomCheck.data
-      
-      // 检查房间状态
+      const room = roomRes.data
+
       if (room.status !== 'active') {
-        throw new Error('房间已结束，无法加入')
+        throw new Error('房间已结束')
       }
 
-      // 检查玩家数量
       if (room.players.length >= 8) {
-        throw new Error('房间人数已达上限（8人）')
+        throw new Error('房间人数已满')
       }
 
-      // 检查是否已在房间中
       const existingPlayer = room.players.find(p => p.openid === OPENID)
+
       if (existingPlayer && !existingPlayer.isExited) {
-        throw new Error('您已在房间中')
+        throw new Error('您已在该房间中')
       }
 
-      // 启动事务
+      // 检查用户是否在其他活跃房间
+      const userRes = await db.collection('users').doc(OPENID).get().catch(() => ({ data: null }))
+      if (userRes.data && userRes.data.currentRoomId && userRes.data.currentRoomId !== roomId) {
+        const otherRoomRes = await db.collection('rooms').doc(userRes.data.currentRoomId).get().catch(() => null)
+        if (otherRoomRes && otherRoomRes.data && otherRoomRes.data.status === 'active') {
+          throw new Error('您当前已在其他活跃房间中')
+        }
+      }
+
       const transaction = await db.startTransaction()
       try {
-        // 添加玩家到房间
-        const players = room.players
+        let newPlayers = [...room.players]
 
-        // 如果是已退出的玩家，重新加入
-        const exitedPlayerIdx = players.findIndex(p => p.openid === OPENID)
-        if (exitedPlayerIdx > -1) {
-          players[exitedPlayerIdx].isExited = false
-          players[exitedPlayerIdx].nickname = nickname
-          players[exitedPlayerIdx].avatar = avatar
+        if (existingPlayer) {
+          // 重新加入已退出的房间
+          const idx = newPlayers.findIndex(p => p.openid === OPENID)
+          newPlayers[idx].isExited = false
         } else {
           // 新玩家加入
-          players.push({
+          newPlayers.push({
             openid: OPENID,
-            nickname: nickname,
-            avatar: avatar,
+            nickname,
+            avatar,
             score: 0,
             isExited: false
           })
         }
 
         await transaction.collection('rooms').doc(roomId).update({
-          data: { players }
+          data: { players: newPlayers }
         })
 
-        // 更新用户的 currentRoomId
         await transaction.collection('users').doc(OPENID).update({
           data: { currentRoomId: roomId }
         })
@@ -120,7 +120,7 @@ exports.main = async (event, context) => {
       }
     }
 
-    // === 动作 B：创建房间 ===
+    // 动作 B：创建房间
     if (action === 'create') {
       // 检查用户是否在其他活跃房间中
       const userRes = await db.collection('users').doc(OPENID).get().catch(() => ({ data: null }))
@@ -135,6 +135,8 @@ exports.main = async (event, context) => {
 
       // 启动事务
       const transaction = await db.startTransaction()
+      let qrCodeFileID = null
+      
       try {
         await transaction.collection('rooms').doc(roomId).set({
           data: {
@@ -143,6 +145,7 @@ exports.main = async (event, context) => {
             mode: payload.mode,
             status: 'active',
             pot: 0,
+            qrCode: null, // 小程序码初始为空
             lastActiveTime: db.serverDate(),
             createTime: db.serverDate(),
             players: [{
@@ -181,7 +184,33 @@ exports.main = async (event, context) => {
           }
         })
 
-        return { success: true, roomId }
+        // 异步生成小程序码（不阻塞返回）
+        try {
+          const qrResult = await cloud.openapi.wxacode.getUnlimited({
+            scene: `roomId=${roomId}`,
+            page: 'pages/room/room',
+            width: 400,
+            envVersion: 'develop',
+            checkPath: false
+          })
+
+          const uploadRes = await cloud.uploadFile({
+            cloudPath: `room-qrcodes/${roomId}.png`,
+            fileContent: qrResult.buffer
+          })
+
+          qrCodeFileID = uploadRes.fileID
+
+          // 更新房间的 qrCode
+          await db.collection('rooms').doc(roomId).update({
+            data: { qrCode: qrCodeFileID }
+          })
+        } catch (qrError) {
+          console.error('生成小程序码失败:', qrError)
+          // 失败不阻断，qrCode 保持 null
+        }
+
+        return { success: true, roomId, qrCode: qrCodeFileID }
       } catch (error) {
         await transaction.rollback()
         throw error
@@ -354,44 +383,75 @@ exports.main = async (event, context) => {
       // 房间存在且用户有权限，启动事务
       const transaction = await db.startTransaction()
       try {
-        // 直接删除房间
-        await transaction.collection('rooms').doc(roomId).remove()
-        // 释放房主状态
-        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: null } })
-        await transaction.commit()
+        const roomRes = await transaction.collection('rooms').doc(roomId).get()
+        const room = roomRes.data
+        
+        if (!room) {
+          throw new Error('房间不存在')
+        }
 
-        // 删除消息（非事务）
+        // 1. 清空所有玩家的 currentRoomId
+        for (const player of room.players) {
+          await transaction.collection('users').doc(player.openid).update({
+            data: { currentRoomId: null }
+          })
+        }
+
+        // 2. 物理删除房间
+        await transaction.collection('rooms').doc(roomId).remove()
+        
+        // 3. 删除消息文档（非事务，不阻塞）
         try {
           await db.collection('messages').doc(roomId).remove()
         } catch (e) {
           console.log('消息文档删除失败:', e.message)
         }
 
-        return { success: true, msg: '房间已解散', roomDeleted: true }
+        await transaction.commit()
+
+        return { success: true, msg: '房间已解散' }
       } catch (error) {
         await transaction.rollback()
         throw error
       }
     }
-
-    // 动作 F：删除已结算房间（后台清理）
-    if (action === 'deleteSettledRoom') {
+    // === 动作 F：生成房间小程序码 ===
+    if (action === 'generateQRCode') {
       const { roomId } = payload
       
-      try {
-        // 删除房间
-        await db.collection('rooms').doc(roomId).remove()
-        
-        // 删除消息
-        await db.collection('messages').doc(roomId).remove().catch(() => {
-          console.log('消息文档删除失败或不存在')
-        })
-        
-        return { success: true }
-      } catch (e) {
-        return { success: false, error: e.message }
+      // 1. 检查是否已存在
+      const room = await db.collection('rooms').doc(roomId).get()
+      if (room.data && room.data.qrCode) {
+        return { success: true, fileID: room.data.qrCode }
       }
+      
+      // 2. 生成小程序码
+      const result = await cloud.openapi.wxacode.getUnlimited({
+        scene: `roomId=${roomId}`,
+        page: 'pages/room/room',
+        width: 400,
+        envVersion: 'develop',
+        checkPath: false
+      })
+      
+      // 3. 上传到云存储
+      const uploadResult = await cloud.uploadFile({
+        cloudPath: `room-qrcodes/${roomId}.png`,
+        fileContent: result.buffer
+      })
+      
+      // 4. 保存到 rooms 集合
+      await db.collection('rooms').doc(roomId).update({
+        data: {
+          qrCode: uploadResult.fileID
+        }
+      })
+      
+      return { success: true, fileID: uploadResult.fileID }
     }
+
+    return { success: false, msg: '未知动作' }
+
   } catch (e) {
     return { success: false, msg: e.message }
   }
