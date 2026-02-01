@@ -277,9 +277,9 @@ page {
 
 /* ==================== 右侧：奖池区域 ==================== */
 .prize-pool-section {
-  padding: 20rpx 0;
-  margin-bottom: 20rpx;
+  margin-bottom: 0; /* 移除底部间距，解决留白问题 */
   background-color: #ffffff;
+  padding-bottom: 16rpx;
 }
 
 .prize-pool-card {
@@ -360,8 +360,8 @@ page {
 }
 
 .receive-pool-btn {
-  margin-top: 16rpx;
-  width: 100%;
+  margin: 16rpx auto 0 auto; /* 居中显示 */
+  width: 95%; /* 调整宽度，保持居中 */
   height: 72rpx;
   display: flex;
   align-items: center;
@@ -560,7 +560,7 @@ page {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 10rpx 24rpx 0 20rpx;
+  padding: 10rpx 16rpx 0 12rpx; /* 减少padding以避免滚动条 */
   background-color: #EDEDED;
 }
 
@@ -568,11 +568,13 @@ page {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding-bottom: 30rpx;
 }
 
 .chat-list {
   padding: 0;
   min-height: 100%;
+  padding: 0 4rpx; /* 为消息内容添加内部间距 */
 }
 
 .chat-message {
@@ -681,10 +683,26 @@ page {
   color: #999999;
   text-align: center;
   border-radius: 8rpx;
+  padding: 12rpx 16rpx;
+  margin: 0 20rpx; /* 增加两侧间距 */
+  word-wrap: break-word;
+  word-break: break-all;
+  max-width: 90%; /* 增加最大宽度限制 */
+  display: inline-block; /* 确保气泡能自适应 */
 }
 
 .chat-message.system .message-component {
-  max-width: 80%;
+  max-width: 70%; /* 进一步增加宽度 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 确保消息内容能正确换行 */
+.chat-message.system .message-content {
+  word-wrap: break-word;
+  word-break: break-all;
+  text-align: center;
 }
 
 .message-content {
@@ -702,9 +720,9 @@ page {
   font-weight: 600;
 }
 
-/* 积分金额高亮样式 */
+/* 积分金额高亮样式 - 橙色 */
 .chat-message .message-content .transfer-amount {
-  color: #FF3B30;
+  color: #FF9500;
   font-weight: 600;
 }
 
@@ -721,9 +739,9 @@ page {
   font-size: 28rpx;
 }
 
-/* 转账金额：绿色突出显示 */
+/* 转账金额：橙色突出显示 */
 .transfer-amount {
-  color: #07C160;
+  color: #FF9500;
   font-weight: 700;
   font-size: 28rpx;
 }
@@ -843,6 +861,11 @@ page {
 
 .action-btn:active {
   transform: scale(0.98);
+}
+
+.action-btn.disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .action-btn.cancel {

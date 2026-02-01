@@ -40,7 +40,8 @@ exports.main = async (event, context) => {
           // 准备拆分的流水记录
           logTasks.push({
             content: `转给 ${item.nickname} ${item.amount} 分`,
-            toOpenid: item.openid
+            toOpenid: item.openid,
+            messageType: 'transfer'
           })
         })
         // 扣除转账人的总分
@@ -69,7 +70,7 @@ exports.main = async (event, context) => {
         await transaction.collection('rooms').doc(roomId).update({
           data: { players }
         })
-        logTasks.push({ content: `转给 ${toNickname} ${amount} 分`, toOpenid })
+        logTasks.push({ content: `转给 ${toNickname} ${amount} 分`, toOpenid, messageType: 'transfer' })
       }
 
       // === C. 下注/All-in (进入奖池) ===
@@ -85,7 +86,8 @@ exports.main = async (event, context) => {
             pot: room.pot + amount
           }
         })
-        logTasks.push({ content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${amount} 分`, toOpenid: 'POT' })
+        const msgType = action === 'ALLIN' ? 'allin' : 'bet'
+        logTasks.push({ content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${amount} 分`, toOpenid: 'POT', messageType: msgType })
       }
 
       // === D. 领取奖池 ===
@@ -102,21 +104,23 @@ exports.main = async (event, context) => {
             pot: 0
           }
         })
-        logTasks.push({ content: `收走了奖池 ${potAmount} 分`, toOpenid: OPENID })
+        logTasks.push({ content: `收走了奖池 ${potAmount} 分`, toOpenid: OPENID, messageType: 'claim' })
       }
 
       // === E. 跳过回合 ===
       else if (action === 'PASS') {
         logTasks.push({ 
           content: `${nickname} 跳过了这回合`,
-          toOpenid: 'PASS'
+          toOpenid: 'PASS',
+          messageType: 'pass'
         })
       }
 
       // 2. 统一写入流水记录 & 更新活跃时间
       const senderAvatar = room.players.find(p => p.openid === OPENID)?.avatar || ''
 
-      const msgPromises = logTasks.map(log => {
+      // 移出事务，使用数组追加消息
+      for (const log of logTasks) {
         let receiverAvatar = ''
         let toNickname = ''
 
@@ -126,22 +130,22 @@ exports.main = async (event, context) => {
           toNickname = receiverPlayer?.nickname || ''
         }
 
-        return transaction.collection('messages').add({
+        await db.collection('messages').doc(roomId).update({
           data: {
-            roomId,
-            fromOpenid: OPENID,
-            fromNickname: nickname,
-            fromAvatar: senderAvatar,
-            content: log.content,
-            toOpenid: log.toOpenid || '',
-            toNickname: toNickname,
-            toAvatar: receiverAvatar,
-            timestamp: db.serverDate()
+            messages: db.command.push({
+              fromOpenid: OPENID,
+              fromNickname: nickname,
+              fromAvatar: senderAvatar,
+              content: log.content,
+              messageType: log.messageType,
+              toOpenid: log.toOpenid || '',
+              toNickname: toNickname,
+              toAvatar: receiverAvatar,
+              timestamp: db.serverDate()
+            })
           }
         })
-      })
-
-      await Promise.all(msgPromises)
+      }
       await transaction.collection('rooms').doc(roomId).update({
         data: { lastActiveTime: db.serverDate() }
       })

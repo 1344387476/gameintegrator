@@ -15,13 +15,15 @@ exports.main = async (event, context) => {
           success: true, 
           isNewUser: false, 
           userInfo: userRes.data,
-          currentRoomId: userRes.data.currentRoomId 
+          currentRoomId: userRes.data.currentRoomId,
+          openid: OPENID
         }
       } else {
         return { 
           success: true, 
           isNewUser: true, // 新用户
-          currentRoomId: null 
+          currentRoomId: null,
+          openid: OPENID
         }
       }
     } catch (e) {

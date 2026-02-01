@@ -255,7 +255,6 @@ Page({
         if (res.result.success) {
           // 成功：获取 roomId，更新前端缓存的 currentRoomId
           const roomId = res.result.roomId;
-
           wx.showToast({
             title: '创建成功',
             icon: 'success'

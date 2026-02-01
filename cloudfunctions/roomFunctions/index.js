@@ -97,21 +97,22 @@ exports.main = async (event, context) => {
           data: { currentRoomId: roomId }
         })
 
-        // 写入欢迎消息到 messages 集合
-        await transaction.collection('messages').add({
+        await transaction.commit()
+
+        // 加入房间系统消息
+        await db.collection('messages').doc(roomId).update({
           data: {
-            roomId,
-            fromOpenid: OPENID,
-            fromNickname: nickname,
-            fromAvatar: avatar,
-            content: `欢迎 ${nickname} 进入房间【${room.roomName}】`,
-            displayContent: `${nickname} 进入了房间`,
-            messageType: 'welcome',
-            timestamp: db.serverDate()
+            messages: _.push({
+              fromOpenid: OPENID,
+              fromNickname: nickname,
+              fromAvatar: avatar,
+              content: `${nickname} 加入了房间`,
+              messageType: 'join',
+              timestamp: db.serverDate()
+            })
           }
         })
 
-        await transaction.commit()
         return { success: true }
       } catch (error) {
         await transaction.rollback()
@@ -153,23 +154,33 @@ exports.main = async (event, context) => {
             }]
           }
         })
-        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: roomId } })
 
-        // 写入欢迎消息到 messages 集合
-        await transaction.collection('messages').add({
+        // 创建空消息文档
+        await transaction.collection('messages').doc(roomId).set({
           data: {
-            roomId,
-            fromOpenid: OPENID,
-            fromNickname: payload.nickname,
-            fromAvatar: payload.avatar,
-            content: `欢迎 ${payload.nickname} 创建了房间【${payload.roomName}】`,
-            displayContent: `${payload.nickname} 创建了房间`,
-            messageType: 'welcome',
-            timestamp: db.serverDate()
+            messages: [],
+            createdAt: db.serverDate()
           }
         })
 
+        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: roomId } })
+
         await transaction.commit()
+
+        // 创建房间系统消息
+        await db.collection('messages').doc(roomId).update({
+          data: {
+            messages: _.push({
+              fromOpenid: OPENID,
+              fromNickname: payload.nickname,
+              fromAvatar: payload.avatar,
+              content: `${payload.nickname} 创建了房间`,
+              messageType: 'create',
+              timestamp: db.serverDate()
+            })
+          }
+        })
+
         return { success: true, roomId }
       } catch (error) {
         await transaction.rollback()
@@ -203,7 +214,18 @@ exports.main = async (event, context) => {
               if (playersAfterRemove.length === 0) {
                 // 如果是最后一个玩家，删除房间
                 await transaction.collection('rooms').doc(roomId).remove()
-                // 消息不在这里删除，由定时任务清理，避免事务超时
+                
+                // 删除消息（非事务，不阻塞）
+                try {
+                  await db.collection('messages').doc(roomId).remove()
+                } catch (e) {
+                  console.log('消息文档删除失败:', e.message)
+                }
+                
+                // 清空当前用户房间ID
+                await db.collection('users').doc(OPENID).update({
+                  data: { currentRoomId: null }
+                })
               } else {
                 // 如果不是最后一个玩家，正常标记退出
                 let newOwner = room.owner
@@ -213,6 +235,20 @@ exports.main = async (event, context) => {
                 }
                 await transaction.collection('rooms').doc(roomId).update({
                   data: { players: playersAfterRemove, owner: newOwner }
+                })
+                
+                // 写入退出消息（在事务内）
+                await transaction.collection('messages').doc(roomId).update({
+                  data: {
+                    messages: db.command.push({
+                      fromOpenid: OPENID,
+                      fromNickname: players[idx].nickname,
+                      fromAvatar: players[idx].avatar || '',
+                      content: `${players[idx].nickname} 退出了房间`,
+                      messageType: 'leave',
+                      timestamp: db.serverDate()
+                    })
+                  }
                 })
               }
             }
@@ -268,19 +304,34 @@ exports.main = async (event, context) => {
           }
         })
 
-        // 2. 更新房间状态为 settled，并设置 1小时后的删除时间戳
-        const deleteAt = Date.now() + 3600000
+        // 2. 标记为 settled（保留房间数据供查看）
         await transaction.collection('rooms').doc(roomId).update({
+          data: { status: 'settled' }
+        })
+
+        // 3. 清空所有玩家的 currentRoomId
+        for (const player of room.players) {
+          await transaction.collection('users').doc(player.openid).update({
+            data: { currentRoomId: null }
+          })
+        }
+
+        await transaction.commit()
+
+        // 写入结算系统消息
+        await db.collection('messages').doc(roomId).update({
           data: {
-            status: 'settled',
-            deleteTime: deleteAt
+            messages: db.command.push({
+              fromOpenid: 'SYSTEM',
+              fromNickname: '系统',
+              content: '本场对局已结算，输赢保存到历史记录',
+              messageType: 'settle',
+              timestamp: db.serverDate()
+            })
           }
         })
 
-        // 3. 释放房主状态
-        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: null } })
-        await transaction.commit()
-        return { success: true, msg: '结算完成，房间将于1小时后自动销毁' }
+        return { success: true, msg: '结算完成' }
       } catch (error) {
         await transaction.rollback()
         throw error
@@ -308,10 +359,37 @@ exports.main = async (event, context) => {
         // 释放房主状态
         await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: null } })
         await transaction.commit()
-        return { success: true, msg: '房间已直接销毁' }
+
+        // 删除消息（非事务）
+        try {
+          await db.collection('messages').doc(roomId).remove()
+        } catch (e) {
+          console.log('消息文档删除失败:', e.message)
+        }
+
+        return { success: true, msg: '房间已解散', roomDeleted: true }
       } catch (error) {
         await transaction.rollback()
         throw error
+      }
+    }
+
+    // 动作 F：删除已结算房间（后台清理）
+    if (action === 'deleteSettledRoom') {
+      const { roomId } = payload
+      
+      try {
+        // 删除房间
+        await db.collection('rooms').doc(roomId).remove()
+        
+        // 删除消息
+        await db.collection('messages').doc(roomId).remove().catch(() => {
+          console.log('消息文档删除失败或不存在')
+        })
+        
+        return { success: true }
+      } catch (e) {
+        return { success: false, error: e.message }
       }
     }
   } catch (e) {

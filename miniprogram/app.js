@@ -25,8 +25,7 @@ App({
 
     // 微信登录
     wx.login({
-      success: (res) => {
-        console.log(res);
+      success: () => {
         // TODO: 将 code 发送到后台换取 openId, sessionKey, unionId
       }
     })
@@ -98,20 +97,65 @@ App({
   },
 
   checkAndNavigateToRoom(roomId) {
+    // 先查询房间状态
+    wx.cloud.database().collection('rooms').doc(roomId).get({
+      success: (res) => {
+        const room = res.data;
+        console.log("查询房间"+room);
+        if (!room) {
+          // 房间不存在，清理本地状态
+          wx.removeStorageSync('currentRoomId');
+          return;
+        }
+        
+        if (room.status === 'active') {
+          // 活跃房间，检查用户状态并跳转
+          this.checkUserStatusAndNavigate(roomId);
+        } else if (room.status === 'settled') {
+          // 已结算，删除数据，不跳转
+          this.deleteSettledRoom(roomId);
+        }
+      },
+      fail: () => {
+        // 获取失败，清理本地状态
+        wx.removeStorageSync('currentRoomId');
+      }
+    });
+  },
+
+  // 检查用户状态并跳转
+  checkUserStatusAndNavigate(roomId) {
     wx.cloud.callFunction({
       name: 'roomFunctions',
-      data: {
-        action: 'checkUserStatus'
-      },
+      data: { action: 'checkUserStatus' },
       success: (res) => {
-        if (res.result.success && res.result.inRoom && res.result.status === 'active') {
+        if (res.result.success && res.result.inRoom) {
           wx.reLaunch({
             url: `/pages/room/room?roomId=${roomId}`
           });
-        } 
+        } else {
+          // 用户已不在房间，清理状态
+          wx.removeStorageSync('currentRoomId');
+        }
       },
       fail: (err) => {
-        console.error('检查房间状态失败:', err);
+        console.error('检查用户状态失败:', err);
+        wx.removeStorageSync('currentRoomId');
+      }
+    });
+  },
+
+  // 删除已结算房间数据
+  deleteSettledRoom(roomId) {
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'deleteSettledRoom',
+        payload: { roomId }
+      },
+      complete: () => {
+        // 无论成功与否，清理本地状态
+        wx.removeStorageSync('currentRoomId');
       }
     });
   }

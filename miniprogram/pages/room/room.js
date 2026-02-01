@@ -31,13 +31,7 @@ Page({
     // 当前用户昵称
     currentUser: '',
     // 弹窗显示状态
-    showTransferModal: false, // 转账弹窗
-    showPrizeModal: false, // 奖池转入弹窗
-    showReceiveModal: false, // 收取奖池弹窗
-    showTipModal: false, // 提示弹窗
-    showSettleConfirm: false, // 结算确认弹窗
-    showResultModal: false, // 战绩弹窗
-    showQrcode: false, // 二维码弹窗
+showTransferModal: false, // 转账弹窗
     showExpenseModal: false, // 支出弹窗
     showExitConfirm: false, // 退出房间确认弹窗
     // 转账相关数据
@@ -165,15 +159,20 @@ Page({
     try {
       const watcher = wx.cloud.database()
         .collection('messages')
-        .where({ roomId })
-        .orderBy('timestamp', 'desc')
-        .limit(messagesPageSize)
+        .doc(roomId)
         .watch({
           onChange: (snapshot) => {
-            const messages = snapshot.docs;
-            const records = that.convertMessagesToRecords(messages);
+            const doc = snapshot.docs[0];
+            const messages = doc?.messages || [];
+            // 按时间降序排序（最新的在前）
+            const sortedMessages = [...messages].sort((a, b) =>
+              new Date(b.timestamp) - new Date(a.timestamp)
+            );
+            const records = that.convertMessagesToRecords(sortedMessages);
+            // 取前 messagesPageSize 条
+            const limitedRecords = records.slice(0, messagesPageSize);
             // 消息按时间正序排列（最新的在最后）
-            const sortedRecords = [...records].reverse();
+            const sortedRecords = [...limitedRecords].reverse();
 
             that.setData({
               'room.records': sortedRecords,
@@ -187,6 +186,14 @@ Page({
           },
           onError: (err) => {
             console.error('消息监听失败:', err);
+            
+            // 如果是文档不存在（房间已删除），停止重试
+            if (err.errCode === -502001 || err.message?.includes('not exist')) {
+              console.log('房间已删除，停止监听')
+              // 不调用 handleWatchError，避免无限重试
+              return
+            }
+            
             that.handleWatchError(err, roomId);
           }
         });
@@ -257,37 +264,39 @@ Page({
   loadMessages(roomId, isInitialLoad = true) {
     const { messagesPageSize, messagesMaxLimit } = this.data;
 
-    wx.cloud.database().collection('messages')
-      .where({ roomId })
-      .orderBy('timestamp', 'desc')
-      .limit(messagesPageSize)
-      .get({
-        success: (res) => {
-          if (res.data) {
-            const messages = res.data;
-            const records = this.convertMessagesToRecords(messages);
-            // 将消息按时间正序排列（最新的在最后）
-            const sortedRecords = [...records].reverse();
-            const hasMore = messages.length >= messagesPageSize && messages.length < messagesMaxLimit;
+    wx.cloud.database().collection('messages').doc(roomId).get({
+      success: (res) => {
+        if (res.data) {
+          const messages = res.data?.messages || [];
+          // 按时间降序排序
+          const sortedMessages = [...messages].sort((a, b) =>
+            new Date(b.timestamp) - new Date(a.timestamp)
+          );
+          // 取前 messagesPageSize 条
+          const limitedMessages = sortedMessages.slice(0, messagesPageSize);
+          const records = this.convertMessagesToRecords(limitedMessages);
+          // 将消息按时间正序排列（最新的在最后）
+          const sortedRecords = [...records].reverse();
+          const hasMore = limitedMessages.length >= messagesPageSize && limitedMessages.length < messagesMaxLimit;
 
-            this.setData({
-              'room.records': sortedRecords,
-              messagesLoaded: sortedRecords.length,
-              hasMore,
-              loadingMoreText: ''
-            });
-            // 初始加载时滚动到底部
-            if (isInitialLoad && sortedRecords.length > 0) {
-              setTimeout(() => {
-                this.scrollToBottom();
-              }, 100);
-            }
+this.setData({
+            'room.records': sortedRecords,
+            messagesLoaded: sortedRecords.length,
+            hasMore,
+            loadingMoreText: ''
+          });
+          // 初始加载或轮询更新时滚动到底部
+          if (sortedRecords.length > 0) {
+            setTimeout(() => {
+              this.scrollToBottom();
+            }, 100);
           }
-        },
-        fail: (err) => {
-          console.error('加载消息失败:', err);
         }
-      });
+      },
+      fail: (err) => {
+        console.error('加载消息失败:', err);
+      }
+    });
   },
 
   /**
@@ -312,36 +321,38 @@ Page({
 
     const limit = Math.min(messagesLoaded + messagesPageSize, messagesMaxLimit);
 
-    wx.cloud.database().collection('messages')
-      .where({ roomId })
-      .orderBy('timestamp', 'desc')
-      .limit(limit)
-      .get({
-        success: (res) => {
-          if (res.data) {
-            const messages = res.data;
-            const records = this.convertMessagesToRecords(messages);
-            // 将消息按时间正序排列（最新的在最后）
-            const sortedRecords = [...records].reverse();
-            const hasMore = messages.length >= limit && messages.length < messagesMaxLimit;
+    wx.cloud.database().collection('messages').doc(roomId).get({
+      success: (res) => {
+        if (res.data) {
+          const messages = res.data?.messages || [];
+          // 按时间降序排序
+          const sortedMessages = [...messages].sort((a, b) =>
+            new Date(b.timestamp) - new Date(a.timestamp)
+          );
+          // 取前 limit 条
+          const limitedMessages = sortedMessages.slice(0, limit);
+          const records = this.convertMessagesToRecords(limitedMessages);
+          // 将消息按时间正序排列（最新的在最后）
+          const sortedRecords = [...records].reverse();
+          const hasMore = limitedMessages.length >= limit && limitedMessages.length < messagesMaxLimit;
 
-            this.setData({
-              'room.records': sortedRecords,
-              messagesLoaded: sortedRecords.length,
-              hasMore,
-              isLoadingMore: false,
-              loadingMoreText: hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
-            });
-          }
-        },
-        fail: (err) => {
-          console.error('加载更多失败:', err);
           this.setData({
+            'room.records': sortedRecords,
+            messagesLoaded: sortedRecords.length,
+            hasMore,
             isLoadingMore: false,
-            loadingMoreText: '加载失败，点击重试'
+            loadingMoreText: hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
           });
         }
-      });
+      },
+      fail: (err) => {
+        console.error('加载更多失败:', err);
+        this.setData({
+          isLoadingMore: false,
+          loadingMoreText: '加载失败，点击重试'
+        });
+      }
+    });
   },
 
   /**
@@ -381,33 +392,20 @@ Page({
         operatorAvatar: msg.fromAvatar || '/images/avatar.png'
       };
       
-      // 简化的"我"高亮处理（排除系统消息）
+// 处理消息显示：本人发送的消息隐藏发送者昵称
       let processedDescription = description;
       let segments = null;
       
-      if (isMe && description.includes(currentUser) && !['welcome', 'pass'].includes(msg.messageType)) {
-        processedDescription = description.replace(currentUser, '我');
-        const parts = processedDescription.split('我');
-        if (parts.length > 1) {
-          segments = [];
-          parts.forEach((part, index) => {
-            if (part) segments.push({ text: part, isMe: false });
-            if (index < parts.length - 1) segments.push({ text: '我', isMe: true });
-          });
-        }
+      // 系统消息本人视角：移除开头的昵称（如"张三 退出了房间" -> "退出了房间"）
+      if (isMe && ['create', 'join', 'leave'].includes(msg.messageType) && description.startsWith(msg.fromNickname)) {
+        processedDescription = description.substring(msg.fromNickname.length).trim();
       }
       
-      // 使用 displayContent（如果存在且不是本人）
-      if (msg.displayContent && !isMe) {
-        processedDescription = msg.displayContent;
-      }
-      
-      // 本人看到简化版欢迎消息
-      if (msg.messageType === 'welcome' && isMe) {
-        const roomNameMatch = description.match(/【(.+?)】/);
-        const roomName = roomNameMatch ? roomNameMatch[1] : '';
-        processedDescription = '欢迎进入【' + roomName + '】';
-        segments = null; // 欢迎消息不使用分段
+      // 为包含金额的消息生成分段（用于橙色高亮显示）
+      // 只为转账、下注、All-in、领取奖池消息高亮金额
+      const highlightTypes = ['transfer', 'bet', 'allin', 'claim'];
+      if (highlightTypes.includes(msg.messageType)) {
+        segments = this.generateAmountSegments(processedDescription, msg.messageType);
       }
       
       return {
@@ -416,7 +414,7 @@ Page({
         time,
         detail,
         isMe,
-        isSystem: ['welcome', 'pass'].includes(msg.messageType),
+        isSystem: ['create', 'join', 'leave', 'settle'].includes(msg.messageType) || !msg.messageType,
         isReceive: false,
         segments
       };
@@ -468,41 +466,53 @@ Page({
    * 从云数据库加载房间信息并初始化显示
    * @param {string} roomId - 房间ID
    */
-  loadRoom(roomId) {
-    if (!roomId) {
-      wx.showToast({
-        title: '房间ID不存在',
-        icon: 'none'
-      });
-      setTimeout(() => wx.navigateBack(), 1500);
-      return;
-    }
-
-    wx.cloud.database().collection('rooms').doc(roomId).get({
-      success: (res) => {
-        if (res.data) {
-          const room = res.data;
-          this.processRoomData(room);
-          // 加载消息列表
-          this.loadMessages(roomId);
-        } else {
-          wx.showToast({
-            title: '房间不存在',
-            icon: 'none'
-          });
-          setTimeout(() => wx.navigateBack(), 1500);
-        }
-      },
-      fail: (err) => {
-        console.error('加载房间失败:', err);
-        // 房间不存在，清理本地状态并返回
-        wx.removeStorageSync('currentRoomId');
+loadRoom(roomId) {
+    return new Promise((resolve, reject) => {
+      if (!roomId) {
         wx.showToast({
-          title: '房间不存在或已解散',
+          title: '房间ID不存在',
           icon: 'none'
         });
         setTimeout(() => wx.navigateBack(), 1500);
+        reject(new Error('房间ID不存在'));
+        return;
       }
+
+      wx.cloud.database().collection('rooms').doc(roomId).get({
+        success: (res) => {
+          if (res.data) {
+            const room = res.data;
+            this.processRoomData(room);
+            // 加载消息列表
+            this.loadMessages(roomId);
+            resolve(room);
+          } else {
+            wx.showToast({
+              title: '房间不存在',
+              icon: 'none'
+            });
+            setTimeout(() => wx.navigateBack(), 1500);
+            reject(new Error('房间不存在'));
+          }
+        },
+        fail: (err) => {
+          console.error('加载房间失败:', err);
+          
+          // 关闭 watch 如果存在
+          if (this.data.messagesWatcher) {
+            this.data.messagesWatcher.close()
+          }
+          
+          // 房间不存在，清理本地状态并返回
+          wx.removeStorageSync('currentRoomId');
+          wx.showToast({
+            title: '房间已结束或不存在',
+            icon: 'none'
+          });
+          setTimeout(() => wx.navigateBack(), 1500);
+          reject(err);
+        }
+      });
     });
   },
 
@@ -637,7 +647,7 @@ Page({
    *   2. 调用云函数执行转账
    *   3. 重新加载房间数据
    */
-  confirmTransfer() {
+confirmTransfer() {
     const amount = parseInt(this.data.transferAmount);
 
     // 验证输入
@@ -653,6 +663,9 @@ Page({
     // 找到接收方
     const receiver = room.members[targetIndex];
 
+    // 立即关闭弹窗
+    this.closeTransferModal();
+
     // 调用云函数执行转账
     wx.cloud.callFunction({
       name: 'gameLogic',
@@ -667,10 +680,7 @@ Page({
         }
       },
       success: (res) => {
-        if (res.result.success) {
-          this.closeTransferModal();
-          // 消息由 watch 监听器自动同步
-        } else {
+        if (!res.result.success) {
           wx.showToast({
             title: res.result.msg || '转账失败',
             icon: 'none'
@@ -744,6 +754,9 @@ Page({
       return;
     }
 
+    // 立即关闭弹窗
+    this.closePrizeModal();
+
     // 调用云函数执行转入
     wx.cloud.callFunction({
       name: 'gameLogic',
@@ -757,8 +770,6 @@ Page({
       },
       success: (res) => {
         if (res.result.success) {
-          this.closePrizeModal();
-
           // 使用 setData 更新奖池积分
           const currentTotal = this.data.room.prizePool.total;
           this.setData({
@@ -800,9 +811,76 @@ Page({
     member.scoreScroll = scoreScroll;
   },
 
+/**
+   * 生成金额分段（仅用于橙色高亮金额）
+   * 根据消息类型精准识别金额位置，避免高亮用户名中的数字
+   * @param {string} description - 消息描述
+   * @param {string} messageType - 消息类型
+   * @returns {Array} 分段数组
+   */
+  generateAmountSegments(description, messageType) {
+    if (!messageType) return null;
+    
+    let amountMatch = null;
+    let prefix = '';
+    let suffix = '';
+    
+    // 转账消息："转给 张三 50 分" - 匹配 "50 分" 结尾的数字
+    if (messageType === 'transfer') {
+      // 匹配模式：任意内容 + 空格 + 数字 + "分"
+      const match = description.match(/^(.*\s)(\d+)(\s*分)$/);
+      if (match) {
+        prefix = match[1];
+        amountMatch = match[2];
+        suffix = match[3];
+      }
+    }
+    // 下注消息："下注 50 分" - 匹配 "下注" 后面的数字
+    else if (messageType === 'bet') {
+      const match = description.match(/^(下注\s)(\d+)(\s*分)$/);
+      if (match) {
+        prefix = match[1];
+        amountMatch = match[2];
+        suffix = match[3];
+      }
+    }
+    // All-in消息："All-in 50 分"
+    else if (messageType === 'allin') {
+      const match = description.match(/^(All-in\s)(\d+)(\s*分)$/);
+      if (match) {
+        prefix = match[1];
+        amountMatch = match[2];
+        suffix = match[3];
+      }
+    }
+    // 领取奖池："收走了奖池 50 分"
+    else if (messageType === 'claim') {
+      const match = description.match(/^(收走了奖池\s)(\d+)(\s*分)$/);
+      if (match) {
+        prefix = match[1];
+        amountMatch = match[2];
+        suffix = match[3];
+      }
+    }
+    
+    // 如果匹配到金额，生成分段
+    if (amountMatch) {
+      const segments = [];
+      if (prefix) {
+        segments.push({ text: prefix, isAmount: false, isMe: false });
+      }
+      segments.push({ text: amountMatch, isAmount: true, isMe: false });
+      if (suffix) {
+        segments.push({ text: suffix, isAmount: false, isMe: false });
+      }
+      return segments;
+    }
+    
+    return null;
+  },
+
   /**
-   * 生成分段数据
-   * 将描述分割成片段，用于单独高亮"我"字和金额
+   * 生成分段数据（保留用于本地记录）
    * @param {string} description - 原始描述
    * @param {string} currentUser - 当前用户名
    * @returns {Array} 分段数组
@@ -1209,8 +1287,8 @@ Page({
     const room = this.data.room;
     const myOpenid = wx.getStorageSync('openid');
     
-    // 新增：房主判断逻辑 room.owner == myOpenid
-    if (room.owner !== myOpenid) {
+    // 房主判断逻辑 room.creator == myOpenid
+    if (room.creator !== myOpenid) {
       wx.showToast({
         title: '只有房主可以结算',
         icon: 'none'
@@ -1218,7 +1296,7 @@ Page({
       return;
     }
     
-    // 原有的结算确认弹窗逻辑
+    // 结算确认弹窗
     this.setData({ showSettleConfirm: true });
   },
 
@@ -1236,7 +1314,6 @@ Page({
    */
   confirmSettle() {
     const roomId = this.data.roomId;
-
     // 参数标准化：云函数期望 { roomId }
     wx.cloud.callFunction({
       name: 'roomFunctions',
@@ -1246,13 +1323,14 @@ Page({
           roomId: roomId  // ✅ 标准化参数：roomId
         }
       },
-      success: (res) => {
+success: (res) => {
         if (res.result.success) {
-          // 重新加载房间数据（状态变为'settled'，映射为'ended'）
           this.closeSettleConfirm();
-          this.loadRoom(roomId);
-          // 显示结算结果弹窗
-          this.showResultModal();
+          // 刷新房间状态确保按钮禁用
+          this.loadRoom(roomId).then(() => {
+            // 显示结算结果弹窗（房间数据保留，可查看历史）
+            this.showResultModal();
+          });
         } else {
           // 失败：获取 msg，保留原有错误提示逻辑
           wx.showToast({
@@ -2350,10 +2428,26 @@ Page({
       },
       success: (cloudRes) => {
         if (cloudRes.result.success) {
-          // 返回首页
-          wx.navigateBack({
-            delta: 1
-          });
+          // 如果房间已删除，关闭 watch
+          if (cloudRes.result.roomDeleted) {
+            if (this.data.messagesWatcher) {
+              this.data.messagesWatcher.close()
+            }
+            wx.showToast({
+              title: '退出完成，房间已销毁',
+              icon: 'success'
+            })
+            setTimeout(() => {
+              wx.navigateBack({
+                delta: 1
+              })
+            }, 1500)
+          } else {
+            // 返回首页
+            wx.navigateBack({
+              delta: 1
+            });
+          }
         } else {
           console.log("888"+cloudRes.result.msg);
           
