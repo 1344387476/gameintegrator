@@ -30,6 +30,8 @@ Page({
     },
     // 当前用户昵称
     currentUser: '',
+    // 当前用户openid
+    myOpenid: '',
     // 弹窗显示状态
 showTransferModal: false, // 转账弹窗
     showExpenseModal: false, // 支出弹窗
@@ -89,7 +91,13 @@ showTransferModal: false, // 转账弹窗
     isLoadingMore: false, // 是否正在加载更多
     hasMore: true, // 是否还有更多消息
     loadingMoreText: '', // 加载提示文案
-    localMessageIds: [] // 本地消息ID集合（用于去重）
+    localMessageIds: [], // 本地消息ID集合（用于去重）
+    // QR码相关数据
+    qrCodeFileID: '',
+    qrCodeTempUrl: '',
+    qrCodeError: false,
+    isGeneratingQR: false,
+    showQrcode: false
   },
 
   /**
@@ -102,6 +110,10 @@ showTransferModal: false, // 转账弹窗
     console.log("房间id"+roomId)
     const userInfo = wx.getStorageSync('userInfo') || {};
     this.setData({ currentUser: userInfo.nickName || '' });
+    
+    // 设置当前用户openid
+    const openid = wx.getStorageSync('openid');
+    this.setData({ myOpenid: openid || '' });
 
     this.loadRoom(roomId);
     this.initMessagesWatch(roomId);
@@ -162,22 +174,8 @@ showTransferModal: false, // 转账弹窗
         .doc(roomId)
         .watch({
           onChange: (snapshot) => {
-            const doc = snapshot.docs[0];
-            const messages = doc?.messages || [];
-            // 按时间降序排序（最新的在前）
-            const sortedMessages = [...messages].sort((a, b) =>
-              new Date(b.timestamp) - new Date(a.timestamp)
-            );
-            const records = that.convertMessagesToRecords(sortedMessages);
-            // 取前 messagesPageSize 条
-            const limitedRecords = records.slice(0, messagesPageSize);
-            // 消息按时间正序排列（最新的在最后）
-            const sortedRecords = [...limitedRecords].reverse();
-
-            that.setData({
-              'room.records': sortedRecords,
-              watchRetryCount: 0
-            });
+            // 刷新所有数据（包括房间数据和消息）
+            that.refreshAllData();
 
             // 滚动到底部
             setTimeout(() => {
@@ -256,37 +254,67 @@ showTransferModal: false, // 转账弹窗
   },
 
   /**
+   * 统一处理消息数据
+   * 将原始消息数组转换为页面显示格式，并按时间正序排列（旧消息在上，新消息在下）
+   * @param {Array} messages - 原始消息数组
+   * @param {number} limit - 限制返回的消息数量
+   * @returns {Object} 包含 records 和其他元数据
+   */
+  processMessages(messages, limit = null) {
+    if (!messages || messages.length === 0) {
+      return { records: [], hasMore: false, count: 0 };
+    }
+
+    const { messagesPageSize, messagesMaxLimit } = this.data;
+    const actualLimit = limit || messagesPageSize;
+
+    // 按时间降序排序（最新的在前），取前 limit 条
+    const sortedMessages = [...messages].sort((a, b) =>
+      new Date(b.timestamp) - new Date(a.timestamp)
+    );
+
+    // 截取指定数量
+    const limitedMessages = sortedMessages.slice(0, actualLimit);
+
+    // 转换为 records 格式
+    const records = this.convertMessagesToRecords(limitedMessages);
+
+    // 将消息按时间正序排列（旧消息在上，新消息在下）
+    const sortedRecords = [...records].reverse();
+
+    // 判断是否还有更多消息
+    const hasMore = limitedMessages.length >= actualLimit && limitedMessages.length < messagesMaxLimit;
+
+    return {
+      records: sortedRecords,
+      hasMore,
+      count: sortedRecords.length,
+      rawCount: messages.length
+    };
+  },
+
+  /**
    * 加载消息列表
    * 从 messages 集合加载所有消息并转换为 records 格式
    * @param {string} roomId - 房间ID
    * @param {boolean} isInitialLoad - 是否为初始加载
    */
   loadMessages(roomId, isInitialLoad = true) {
-    const { messagesPageSize, messagesMaxLimit } = this.data;
-
     wx.cloud.database().collection('messages').doc(roomId).get({
       success: (res) => {
         if (res.data) {
           const messages = res.data?.messages || [];
-          // 按时间降序排序
-          const sortedMessages = [...messages].sort((a, b) =>
-            new Date(b.timestamp) - new Date(a.timestamp)
-          );
-          // 取前 messagesPageSize 条
-          const limitedMessages = sortedMessages.slice(0, messagesPageSize);
-          const records = this.convertMessagesToRecords(limitedMessages);
-          // 将消息按时间正序排列（最新的在最后）
-          const sortedRecords = [...records].reverse();
-          const hasMore = limitedMessages.length >= messagesPageSize && limitedMessages.length < messagesMaxLimit;
+          const result = this.processMessages(messages);
 
-this.setData({
-            'room.records': sortedRecords,
-            messagesLoaded: sortedRecords.length,
-            hasMore,
+          this.setData({
+            'room.records': result.records,
+            messagesLoaded: result.count,
+            hasMore: result.hasMore,
             loadingMoreText: ''
           });
+
           // 初始加载或轮询更新时滚动到底部
-          if (sortedRecords.length > 0) {
+          if (result.count > 0) {
             setTimeout(() => {
               this.scrollToBottom();
             }, 100);
@@ -325,23 +353,14 @@ this.setData({
       success: (res) => {
         if (res.data) {
           const messages = res.data?.messages || [];
-          // 按时间降序排序
-          const sortedMessages = [...messages].sort((a, b) =>
-            new Date(b.timestamp) - new Date(a.timestamp)
-          );
-          // 取前 limit 条
-          const limitedMessages = sortedMessages.slice(0, limit);
-          const records = this.convertMessagesToRecords(limitedMessages);
-          // 将消息按时间正序排列（最新的在最后）
-          const sortedRecords = [...records].reverse();
-          const hasMore = limitedMessages.length >= limit && limitedMessages.length < messagesMaxLimit;
+          const result = this.processMessages(messages, limit);
 
           this.setData({
-            'room.records': sortedRecords,
-            messagesLoaded: sortedRecords.length,
-            hasMore,
+            'room.records': result.records,
+            messagesLoaded: result.count,
+            hasMore: result.hasMore,
             isLoadingMore: false,
-            loadingMoreText: hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
+            loadingMoreText: result.hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
           });
         }
       },
@@ -487,6 +506,10 @@ loadRoom(roomId) {
             this.processRoomData(room);
             // 加载消息列表
             this.loadMessages(roomId);
+            
+            // 首次进入房间，检查是否需要刷新头像（房间创建>2小时）
+            this.checkAndRefreshAvatars(room, this.data.room.members);
+            
             resolve(room);
           } else {
             wx.showToast({
@@ -587,6 +610,69 @@ loadRoom(roomId) {
       isCreator
     });
   },
+  
+  /**
+   * 检查房间创建时间，如果超过2小时则刷新所有成员头像URL
+   * @param {Object} room - 原始房间数据
+   * @param {Array} members - 处理后的成员列表
+   */
+  async checkAndRefreshAvatars(room, members) {
+    // 获取房间创建时间
+    const createTime = room.createTime ? new Date(room.createTime).getTime() : Date.now();
+    const now = Date.now();
+    const twoHours = 2 * 60 * 60 * 1000; // 2小时
+    
+    // 如果房间创建超过2小时
+    if (now - createTime > twoHours) {
+      console.log('房间创建超过2小时，需要刷新头像URL');
+      
+      // 收集需要刷新URL的成员（有avatarFileID的）
+      const membersNeedRefresh = members.filter(member => {
+        // 查找原始player数据
+        const originalPlayer = room.players.find(p => p.openid === member.openid);
+        return originalPlayer && originalPlayer.avatarFileID;
+      });
+      
+      if (membersNeedRefresh.length === 0) return;
+      
+      // 获取所有fileID
+      const fileIDs = membersNeedRefresh.map(member => {
+        const originalPlayer = room.players.find(p => p.openid === member.openid);
+        return originalPlayer.avatarFileID;
+      });
+      
+      try {
+        // 批量获取新的临时URL
+        const res = await wx.cloud.getTempFileURL({
+          fileList: fileIDs
+        });
+        
+        // 更新成员头像URL
+        const updatedMembers = members.map(member => {
+          const originalPlayer = room.players.find(p => p.openid === member.openid);
+          if (originalPlayer && originalPlayer.avatarFileID) {
+            const fileIDIndex = fileIDs.indexOf(originalPlayer.avatarFileID);
+            if (fileIDIndex !== -1 && res.fileList[fileIDIndex]) {
+              return {
+                ...member,
+                avatarUrl: res.fileList[fileIDIndex].tempFileURL
+              };
+            }
+          }
+          return member;
+        });
+        
+        // 更新房间成员数据
+        this.setData({
+          'room.members': updatedMembers
+        });
+        
+        console.log('头像URL刷新完成');
+      } catch (err) {
+        console.error('刷新头像URL失败:', err);
+      }
+    }
+  },
 
   /**
    * 统一刷新房间和消息数据
@@ -620,15 +706,30 @@ loadRoom(roomId) {
       const processedRoom = this.processRoomDataForRefresh(roomRes);
       
       // 处理消息数据
-      const messages = messagesRes.sort((a, b) => 
-        new Date(b.timestamp) - new Date(a.timestamp)
-      );
-      const records = this.convertMessagesToRecords(messages);
+      const result = this.processMessages(messagesRes);
       
-      // 一次性 setData（关键！同时更新积分和消息）
+      // 检查是否从 playing 变为 ended（结算状态）
+      const oldStatus = this.data.room.status;
+      const newStatus = processedRoom.status;
+      const shouldShowResult = oldStatus === 'playing' && newStatus === 'ended';
+
+      // 保留现有头像URL，只更新其他数据（积分、状态等）
+      const existingMembers = this.data.room.members || [];
+      const mergedMembers = processedRoom.members.map(newMember => {
+        const oldMember = existingMembers.find(m => m.openid === newMember.openid);
+        return {
+          ...newMember,
+          // 保留旧的头像URL，使用新的其他数据（积分、状态等）
+          avatarUrl: oldMember?.avatarUrl || newMember.avatarUrl
+        };
+      });
+
+      // 一次性 setData（关键！同时更新积分和消息，但保留头像）
       this.setData({
-        'room.members': processedRoom.members,
-        'room.records': records,
+        'room.members': mergedMembers,
+        'room.records': result.records,
+        messagesLoaded: result.count,
+        hasMore: result.hasMore,
         'room.status': processedRoom.status,
         'room.prizePool': processedRoom.prizePool,
         'room.allInValue': processedRoom.allInValue,
@@ -638,6 +739,11 @@ loadRoom(roomId) {
         canFollow: processedRoom.canFollow,
         isCreator: processedRoom.isCreator
       });
+
+      // 如果房间刚结算，显示结算弹窗
+      if (shouldShowResult) {
+        this.showResultModal();
+      }
       
     } catch (err) {
       console.error('刷新数据失败:', err);
@@ -723,15 +829,6 @@ loadRoom(roomId) {
   },
 
   /**
-   * 保存房间数据到云数据库
-   * 注：此函数已废弃，所有数据更新通过云函数完成
-   * 数据同步通过 loadRoom() 重新加载实现
-   */
-  saveRoomData() {
-    console.log('saveRoomData已废弃，使用云函数更新数据');
-  },
-
-  /**
    * 处理玩家点击事件
    * 根据游戏模式执行不同的操作：
    * - 普通模式：显示转账弹窗
@@ -750,7 +847,7 @@ loadRoom(roomId) {
 
     // 普通模式：检查是否点击自己
     if (this.data.room.gameMode === 'normal') {
-      if (member.name === this.data.currentUser) {
+      if (member.openid === this.data.myOpenid) {
         // this.showTip('不能向自己转账');
         return;
       }
@@ -1353,6 +1450,11 @@ success: (res) => {
         if (!receiver) {
           this.showTip('找不到接收玩家');
           return;
+        }
+
+        // 跳过自己（不能给自己转账）
+        if (receiver.openid === this.data.myOpenid) {
+          continue;
         }
 
         // 验证是否为正整数
@@ -2176,6 +2278,10 @@ success: (res) => {
    * 显示房间二维码
    */
   showQrcode() {
+    // 如果还没有二维码，先生成
+    if (!this.data.qrCodeFileID) {
+      this.getRoomQRCode();
+    }
     this.setData({ showQrcode: true });
   },
 
@@ -2212,6 +2318,68 @@ success: (res) => {
           });
         }
       });
+  },
+
+  /**
+   * 获取房间二维码
+   * 调用云函数生成二维码并获取临时URL
+   */
+  getRoomQRCode() {
+    const { roomId } = this.data;
+    
+    if (!roomId) {
+      console.error("房间ID不存在，无法生成二维码");
+      this.setData({ qrCodeError: true });
+      return;
+    }
+    
+    this.setData({
+      isGeneratingQR: true,
+      qrCodeError: false
+    });
+    
+    wx.cloud.callFunction({
+      name: "roomFunctions",
+      data: {
+        action: "generateQRCode",
+        payload: {
+          roomId: roomId
+        }
+      },
+      success: (res) => {
+        if (res.result && res.result.success && res.result.fileID) {
+          // 将云文件fileID转换为临时URL
+          wx.cloud.getTempFileURL({
+            fileList: [res.result.fileID],
+            success: (urlRes) => {
+              if (urlRes.fileList && urlRes.fileList[0] && urlRes.fileList[0].tempFileURL) {
+                this.setData({
+                  qrCodeFileID: res.result.fileID,
+                  qrCodeTempUrl: urlRes.fileList[0].tempFileURL
+                });
+              } else {
+                console.error("获取临时URL失败");
+                this.setData({ qrCodeError: true });
+              }
+            },
+            fail: (err) => {
+              console.error("获取临时URL失败:", err);
+              this.setData({ qrCodeError: true });
+            }
+          });
+        } else {
+          console.error("生成二维码失败:", res.result ? res.result.msg : "未知错误");
+          this.setData({ qrCodeError: true });
+        }
+      },
+      fail: (err) => {
+        console.error("调用生成二维码云函数失败:", err);
+        this.setData({ qrCodeError: true });
+      },
+      complete: () => {
+        this.setData({ isGeneratingQR: false });
+      }
+    });
   },
 
   /**
@@ -2664,7 +2832,7 @@ success: (res) => {
     return {
       title: `邀请你加入打牌记账房间：${this.data.room.roomName}`,
       path: `/pages/room/room?roomId=${this.data.roomId}`,
-      imageUrl: '/images/default-goods-image.png'
+      imageUrl: '/images/share-default.jpg'
     };
   },
 

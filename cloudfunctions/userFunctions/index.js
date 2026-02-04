@@ -34,16 +34,22 @@ exports.main = async (event, context) => {
   // --- 动作 2：授权登录/更新资料 ---
   if (action === 'login') {
     try {
-      // 参数标准化：接收 { nickName, avatarUrl }
-      // 存储到数据库：{ nickname, avatar }
-      await db.collection('users').doc(OPENID).set({
-        data: {
-          _openid: OPENID,
-          nickname: userData.nickName,
-          avatar: userData.avatarUrl,
-          createTime: db.serverDate()
-        }
+      // 构建更新数据，只更新非空字段，避免覆盖原有数据
+      const updateData = {
+        nickname: userData.nickName,
+        avatar: userData.avatarUrl
+      }
+      
+      // 只在 avatarFileID 有值时才更新，避免清空已有数据
+      if (userData.avatarFileID) {
+        updateData.avatarFileID = userData.avatarFileID
+      }
+      
+      // 使用 update 而非 set，避免覆盖其他字段
+      await db.collection('users').doc(OPENID).update({
+        data: updateData
       })
+      
       return { success: true, openid: OPENID }
     } catch (e) {
       return { success: false, error: e }

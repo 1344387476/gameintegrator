@@ -9,35 +9,9 @@ exports.main = async (event, context) => {
   const { action, payload } = event
 
   try {
-    // 动作：检查用户状态
-    if (action === 'checkUserStatus') {
-      const userRes = await db.collection('users').doc(OPENID).get().catch(() => ({ data: null }))
-      const currentRoomId = userRes.data?.currentRoomId
-      
-      if (currentRoomId) {
-        // 检查用户是否真正在房间中
-        const roomRes = await db.collection('rooms').doc(currentRoomId).get().catch(() => null)
-        if (roomRes && roomRes.data) {
-          const room = roomRes.data
-          const player = room.players.find(p => p.openid === OPENID && !p.isExited)
-          
-          if (player && room.status === 'active') {
-            return { 
-              success: true, 
-              inRoom: true, 
-              roomId: currentRoomId,
-              roomName: room.roomName 
-            }
-          }
-        }
-      }
-      
-      return { success: true, inRoom: false }
-    }
-
     // 动作 A：加入房间
     if (action === 'join') {
-      const { roomId, nickname, avatar } = payload
+      const { roomId, nickname, avatar, avatarFileID } = payload
 
       const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
 
@@ -83,7 +57,8 @@ exports.main = async (event, context) => {
           newPlayers.push({
             openid: OPENID,
             nickname,
-            avatar,
+            avatar,           // 临时 URL（2小时内有效）
+            avatarFileID,     // fileID（永久，用于重新获取URL）
             score: 0,
             isExited: false
           })
@@ -151,7 +126,8 @@ exports.main = async (event, context) => {
             players: [{
               openid: OPENID,
               nickname: payload.nickname,
-              avatar: payload.avatar,
+              avatar: payload.avatar,           // 临时 URL（2小时内有效）
+              avatarFileID: payload.avatarFileID,  // fileID（永久，用于重新获取URL）
               score: 0,
               isExited: false
             }]

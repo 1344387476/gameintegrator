@@ -1,5 +1,14 @@
 <!--pages/home/home.wxml-->
-<view class="container">
+
+ <!-- 全屏 loading 遮罩 -->
+ <view class="loading-mask" wx:if="{{isLoading || isCreatingOrJoining}}">
+   <view class="loading-content">
+     <view class="weui-loading"></view>
+     <text class="loading-text">Loading...</text>
+   </view>
+ </view>
+
+ <view class="container {{isLoading || isCreatingOrJoining ? 'hidden' : ''}}">
   <!-- 背景装饰 -->
   <view class="bg-decoration bg-1"></view>
   <view class="bg-decoration bg-2"></view>
@@ -23,7 +32,7 @@
         >
           <image
             class="avatar"
-            src="{{userInfo.avatarUrl || '/images/avatar.png'}}"
+            src="{{avatarUrl || '/images/avatar.png'}}"
             mode="aspectFill"
           ></image>
         </button>

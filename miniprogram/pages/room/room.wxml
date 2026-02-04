@@ -177,7 +177,7 @@
       </view>
     </view>
     <view class="expense-list">
-      <view class="expense-item" wx:for="{{room.members}}" wx:key="name" wx:if="{{item.name !== currentUser}}">
+      <view class="expense-item" wx:for="{{room.members}}" wx:key="name" wx:if="{{item.openid !== myOpenid}}">
         <view class="player-info">
           <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
           <text class="player-name">{{item.name}}</text>
@@ -455,7 +455,7 @@
     <view class="qrcode-image-wrapper">
       <image 
         class="qrcode-image" 
-        src="{{qrCodeFileID}}"
+        src="{{qrCodeTempUrl}}"
         mode="aspectFit"
         wx:if="{{qrCodeFileID && !qrCodeError}}"
       ></image>

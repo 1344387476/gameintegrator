@@ -1,14 +1,16 @@
 {
-  "name": "roomFunctions",
+  "name": "@gameintegrator/room-functions",
   "version": "1.0.0",
-  "description": "",
+  "description": "房间管理云函数 - 处理游戏房间的创建、加入、退出等操作",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "npm install && tcb fn deploy roomFunctions"
   },
-  "author": "",
+  "author": "GameIntegrator Team",
   "license": "ISC",
   "dependencies": {
-    "wx-server-sdk": "~3.0.1"
+    "wx-server-sdk": "3.0.1",
+    "@cloudbase/node-sdk": "^3.3.7"
   }
 }

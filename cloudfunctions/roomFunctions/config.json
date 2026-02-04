@@ -1,7 +1,1 @@
-{
-  "permissions": {
-    "openapi": [
-      "wxacode.getUnlimited"
-    ]
-  }
-}
+{"permissions":{"openapi":["wxacode.getUnlimited"]}}
