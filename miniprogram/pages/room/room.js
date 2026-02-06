@@ -108,15 +108,120 @@ showTransferModal: false, // 转账弹窗
     const { roomId } = options;
     this.setData({ roomId });
     console.log("房间id"+roomId)
-    const userInfo = wx.getStorageSync('userInfo') || {};
-    this.setData({ currentUser: userInfo.nickName || '' });
     
-    // 设置当前用户openid
-    const openid = wx.getStorageSync('openid');
-    this.setData({ myOpenid: openid || '' });
+    // 等待用户信息初始化完成后再加载房间
+    // 解决通过分享卡片进入时头像信息未加载的问题
+    this.waitForUserInfo(() => {
+      const userInfo = getApp().globalData.userInfo || {};
+      this.setData({ 
+        currentUser: userInfo.nickname || '',
+        myOpenid: wx.getStorageSync('openid') || ''
+      });
+      
+      this.loadRoom(roomId);
+      this.initMessagesWatch(roomId);
+    });
+  },
 
-    this.loadRoom(roomId);
-    this.initMessagesWatch(roomId);
+  /**
+   * 等待用户信息加载完成
+   * 解决冷启动时（扫码/卡片进入）用户信息未加载的问题
+   * @param {Function} callback - 用户信息加载完成后的回调
+   */
+  waitForUserInfo(callback) {
+    const app = getApp();
+    const status = app.globalData.userInfoStatus;
+
+    if (status === 'success') {
+      // 用户信息已加载，处理头像后执行回调
+      this.processUserAvatar(() => {
+        callback();
+      });
+    } else if (status === 'fail') {
+      // 用户信息加载失败，使用默认数据继续
+      console.warn('用户信息加载失败，使用默认设置');
+      callback();
+    } else {
+      // 正在加载中，轮询等待
+      console.log('等待用户信息加载...');
+      setTimeout(() => this.waitForUserInfo(callback), 300);
+    }
+  },
+
+  /**
+   * 处理用户头像
+   * 1. 如果有fileID，获取临时URL
+   * 2. 如果是临时文件，上传到云存储
+   * @param {Function} callback - 完成回调
+   */
+  processUserAvatar(callback) {
+    const app = getApp();
+    const userInfo = app.globalData.userInfo;
+
+    if (!userInfo) {
+      callback();
+      return;
+    }
+
+    const avatarUrl = userInfo.avatarUrl || '';
+    const avatarFileID = userInfo.avatarFileID || '';
+
+    // 情况1：头像是临时文件，需要上传到云存储
+    if (avatarUrl && (avatarUrl.startsWith('wxfile://') || avatarUrl.startsWith('http://tmp'))) {
+      console.log('检测到临时头像，上传到云存储');
+      wx.cloud.uploadFile({
+        cloudPath: 'avatars/' + Date.now() + '.jpg',
+        filePath: avatarUrl,
+        success: (uploadRes) => {
+          // 获取临时URL
+          wx.cloud.getTempFileURL({
+            fileList: [uploadRes.fileID],
+            success: (urlRes) => {
+              const permanentUrl = urlRes.fileList[0]?.tempFileURL || '';
+              console.log('头像已转换为永久URL:', permanentUrl);
+
+              // 更新 globalData
+              app.globalData.userInfo.avatarUrl = permanentUrl;
+              app.globalData.userInfo.avatarFileID = uploadRes.fileID;
+              callback();
+            },
+            fail: () => {
+              console.error('获取头像URL失败');
+              callback();
+            }
+          });
+        },
+        fail: (err) => {
+          console.error('上传头像失败:', err);
+          callback();
+        }
+      });
+      return;
+    }
+
+    // 情况2：有fileID但没有URL，获取临时URL
+    if (avatarFileID && !avatarUrl) {
+      console.log('有fileID无URL，获取临时URL');
+      wx.cloud.getTempFileURL({
+        fileList: [avatarFileID],
+        success: (res) => {
+          const tempUrl = res.fileList[0]?.tempFileURL || '';
+          if (tempUrl) {
+            app.globalData.userInfo.avatarUrl = tempUrl;
+            console.log('头像URL已更新:', tempUrl);
+          }
+          callback();
+        },
+        fail: () => {
+          console.error('获取头像URL失败');
+          callback();
+        }
+      });
+      return;
+    }
+
+    // 情况3：已有URL或没有头像，直接回调
+    callback();
   },
 
   /**
@@ -397,12 +502,18 @@ showTransferModal: false, // 转账弹窗
    * @returns {Array} 前端记录数组
    */
   convertMessagesToRecords(messages) {
-    const currentUser = this.data.currentUser;
+    // 直接从 globalData 获取当前用户信息，避免依赖 this.data.currentUser
+    // 解决消息监听触发时 currentUser 可能未设置的问题
+    const app = getApp();
+    const currentUserNickname = app.globalData.userInfo?.nickname || this.data.currentUser || '';
+    const currentUserOpenid = wx.getStorageSync('openid') || '';
     
     return messages.map(msg => {
       const description = msg.content;
       const time = this.formatMessageTime(msg.timestamp);
-      const isMe = msg.fromNickname === currentUser;
+      // 使用昵称或 openid 判断是否为本人消息
+      const isMe = msg.fromNickname === currentUserNickname || 
+                   msg.fromOpenid === currentUserOpenid;
       
       // 简化的 detail 对象
       const detail = {

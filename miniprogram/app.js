@@ -140,6 +140,16 @@ App({
   },
 
   checkAndNavigateToRoom(roomId) {
+    // 获取当前页面栈，如果已经在房间页面，不再重复跳转
+    const pages = getCurrentPages()
+    if (pages.length > 0) {
+      const currentPage = pages[pages.length - 1]
+      if (currentPage && currentPage.route === "pages/room/room") {
+        console.log("当前已在房间页面，跳过自动跳转")
+        return
+      }
+    }
+    
     wx.cloud.database().collection('rooms').doc(roomId).get({
       success: (res) => {
         const room = res.data
