@@ -37,9 +37,97 @@ Page({
    * loading -> 显示 loading 动画，继续轮询
    * success -> 显示用户信息（调用 displayUserInfo）
    * fail -> 弹窗 Modal "获取用户信息失败，请检查网络"，然后显示空资料
+   * 
+   * 新增：处理从外部扫码/分享进入的场景，自动加入房间
    */
   onLoad() {
     this.checkUserInfoStatus();
+
+    // 检查是否有待处理的房间ID（从外部扫码或分享卡片进入）
+    this.checkPendingRoomId();
+  },
+
+  /**
+   * 检查是否有待处理的房间ID
+   * 如果是从外部扫码或分享卡片进入，自动执行加入房间流程
+   */
+  checkPendingRoomId() {
+    const app = getApp();
+    const pendingRoomId = app.globalData.pendingRoomId;
+
+    if (pendingRoomId) {
+      console.log('检测到待处理房间ID:', pendingRoomId);
+
+      // 等待用户信息初始化完成后再加入房间
+      const tryJoinRoom = () => {
+        const status = app.globalData.userInfoStatus;
+
+        if (status === 'success') {
+          // 用户信息已加载，执行加入房间
+          this.handleAutoJoinRoom(pendingRoomId);
+        } else if (status === 'fail') {
+          // 用户信息加载失败，清除pendingRoomId并提示
+          app.globalData.pendingRoomId = null;
+          wx.showModal({
+            title: '提示',
+            content: '获取用户信息失败，无法加入房间',
+            showCancel: false
+          });
+        } else {
+          // 仍在加载中，继续等待
+          setTimeout(tryJoinRoom, 300);
+        }
+      };
+
+      // 开始尝试加入房间
+      tryJoinRoom();
+    }
+  },
+
+  /**
+   * 自动加入房间（从外部进入的场景）
+   * @param {string} roomId - 房间ID
+   */
+  handleAutoJoinRoom(roomId) {
+    const app = getApp();
+    const userInfo = app.globalData.userInfo;
+
+    // 检查昵称
+    if (!userInfo || !userInfo.nickname) {
+      wx.showModal({
+        title: '提示',
+        content: '请先设置昵称后再加入房间',
+        showCancel: false
+      });
+      // 清除pendingRoomId，让用户手动点击加入房间
+      app.globalData.pendingRoomId = null;
+      return;
+    }
+
+    // 设置本地数据
+    this.setData({
+      nickname: userInfo.nickname,
+      avatarUrl: userInfo.avatarUrl || '',
+      avatarFileID: userInfo.avatarFileID || ''
+    });
+
+    // 显示加载状态
+    this.setData({ isCreatingOrJoining: true });
+
+    // 上传用户信息后执行加入房间
+    this.uploadUserInfo((uploadSuccess) => {
+      if (!uploadSuccess) {
+        this.setData({ isCreatingOrJoining: false });
+        wx.showToast({ title: '保存用户信息失败', icon: 'none' });
+        // 失败时不清除pendingRoomId，允许用户重试
+        return;
+      }
+
+      // 上传成功，加入房间
+      this.joinRoomAction(roomId);
+      // 清除pendingRoomId
+      app.globalData.pendingRoomId = null;
+    });
   },
 
   /**

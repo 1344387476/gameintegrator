@@ -567,7 +567,7 @@ loadRoom(roomId) {
         openid: player.openid,
         name: player.nickname,
         avatarUrl: player.avatar,
-        score: player.score,
+        score: player.score || 0,  // 防御性处理：防止 undefined
         isExited: player.isExited || false
       })),
       records: [],
@@ -777,7 +777,7 @@ loadRoom(roomId) {
           openid: player.openid,
           name: player.nickname,
           avatarUrl: player.avatar,
-          score: player.score,
+          score: player.score || 0,  // 防御性处理：防止 undefined
           isExited: player.isExited || false,
           scoreScroll
         };
@@ -1566,6 +1566,10 @@ success: (res) => {
           this.closeSettleConfirm();
           // 刷新房间状态确保按钮禁用
           this.loadRoom(roomId).then(() => {
+            // 调试日志：检查结算后的数据
+            console.log("结算后房间数据:", this.data.room);
+            console.log("结算后成员分数:", this.data.room.members.map(m => ({ name: m.name, score: m.score })));
+            // 调试日志：检查结算后的数据
             // 显示结算结果弹窗（房间数据保留，可查看历史）
             this.showResultModal();
           });
@@ -1595,27 +1599,45 @@ success: (res) => {
     const room = this.data.room;
     const settlementTime = this.getCurrentTime();
 
+    // 最大柱状条高度（rpx）
+    const MAX_BAR_HEIGHT = 150;
+    const MIN_BAR_HEIGHT = 3;
+
     // 赢家：score > 0
-    const winners = room.members
-      .filter(m => m.score > 0)
+    const winnerMembers = room.members.filter(m => m.score > 0);
+    const maxWinnerScore = winnerMembers.length > 0 
+      ? Math.max(...winnerMembers.map(m => m.score)) 
+      : 0;
+    
+    const winners = winnerMembers
       .map(m => ({
         playerName: m.name,
         avatarUrl: m.avatarUrl,
         score: m.score,
         displayScore: `+${m.score}`,
-        barHeight: Math.max(3, m.score * 3) // 简单映射积分到柱状条长度
+        // 相对比例计算：当前分数 / 最高分数 * 最大高度
+        barHeight: maxWinnerScore > 0 
+          ? Math.max(MIN_BAR_HEIGHT, Math.round((m.score / maxWinnerScore) * MAX_BAR_HEIGHT))
+          : MIN_BAR_HEIGHT
       }))
       .sort((a, b) => b.score - a.score); // 按积分降序排列
 
     // 输家：score < 0
-    const losers = room.members
-      .filter(m => m.score < 0)
+    const loserMembers = room.members.filter(m => m.score < 0);
+    const maxLoserScore = loserMembers.length > 0 
+      ? Math.max(...loserMembers.map(m => Math.abs(m.score))) 
+      : 0;
+    
+    const losers = loserMembers
       .map(m => ({
         playerName: m.name,
         avatarUrl: m.avatarUrl,
         score: m.score,
         displayScore: `${m.score}`,
-        barHeight: Math.max(3, Math.abs(m.score) * 3) // 简单映射积分到柱状条长度
+        // 相对比例计算：当前分数绝对值 / 最高分数绝对值 * 最大高度
+        barHeight: maxLoserScore > 0 
+          ? Math.max(MIN_BAR_HEIGHT, Math.round((Math.abs(m.score) / maxLoserScore) * MAX_BAR_HEIGHT))
+          : MIN_BAR_HEIGHT
       }))
       .sort((a, b) => a.score - b.score); // 按积分升序排列
 
@@ -2825,13 +2847,154 @@ success: (res) => {
   },
 
   /**
+   * 显示二维码弹窗
+   */
+  showQrcode() {
+    // 如果还没有二维码，先生成
+    if (!this.data.qrCodeFileID) {
+      this.getRoomQRCode();
+    }
+    this.setData({ showQrcode: true });
+  },
+
+  /**
+   * 隐藏二维码弹窗
+   */
+  hideQrcode() {
+    this.setData({ showQrcode: false });
+  },
+
+  /**
+   * 保存二维码到相册
+   * 直接下载图片并保存到相册
+   */
+  saveQrcode() {
+    const { qrCodeTempUrl } = this.data;
+    
+    if (!qrCodeTempUrl) {
+      this.showTip('二维码未生成');
+      return;
+    }
+
+    wx.showLoading({ title: '保存中...' });
+
+    // 先下载图片到本地
+    wx.downloadFile({
+      url: qrCodeTempUrl,
+      success: (res) => {
+        if (res.statusCode === 200) {
+          // 保存到相册
+          wx.saveImageToPhotosAlbum({
+            filePath: res.tempFilePath,
+            success: () => {
+              wx.hideLoading();
+              this.showTip('保存成功');
+            },
+            fail: (err) => {
+              wx.hideLoading();
+              console.error('保存到相册失败:', err);
+              if (err.errMsg && err.errMsg.includes('auth')) {
+                // 权限问题，引导用户开启权限
+                wx.showModal({
+                  title: '需要相册权限',
+                  content: '请前往设置开启相册权限',
+                  success: (modalRes) => {
+                    if (modalRes.confirm) {
+                      wx.openSetting();
+                    }
+                  }
+                });
+              } else {
+                this.showTip('保存失败');
+              }
+            }
+          });
+        } else {
+          wx.hideLoading();
+          this.showTip('下载图片失败');
+        }
+      },
+      fail: (err) => {
+        wx.hideLoading();
+        console.error('下载图片失败:', err);
+        this.showTip('下载失败，请重试');
+      }
+    });
+  },
+
+  /**
+   * 获取房间二维码
+   * 调用云函数生成二维码并获取临时URL
+   */
+  getRoomQRCode() {
+    const { roomId } = this.data;
+    
+    if (!roomId) {
+      console.error("房间ID不存在，无法生成二维码");
+      this.setData({ qrCodeError: true });
+      return;
+    }
+
+    this.setData({ isGeneratingQR: true, qrCodeError: false });
+
+    // 调用云函数生成二维码
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'generateQRCode',
+        payload: { roomId }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          const fileID = res.result.fileID;
+          this.setData({ qrCodeFileID: fileID });
+          
+          // 获取临时URL
+          wx.cloud.getTempFileURL({
+            fileList: [fileID],
+            success: (urlRes) => {
+              const tempUrl = urlRes.fileList[0].tempFileURL;
+              this.setData({ 
+                qrCodeTempUrl: tempUrl,
+                isGeneratingQR: false 
+              });
+            },
+            fail: (err) => {
+              console.error('获取二维码URL失败:', err);
+              this.setData({ 
+                qrCodeError: true,
+                isGeneratingQR: false 
+              });
+            }
+          });
+        } else {
+          console.error('生成二维码失败:', res.result.msg);
+          this.setData({ 
+            qrCodeError: true,
+            isGeneratingQR: false 
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('调用云函数失败:', err);
+        this.setData({ 
+          qrCodeError: true,
+          isGeneratingQR: false 
+        });
+      }
+    });
+  },
+
+  /**
    * 页面分享配置
    * @returns {Object} 分享信息对象
    */
   onShareAppMessage() {
     return {
       title: `邀请你加入打牌记账房间：${this.data.room.roomName}`,
-      path: `/pages/room/room?roomId=${this.data.roomId}`,
+      // 修改为跳转到home页面，携带roomId参数
+      // app.js会拦截并处理，让home页面执行完整的加入房间流程
+      path: `/pages/home/home?roomId=${this.data.roomId}&from=share`,
       imageUrl: '/images/share-default.jpg'
     };
   },

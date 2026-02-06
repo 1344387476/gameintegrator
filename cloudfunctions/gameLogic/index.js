@@ -31,15 +31,17 @@ exports.main = async (event, context) => {
       if (action === 'BATCH_TRANSFER') {
         let totalOut = 0
         transferList.forEach(item => {
-          totalOut += item.amount
+          const itemAmount = parseInt(item.amount) || 0
+          if (itemAmount <= 0) return // 跳过无效金额
+          totalOut += itemAmount
           // 给每个收款人加分
           const receiverPlayer = players.find(p => p.openid === item.openid)
           if (receiverPlayer) {
-            receiverPlayer.score += item.amount
+            receiverPlayer.score = (receiverPlayer.score || 0) + itemAmount
           }
           // 准备拆分的流水记录
           logTasks.push({
-            content: `转给 ${item.nickname} ${item.amount} 分`,
+            content: `转给 ${item.nickname} ${itemAmount} 分`,
             toOpenid: item.openid,
             messageType: 'transfer'
           })
@@ -47,7 +49,7 @@ exports.main = async (event, context) => {
         // 扣除转账人的总分
         const senderPlayer = players.find(p => p.openid === OPENID)
         if (senderPlayer) {
-          senderPlayer.score -= totalOut
+          senderPlayer.score = (senderPlayer.score || 0) - totalOut
         }
         // 更新整个 players 数组
         await transaction.collection('rooms').doc(roomId).update({
@@ -57,45 +59,47 @@ exports.main = async (event, context) => {
 
       // === B. 单人普通转账 ===
       else if (action === 'TRANSFER') {
+        const transferAmount = parseInt(amount) || 0
         const senderPlayer = players.find(p => p.openid === OPENID)
         const receiverPlayer = players.find(p => p.openid === toOpenid)
 
         if (senderPlayer) {
-          senderPlayer.score -= amount
+          senderPlayer.score = (senderPlayer.score || 0) - transferAmount
         }
         if (receiverPlayer) {
-          receiverPlayer.score += amount
+          receiverPlayer.score = (receiverPlayer.score || 0) + transferAmount
         }
         // 更新整个 players 数组
         await transaction.collection('rooms').doc(roomId).update({
           data: { players }
         })
-        logTasks.push({ content: `转给 ${toNickname} ${amount} 分`, toOpenid, messageType: 'transfer' })
+        logTasks.push({ content: `转给 ${toNickname} ${transferAmount} 分`, toOpenid, messageType: 'transfer' })
       }
 
       // === C. 下注/All-in (进入奖池) ===
       else if (action === 'BET' || action === 'ALLIN') {
+        const betAmount = parseInt(amount) || 0
         const player = players.find(p => p.openid === OPENID)
         if (player) {
-          player.score -= amount
+          player.score = (player.score || 0) - betAmount
         }
         // 更新整个 players 数组和奖池
         await transaction.collection('rooms').doc(roomId).update({
           data: {
             players,
-            pot: room.pot + amount
+            pot: (room.pot || 0) + betAmount
           }
         })
         const msgType = action === 'ALLIN' ? 'allin' : 'bet'
-        logTasks.push({ content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${amount} 分`, toOpenid: 'POT', messageType: msgType })
+        logTasks.push({ content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${betAmount} 分`, toOpenid: 'POT', messageType: msgType })
       }
 
       // === D. 领取奖池 ===
       else if (action === 'CLAIM') {
-        const potAmount = room.pot
+        const potAmount = parseInt(room.pot) || 0
         const player = players.find(p => p.openid === OPENID)
         if (player) {
-          player.score += potAmount
+          player.score = (player.score || 0) + potAmount
         }
         // 更新整个 players 数组和奖池
         await transaction.collection('rooms').doc(roomId).update({

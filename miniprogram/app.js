@@ -4,13 +4,15 @@ App({
    */
   globalData: {
     userInfo: null,
-    userInfoStatus: 'loading'
+    userInfoStatus: 'loading',
+    // 存储从外部进入时传入的房间ID，用于home页面自动加入房间
+    pendingRoomId: null
   },
 
   /**
    * 生命周期函数 - 应用启动
    */
-  onLaunch() {
+  onLaunch(options) {
     wx.cloud.init({
       env: 'cloud1-5gv2wyv347737dc9',
       traceUser: true
@@ -24,12 +26,56 @@ App({
       success: () => {}
     })
 
-   
+    // 处理从外部进入的场景（扫码、分享卡片等）
+    this.handleLaunchOptions(options)
   },
 
-  onShow() {
+  /**
+   * 处理启动参数
+   * 如果是从外部扫码或分享卡片进入且带有roomId，记录到globalData供home页面处理
+   */
+  handleLaunchOptions(options) {
+    console.log('启动参数:', options)
 
-   this.initUserInfo()
+    // 获取scene值（数字，表示进入场景）
+    const scene = options.scene || 0
+    // 扫码进入的场景值：1007（单人聊天）、1008（群聊）、1044（带shareTicket的小程序消息卡片）等
+    const scanScenes = [1007, 1008, 1011, 1012, 1013, 1025, 1036, 1044, 1047, 1048, 1049, 1154]
+
+    // 从query中获取参数
+    const query = options.query || {}
+    let roomId = query.roomId
+
+    // 处理小程序码的scene参数
+    // 小程序码扫码后，scene参数内容会放在query.scene中（形如 "roomId=XXXXXX"）
+    if (!roomId && query.scene) {
+      const sceneStr = decodeURIComponent(query.scene)
+      console.log('小程序码scene参数:', sceneStr)
+      if (sceneStr.includes('roomId=')) {
+        const match = sceneStr.match(/roomId=([^&]+)/)
+        if (match && match[1]) {
+          roomId = match[1]
+          console.log('从小程序码解析到roomId:', roomId)
+        }
+      }
+    }
+
+    console.log('场景值:', scene, 'roomId:', roomId)
+
+    // 如果是从外部进入且带有roomId，记录到globalData
+    if (roomId && (scanScenes.includes(scene) || query.from === 'share')) {
+      console.log('从外部进入，房间ID:', roomId)
+      this.globalData.pendingRoomId = roomId
+    }
+  },
+
+  onShow(options) {
+    // 处理小程序已在运行时，用户扫码进入的情况
+    if (options) {
+      this.handleLaunchOptions(options)
+    }
+
+    this.initUserInfo()
   },
 
   /**

@@ -1129,7 +1129,7 @@ page {
 
 /* 战绩弹窗主体 */
 .result-body {
-  padding: 20rpx 24rpx 100rpx;
+  padding: 20rpx 24rpx 160rpx; /* 增加底部padding，确保不被固定按钮遮挡 */
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -1230,7 +1230,7 @@ page {
   display: flex;
   flex-direction: column;
   gap: 20rpx;
-  padding: 0 20rpx;
+  padding: 0 20rpx 60rpx 20rpx; /* 增加底部padding，与按钮保持距离 */
 }
 
 /* 单个柱状图项（横向布局） */

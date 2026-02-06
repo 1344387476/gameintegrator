@@ -2,6 +2,8 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+//体验trial  //开发板develop
+const qrVersion = 'trial'
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext()
@@ -164,9 +166,9 @@ exports.main = async (event, context) => {
         try {
           const qrResult = await cloud.openapi.wxacode.getUnlimited({
             scene: `roomId=${roomId}`,
-            page: 'pages/room/room',
+            page: 'pages/home/home',
             width: 400,
-            envVersion: 'develop',
+            envVersion: qrVersion,
             checkPath: false
           })
 
@@ -309,7 +311,7 @@ exports.main = async (event, context) => {
           }
         })
 
-        // 2. 标记为 settled（保留房间数据供查看）
+        // 2. 标记为 settled（保留房间数据供查看，包括原始分数）
         await transaction.collection('rooms').doc(roomId).update({
           data: { status: 'settled' }
         })
@@ -404,9 +406,9 @@ exports.main = async (event, context) => {
       // 2. 生成小程序码
       const result = await cloud.openapi.wxacode.getUnlimited({
         scene: `roomId=${roomId}`,
-        page: 'pages/room/room',
+        page: 'pages/home/home',
         width: 400,
-        envVersion: 'develop',
+        envVersion: qrVersion,
         checkPath: false
       })
       
@@ -424,6 +426,37 @@ exports.main = async (event, context) => {
       })
       
       return { success: true, fileID: uploadResult.fileID }
+    }
+
+    // === 动作 G：检查用户状态 ===
+    if (action === 'checkUserStatus') {
+      const user = await db.collection('users').doc(OPENID).get()
+      const currentRoomId = user.data ? user.data.currentRoomId : null
+      
+      if (currentRoomId) {
+        // 检查房间是否存在且用户是否在其中
+        const room = await db.collection('rooms').doc(currentRoomId).get().catch(() => null)
+        if (room && room.data) {
+          const isInRoom = room.data.players.some(p => p.openid === OPENID)
+          if (isInRoom && room.data.status === 'active') {
+            return { success: true, inRoom: true, roomId: currentRoomId }
+          }
+        }
+      }
+      
+      return { success: true, inRoom: false }
+    }
+
+    // === 动作 H：删除已结算房间记录 ===
+    if (action === 'deleteSettledRoom') {
+      const { roomId } = payload
+      
+      // 清理用户的 currentRoomId
+      await db.collection('users').doc(OPENID).update({
+        data: { currentRoomId: null }
+      })
+      
+      return { success: true, msg: '已清理房间记录' }
     }
 
     return { success: false, msg: '未知动作' }
