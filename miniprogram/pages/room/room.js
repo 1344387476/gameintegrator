@@ -100,8 +100,8 @@ showTransferModal: false, // 转账弹窗
     showQrcode: false,
     // 悬浮按钮相关数据
     fabExpanded: false, // 是否展开
-    fabX: 600, // 默认X位置（屏幕右侧）
-    fabY: 800  // 默认Y位置（屏幕下方）
+    fabX: 20, // 默认X位置（距离屏幕左侧20rpx）
+    fabY: 800  // 默认Y位置（距离屏幕底部20rpx，具体值在onLoad中根据屏幕高度计算）
   },
 
   /**
@@ -110,7 +110,19 @@ showTransferModal: false, // 转账弹窗
    */
   onLoad(options) {
     const { roomId } = options;
-    this.setData({ roomId });
+    
+    // 获取屏幕高度，计算悬浮按钮初始位置（左下角距离屏幕边缘20rpx）
+    const systemInfo = wx.getSystemInfoSync();
+    const screenHeight = systemInfo.windowHeight;
+    const fabBottomMargin = 20; // 距离底部20rpx
+    const fabHeight = 100; // 按钮高度100rpx
+    const fabY = screenHeight - fabHeight - fabBottomMargin;
+    
+    this.setData({ 
+      roomId,
+      fabX: 20,  // 距离左侧20rpx
+      fabY: fabY // 计算后的Y坐标
+    });
     console.log("房间id"+roomId)
     
     // 等待用户信息初始化完成后再加载房间
@@ -1350,6 +1362,17 @@ success: (res) => {
    */
   closePrizeModal() {
     this.setData({ showPrizeModal: false });
+  },
+
+   /**
+   * 收取奖池按钮点击处理（阻止事件冒泡）
+   */
+  onCollectPoolTap(e) {
+    // 阻止事件冒泡，防止触发奖池转账
+    if (e && e.stopPropagation) {
+      e.stopPropagation();
+    }
+    this.receivePrizePool();
   },
 
   /**

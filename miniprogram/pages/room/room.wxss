@@ -280,162 +280,208 @@ page {
   transition: all 0.25s;
 }
 
-/* ==================== 右侧：奖池区域 ==================== */
-.prize-pool-section {
-  margin-bottom: 0; /* 移除底部间距，解决留白问题 */
-  background-color: #ffffff;
-  padding-bottom: 16rpx;
+/* ==================== 下注模式面板 - 现代风格 ==================== */
+
+/* 面板容器 - 与聊天区域一致灰色背景 */
+.bet-panel-wrapper {
+  padding: 20rpx 24rpx;
+  background: #EDEDED;
 }
 
-.prize-pool-card {
+/* 公共奖池卡片 - 现代悬浮设计 */
+.prize-pool-card-modern {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16rpx;
-  padding: 32rpx 24rpx;
-  box-shadow: 0 4rpx 16rpx rgba(102, 126, 234, 0.25);
+  border-radius: 32rpx;
+  padding: 40rpx 32rpx;
+  margin: 0 8rpx;
+  box-shadow: 
+    0 10rpx 30rpx rgba(118, 75, 162, 0.4),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.2);
   text-align: center;
   position: relative;
+  overflow: hidden;
 }
 
-.prize-pool-header {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 24rpx;
+/* 卡片光泽效果 */
+.prize-pool-card-modern::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 0%, transparent 50%);
+  pointer-events: none;
 }
 
-.prize-pool-title {
-  font-size: 28rpx;
-  color: #ffffff;
-  font-weight: 600;
-  margin-right: 8rpx;
+/* 点击区域（奖袋、数字、提示） */
+.prize-pool-clickable {
+  position: relative;
+  z-index: 1;
 }
 
-.prize-pool-icon {
-  font-size: 32rpx;
-}
-
-.prize-pool-amount {
+/* 奖袋图标 */
+.prize-icon-wrap {
   margin-bottom: 16rpx;
 }
 
-.prize-pool-amount .amount-number {
+.prize-bag-icon {
   font-size: 56rpx;
-  color: #ffffff;
-  font-weight: 700;
+  filter: drop-shadow(0 4rpx 8rpx rgba(0, 0, 0, 0.3));
+}
+
+/* 积分数字 - 亮金色 */
+.prize-amount-wrap {
+  margin-bottom: 16rpx;
+}
+
+.prize-amount-number {
+  font-size: 80rpx;
+  font-weight: 800;
+  color: #FFE66D;
+  text-shadow: 
+    0 0 20rpx rgba(255, 230, 109, 0.8),
+    0 0 40rpx rgba(255, 230, 109, 0.4),
+    0 2rpx 4rpx rgba(0, 0, 0, 0.3);
   display: inline-block;
-  transition: transform 0.3s;
+  line-height: 1.1;
 }
 
-.prize-pool-amount.animate .amount-number {
-  animation: amountBounce 0.4s ease-out;
+.prize-amount-wrap.animate .prize-amount-number {
+  animation: goldBounce 0.4s ease-out;
 }
 
-@keyframes amountBounce {
+@keyframes goldBounce {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  50% { transform: scale(1.1); }
 }
 
-.prize-pool-amount .amount-unit {
-  font-size: 24rpx;
+/* 提示文字 */
+.prize-pool-hint {
+  font-size: 22rpx;
   color: rgba(255, 255, 255, 0.8);
-  margin-left: 6rpx;
+  margin-bottom: 12rpx;
 }
 
-.prize-pool-tip {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.receive-tip {
-  margin-top: 20rpx;
-  padding: 12rpx;
+/* 收取状态提示 */
+.prize-receiver-tip {
+  padding: 10rpx 20rpx;
   background-color: rgba(255, 255, 255, 0.2);
-  border-radius: 8rpx;
-  font-size: 22rpx;
+  border-radius: 20rpx;
+  font-size: 20rpx;
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 500;
   opacity: 0;
   transform: translateY(10rpx);
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(4rpx);
 }
 
-.receive-tip.show {
+.prize-receiver-tip.show {
   opacity: 1;
   transform: translateY(0);
 }
 
-.receive-pool-btn {
-  margin: 16rpx auto 0 auto; /* 居中显示 */
-  width: 95%; /* 调整宽度，保持居中 */
-  height: 72rpx;
+/* 游戏操作按钮 - 紧贴奖池下方，莫兰迪纯色 */
+.game-actions-row {
+  display: flex;
+  gap: 20rpx;
+  padding: 24rpx 32rpx 0;
+  justify-content: center;
+  background: transparent;
+}
+
+/* 通用按钮样式 - 莫兰迪纯色 */
+.game-action-btn {
+  height: 88rpx;
+  flex: 1;
+  max-width: 200rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
-  color: #667eea;
-  border-radius: 8rpx;
-  font-size: 26rpx;
-  font-weight: 600;
-  border: 2rpx solid #667eea;
-  box-shadow: 0 2rpx 8rpx rgba(102, 126, 234, 0.15);
-  transition: all 0.25s;
+  border-radius: 44rpx;
+  transition: all 0.25s ease;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
+  border: none;
 }
 
-.receive-pool-btn:active {
-  transform: scale(0.98);
-  background-color: rgba(102, 126, 234, 0.05);
+.game-action-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
 }
 
-.receive-pool-btn.disabled {
-  opacity: 0.4;
-  background-color: #f0f0f0;
-  color: #999999;
-  border-color: #e0e0e0;
+.game-action-btn.disabled {
+  background: #d9d9d9 !important;
   box-shadow: none;
 }
 
-/* 奖池内容区域（可点击） */
-.prize-pool-content {
-  padding: 20rpx;
+.game-action-btn.disabled .action-btn-text {
+  color: #999999;
 }
 
-/* 跟/过/all in按钮容器（与奖池信息分离） */
-.bet-actions-row {
-  display: flex;
-  gap: 12rpx;
-  padding: 0 20rpx 20rpx;
+.action-btn-text {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #ffffff;
 }
 
-.bet-action-btn {
-  flex: 1;
+/* 跟 (Call) - 莫兰迪蓝 */
+.game-action-btn.call {
+  background: #7B9ECE;
+}
+
+.game-action-btn.call:active {
+  background: #6A8DBD;
+}
+
+/* 过 (Pass) - 莫兰迪橙 */
+.game-action-btn.pass {
+  background: #E8A87C;
+}
+
+.game-action-btn.pass:active {
+  background: #D7976B;
+}
+
+/* All in - 莫兰迪紫 */
+.game-action-btn.allin {
+  background: #9B8AA5;
+}
+
+.game-action-btn.allin:active {
+  background: #8A7994;
+}
+
+/* 收取奖池按钮 - 在卡片内部，白色背景 */
+.collect-pool-btn {
+  margin: 24rpx auto 0;
+  width: 240rpx;
   height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 8rpx;
-  transition: all 0.25s;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  color: #764ba2;
+  border-radius: 32rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  border: none;
+  transition: all 0.25s ease;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 2;
 }
 
-.bet-action-btn:active {
+.collect-pool-btn:active {
   transform: scale(0.95);
   background: rgba(255, 255, 255, 1);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
 }
 
-.bet-action-btn.disabled {
+.collect-pool-btn.disabled {
   opacity: 0.5;
   background: rgba(255, 255, 255, 0.5);
   box-shadow: none;
-}
-
-.bet-action-text {
-  color: #FF7A2F;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.bet-action-btn.disabled .bet-action-text {
   color: #999999;
 }
 

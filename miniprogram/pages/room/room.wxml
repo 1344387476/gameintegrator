@@ -40,38 +40,46 @@
   </view>
 
   <view class="right-section">
-    <view class="prize-pool-section" wx:if="{{room.gameMode === 'bet'}}">
-      <view class="prize-pool-card">
-        <view class="prize-pool-content" bindtap="transferToPrizePool">
-          <view class="prize-pool-header">
-            <text class="prize-pool-title">公共奖池</text>
-            <text class="prize-pool-icon">💰</text>
+    <!-- 下注模式面板 -->
+    <view class="bet-panel-wrapper" wx:if="{{room.gameMode === 'bet'}}">
+      <!-- 公共奖池卡片 -->
+      <view class="prize-pool-card-modern" bindtap="transferToPrizePool">
+        <!-- 点击区域：奖袋、数字、提示 -->
+        <view class="prize-pool-content">
+          <!-- 奖袋图标 -->
+          <view class="prize-icon-wrap">
+            <text class="prize-bag-icon">💰</text>
           </view>
-          <view class="prize-pool-amount {{animateAmount ? 'animate' : ''}}">
-            <text class="amount-number">{{room.prizePool.total}}</text>
-            <text class="amount-unit">积分</text>
+          <!-- 积分数字 -->
+          <view class="prize-amount-wrap {{animateAmount ? 'animate' : ''}}">
+            <text class="prize-amount-number">{{room.prizePool.total}}</text>
           </view>
-          <view class="prize-pool-tip">点击奖池转入积分</view>
-          <view class="receive-tip {{room.prizePool.receiver ? 'show' : ''}}">
-            【{{room.prizePool.receiver}}】收取了奖池
-          </view>
+          <!-- 提示文字 -->
+          <text class="prize-pool-hint">点击转入积分</text>
         </view>
-
-        <view class="bet-actions-row" wx:if="{{room.status === 'playing'}}">
-          <view class="bet-action-btn {{!canFollow ? 'disabled' : ''}}" bindtap="handleFollow">
-            <text class="bet-action-text">跟</text>
-          </view>
-          <view class="bet-action-btn" bindtap="handlePass">
-            <text class="bet-action-text">过</text>
-          </view>
-          <view class="bet-action-btn {{!room.allInValue ? 'disabled' : ''}}" bindtap="handleAllIn">
-            <text class="bet-action-text">all in</text>
-          </view>
+        
+        <!-- 收取状态提示 -->
+        <view class="prize-receiver-tip {{room.prizePool.receiver ? 'show' : ''}}">
+          【{{room.prizePool.receiver}}】已收取
+        </view>
+        
+        <!-- 收取奖池按钮 - 在卡片内部，阻止冒泡 -->
+        <view class="collect-pool-btn {{room.prizePool.receiver ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" catchtap="onCollectPoolTap">
+          收取奖池
         </view>
       </view>
 
-      <view class="receive-pool-btn {{room.prizePool.receiver ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" bindtap="receivePrizePool">
-        收取奖池
+      <!-- 游戏操作按钮 - 紧贴奖池下方 -->
+      <view class="game-actions-row" wx:if="{{room.status === 'playing'}}">
+        <view class="game-action-btn call {{!canFollow ? 'disabled' : ''}}" bindtap="handleFollow">
+          <text class="action-btn-text">跟</text>
+        </view>
+        <view class="game-action-btn pass" bindtap="handlePass">
+          <text class="action-btn-text">过</text>
+        </view>
+        <view class="game-action-btn allin {{!room.allInValue ? 'disabled' : ''}}" bindtap="handleAllIn">
+          <text class="action-btn-text">all in</text>
+        </view>
       </view>
     </view>
 
