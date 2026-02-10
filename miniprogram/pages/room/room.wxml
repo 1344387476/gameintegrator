@@ -2,30 +2,38 @@
 <view class="main-container">
   <view class="left-section">
     <view class="members-section">
-      <scroll-view class="members-scroll" scroll-y scroll-with-animation>
-        <view class="members-list">
-          <!-- 邀请按钮 -->
-          <view class="member-item invite-member" bindtap="showQrcode">
-            <view class="member-square">
-              <image class="member-avatar invite-avatar" src="/images/weixin.png"></image>
-              <text class="invite-name">邀请</text>
+      <scroll-view class="members-scroll" scroll-y scroll-with-animation enhanced show-scrollbar="{{false}}">
+        <view class="sidebar-list">
+          <!-- 邀请好友卡片 -->
+          <view class="capsule-card invite-card" bindtap="showQrcode">
+            <view class="capsule-icon-wrap green">
+              <image class="capsule-icon-img" src="/images/weixin.png"></image>
+            </view>
+            <text class="capsule-label">邀请</text>
+          </view>
+          
+          <!-- 玩家胶囊卡片 -->
+          <view class="capsule-card {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}}"
+                wx:for="{{room.members}}" wx:key="index" bindtap="handleMemberTap" data-index="{{index}}">
+            <!-- 房主皇冠 - 右上角 -->
+            <view class="crown-badge" wx:if="{{item.openid === room.creator}}">👑</view>
+            
+            <!-- 头像 -->
+            <image class="capsule-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
+            
+            <!-- 昵称 -->
+            <text class="capsule-name">{{item.name}}</text>
+            
+            <!-- 分数胶囊 -->
+            <view class="score-capsule {{item.score > 0 ? 'positive' : (item.score < 0 ? 'negative' : 'zero')}}">
+              <text class="score-capsule-text">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
             </view>
           </view>
           
-          <view class="member-item" wx:for="{{room.members}}" wx:key="index" bindtap="handleMemberTap" data-index="{{index}}">
-            <view class="creator-tag" wx:if="{{item.openid === room.creator}}">房主</view>
-            <view class="member-square">
-              <image class="member-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
-              <text class="member-name">{{item.name}}</text>
-              <view class="score-container {{item.score > 0 ? 'positive' : (item.score < 0 ? 'negative' : '')}}" wx:if="{{item.score !== 0}}">
-                <text class="member-score {{item.scoreScroll ? 'scroll' : ''}}">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
-              </view>
-            </view>
-          </view>
-          <view class="member-item add-member" wx:if="{{room.status === 'playing'}}" bindtap="addMember">
-            <view class="member-square add-square">
-              <view class="add-avatar">+</view>
-            </view>
+          <!-- 添加成员卡片（虚线框） -->
+          <view class="capsule-card add-card" wx:if="{{room.status === 'playing'}}" bindtap="addMember">
+            <view class="add-icon-wrap">+</view>
+            <text class="capsule-label gray">添加</text>
           </view>
         </view>
       </scroll-view>

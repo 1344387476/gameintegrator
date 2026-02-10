@@ -21,19 +21,19 @@ page {
   width: 100%;
 }
 
-/* 左侧区域：玩家列表 */
+/* 左侧区域：玩家列表 - 胶囊卡片风格 */
 .left-section {
   display: flex;
   flex-direction: column;
-  background-color: #ffffff;
-  border-right: 1rpx solid #e8e8e8;
+  background: linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%);
+  border-right: 1rpx solid #d0d0d0;
   box-sizing: border-box;
-  padding: 20rpx 0;  /* 移除左右padding */
+  padding: 0;
   height: 100%;
-  width: 120rpx;  /* 最小宽度 */
-  min-width: 120rpx;
-  max-width: 120rpx;
-  overflow: visible;  /* 允许内容超出 */
+  width: 180rpx;  /* 适应胶囊卡片宽度 */
+  min-width: 180rpx;
+  max-width: 180rpx;
+  overflow: hidden;
 }
 
 /* 右侧区域：操作记录 */
@@ -43,17 +43,17 @@ page {
   flex-direction: column;
   background-color: #ffffff;
   box-sizing: border-box;
-  min-width: 500rpx;
+  min-width: 400rpx;
   height: 100%;
 }
 
-/* ==================== 左侧：玩家列表 ==================== */
+/* ==================== 左侧：胶囊卡片列表 ==================== */
 .members-section {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 10rpx 8rpx 16rpx 8rpx;  /* 调整padding，确保内容不溢出 */
+  padding: 10rpx;
   box-sizing: border-box;
 }
 
@@ -62,194 +62,218 @@ page {
   height: 100%;
 }
 
-.members-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  align-items: center;
-}
-
-.member-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-  position: relative;
-  width: 100%;  /* 占满容器宽度 */
-  margin: 0;
-}
-
-.member-square {
-  width: 104rpx;  /* 恢复原始大小 */
-  height: 128rpx;
-  background-color: transparent;
-  border-radius: 8rpx;
-  position: relative;
-  overflow: visible;
-  transition: all 0.25s;
+/* 侧边栏列表容器 */
+.sidebar-list {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding-top: 6rpx;
+  gap: 16rpx;
+  padding: 8rpx 0 16rpx;
 }
 
-.member-item:active .member-square {
-  transform: scale(0.95);
-  background-color: #f0f0f0;
+/* ==================== 胶囊卡片设计 ==================== */
+
+/* 胶囊卡片基础样式 */
+.capsule-card {
+  width: 140rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20rpx 16rpx;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
+  border: 2rpx solid transparent;
+  transition: all 0.25s ease;
+  box-sizing: border-box;
+  position: relative;
 }
 
-.member-item:active {
-  transform: scale(0.98);
-  background-color: #f0f0f0;
+.capsule-card:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.85);
 }
 
-.member-avatar {
-  width: 88rpx;  /* 恢复原始大小 */
-  height: 88rpx;
+/* 房主卡片 */
+.capsule-card.is-creator {
+  background: rgba(255, 251, 230, 0.75);
+}
+
+/* 本人卡片 - 蓝色实线边框 + 外发光 */
+.capsule-card.is-me {
+  border: 2rpx solid #409EFF;
+  background: rgba(230, 245, 255, 0.75);
+  box-shadow: 0 4rpx 16rpx rgba(64, 158, 255, 0.35), 0 0 0 2rpx rgba(64, 158, 255, 0.1);
+}
+
+/* 既是房主又是本人 */
+.capsule-card.is-creator.is-me {
+  border: 2rpx solid #409EFF;
+  background: linear-gradient(135deg, rgba(255, 251, 230, 0.8) 0%, rgba(230, 245, 255, 0.8) 100%);
+  box-shadow: 0 4rpx 16rpx rgba(64, 158, 255, 0.35), 0 0 0 2rpx rgba(64, 158, 255, 0.1);
+}
+
+/* 房主皇冠 - 右上角带投影 */
+.crown-badge {
+  position: absolute;
+  top: -6rpx;
+  right: -6rpx;
+  font-size: 32rpx;
+  z-index: 10;
+  filter: drop-shadow(0 2rpx 6rpx rgba(255, 193, 7, 0.6));
+  animation: crown-float 2.5s ease-in-out infinite;
+}
+
+@keyframes crown-float {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-6rpx) rotate(5deg); }
+}
+
+/* 胶囊卡片头像 */
+.capsule-avatar {
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
   border: 3rpx solid #ffffff;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.12);
+  margin-bottom: 12rpx;
 }
 
-.invite-avatar {
-  width: 88rpx;  /* 恢复原始大小 */
-  height: 88rpx;
-  border-radius: 8rpx;
-  border: none;
-  box-shadow: none;
-}
-
-/* 邀请按钮文字 - 在图标下方，黑色字体 */
-.invite-name {
-  font-size: 18rpx;  /* 恢复原始大小 */
-  color: #000000;
+/* 胶囊卡片昵称 */
+.capsule-name {
+  font-size: 20rpx;
+  color: #666666;
   font-weight: 500;
   text-align: center;
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 4rpx;
+  width: 100%;
+  margin-bottom: 10rpx;
+}
+
+/* 分数胶囊 */
+.score-capsule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6rpx 16rpx;
+  border-radius: 16rpx;
+  min-width: 60rpx;
+}
+
+/* 正分 - 红字淡红背景 */
+.score-capsule.positive {
+  background: rgba(255, 59, 48, 0.12);
+}
+
+.score-capsule.positive .score-capsule-text {
+  color: #FF3B30;
+  font-weight: 600;
+}
+
+/* 负分 - 绿字淡绿背景 */
+.score-capsule.negative {
+  background: rgba(76, 217, 100, 0.12);
+}
+
+.score-capsule.negative .score-capsule-text {
+  color: #34C759;
+  font-weight: 600;
+}
+
+/* 零分 - 灰色 */
+.score-capsule.zero {
+  background: rgba(150, 150, 150, 0.12);
+}
+
+.score-capsule.zero .score-capsule-text {
+  color: #999999;
+  font-weight: 500;
+}
+
+.score-capsule-text {
+  font-size: 22rpx;
   line-height: 1;
 }
 
-/* 邀请按钮 - 确保和用户组样式完全一致 */
-.invite-member .member-square {
+/* ==================== 功能按钮卡片 ==================== */
+
+/* 邀请好友卡片 */
+.capsule-card.invite-card {
+  background: rgba(255, 255, 255, 0.65);
+  border: 2rpx solid transparent;
+}
+
+.capsule-card.invite-card:active {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: #07C160;
+}
+
+/* 图标容器 */
+.capsule-icon-wrap {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding-top: 6rpx;
-  height: 128rpx; /* 恢复原始高度 */
+  justify-content: center;
+  margin-bottom: 12rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
 }
 
-.invite-member:active .member-square {
-  transform: scale(0.95);
-  background-color: #f0f0f0;
+.capsule-icon-wrap.green {
+  background: linear-gradient(135deg, #07C160 0%, #05a350 100%);
 }
 
-.member-name {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  font-size: 18rpx;  /* 恢复原始大小 */
-  color: #ffffff;
-  font-weight: 600;
+.capsule-icon-img {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+/* 卡片标签文字 */
+.capsule-label {
+  font-size: 20rpx;
+  color: #333333;
+  font-weight: 500;
   text-align: center;
-  padding: 5rpx 6rpx;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 100%);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  z-index: 2;
 }
 
-/* 积分外层容器 - 紧贴在头像下方 */
-.score-container {
-  position: absolute;
-  bottom: 13rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 2rpx 10rpx;
-  border-radius: 10rpx;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 积分文本 */
-.member-score {
-  font-size: 18rpx;
-  font-weight: 600;
-  color: #ffffff;
-  line-height: 18rpx;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.member-score.scroll {
-  animation: marquee 6s linear infinite;
-}
-
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  10% { transform: translateX(0); }
-  90% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
-}
-
-/* 正分 - 绿色背景 */
-.score-container.positive {
-  background-color: #4CD964;
-}
-
-/* 负分 - 红色背景 */
-.score-container.negative {
-  background-color: #FF3B30;
-}
-
-.creator-tag {
-  position: absolute;
-  top: -3rpx;
-  right: -3rpx;
-  padding: 3rpx 8rpx;
-  background: linear-gradient(135deg, #4CD964 0%, #4CD964 100%);
-  border-radius: 6rpx;
-  font-size: 14rpx;
-  font-weight: 600;
-  color: #ffffff;
-  box-shadow: 0 2rpx 4rpx rgba(76, 175, 80, 0.2);
-  z-index: 3;
-}
-
-.add-member .member-square {
-  background-color: #f7f7f7;
-  border: 2rpx dashed #c5c5c5;
-  border-radius: 8rpx;
-  height: 90rpx;
-}
-
-.add-square {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  transition: all 0.25s;
-  border-radius: 8rpx;
-}
-
-.add-member:active .add-square {
-  border-color: #FF7A2F;
-  background-color: rgba(255, 122, 47, 0.05);
-}
-
-.add-avatar {
-  font-size: 32rpx;  /* 恢复原始大小 */
+.capsule-label.gray {
   color: #999999;
-  font-weight: 600;
+}
+
+/* 添加成员卡片（虚线框） */
+.capsule-card.add-card {
+  background: rgba(255, 255, 255, 0.4);
+  border: 2rpx dashed rgba(150, 150, 150, 0.4);
+}
+
+.capsule-card.add-card:active {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: #999999;
+}
+
+.add-icon-wrap {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: rgba(150, 150, 150, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  color: #999999;
+  font-weight: 300;
+  margin-bottom: 12rpx;
+}
+
+.capsule-card.add-card:active .add-icon-wrap {
+  background: rgba(150, 150, 150, 0.25);
+  color: #666666;
 }
 
 /* ==================== 右侧：底部按钮区域 ==================== */
@@ -506,12 +530,14 @@ page {
 /* ==================== 左侧底部按钮区域 ==================== */
 .left-bottom-buttons {
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: row;
+  justify-content: center;
   gap: 16rpx;
-  padding: 16rpx 8rpx;  /* 调整padding */
-  margin-top: auto;
+  padding: 12rpx 16rpx 24rpx;
+  background: linear-gradient(180deg, transparent 0%, rgba(240, 240, 240, 0.9) 20%);
   position: relative;
-  z-index: 1;
+  z-index: 10;
+  flex-shrink: 0;
 }
 
 .left-btn {
@@ -519,12 +545,11 @@ page {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 80rpx;  /* 稍微增大按钮 */
-  height: 80rpx;
+  width: 64rpx;
+  height: 64rpx;
   border-radius: 50%;
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
   transition: all 0.25s;
-  align-self: center;
   flex-shrink: 0;
 }
 
@@ -533,21 +558,23 @@ page {
   box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.1);
 }
 
-.left-btn.invite-btn,
-.left-btn.settings-btn,
 .left-btn.exit-btn {
-  background: linear-gradient(135deg, #757575 0%, #959595 100%);
+  background: linear-gradient(135deg, #FF5B5B 0%, #FF7A7A 100%);
+}
+
+.left-btn.settings-btn {
+  background: linear-gradient(135deg, #409EFF 0%, #66B1FF 100%);
 }
 
 .left-btn-icon {
-  font-size: 28rpx;  /* 减小图标大小 */
+  font-size: 24rpx;
   color: #ffffff;
   line-height: 1;
   margin-bottom: 2rpx;
 }
 
 .left-btn-text {
-  font-size: 16rpx;  /* 减小文字大小 */
+  font-size: 14rpx;
   font-weight: 500;
   color: #ffffff;
   line-height: 1;
