@@ -6,9 +6,7 @@
         <view class="sidebar-list">
           <!-- 邀请好友卡片 -->
           <view class="capsule-card invite-card" bindtap="showQrcode">
-            <view class="capsule-icon-wrap green">
-              <image class="capsule-icon-img" src="/images/weixin.png"></image>
-            </view>
+            <image class="invite-avatar-img" src="/images/weixin.png"></image>
             <text class="capsule-label">邀请</text>
           </view>
           
@@ -24,8 +22,8 @@
             <!-- 昵称 -->
             <text class="capsule-name">{{item.name}}</text>
             
-            <!-- 分数胶囊 -->
-            <view class="score-capsule {{item.score > 0 ? 'positive' : (item.score < 0 ? 'negative' : 'zero')}}">
+            <!-- 分数胶囊 (0分隐藏) -->
+            <view class="score-capsule {{item.score > 0 ? 'positive' : 'negative'}}" wx:if="{{item.score !== 0}}">
               <text class="score-capsule-text">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
             </view>
           </view>
@@ -39,16 +37,6 @@
       </scroll-view>
     </view>
 
-    <view class="left-bottom-buttons">
-      <view class="left-btn exit-btn" bindtap="openExitConfirm">
-        <text class="left-btn-icon">🚪</text>
-        <text class="left-btn-text">退出</text>
-      </view>
-      <view class="left-btn settings-btn" wx:if="{{isCreator}}" bindtap="openSettingsModal">
-        <text class="left-btn-icon">⚙️</text>
-        <text class="left-btn-text">设置</text>
-      </view>
-    </view>
   </view>
 
   <view class="right-section">
@@ -132,9 +120,39 @@
                 </view>
               </view>
               
-            </view>
-          </view>
-        </view>
+    </view>
+  </view>
+</view>
+
+<!-- 全屏悬浮拖动菜单 (Floating Action Button) -->
+<movable-area class="fab-area">
+  <movable-view 
+    class="fab-container"
+    direction="all"
+    x="{{fabX}}"
+    y="{{fabY}}"
+    inertia
+    friction="2"
+    damping="20"
+    width="100"
+    height="100">
+    <!-- 子按钮菜单 -->
+    <view class="fab-menu {{fabExpanded ? 'expanded' : ''}}">
+      <!-- 设置按钮 -->
+      <view class="fab-sub-btn settings" wx:if="{{isCreator}}" bindtap="openSettingsModal">
+        <text class="fab-sub-icon">⚙️</text>
+      </view>
+      <!-- 退出按钮 -->
+      <view class="fab-sub-btn exit" bindtap="openExitConfirm">
+        <text class="fab-sub-icon">🚪</text>
+      </view>
+    </view>
+    <!-- 主按钮 -->
+    <view class="fab-main" bindtap="toggleFab">
+      <text class="fab-main-icon {{fabExpanded ? 'rotated' : ''}}">☰</text>
+    </view>
+  </movable-view>
+</movable-area>
       </scroll-view>
 
       <view class="bottom-actions-container">

@@ -97,7 +97,11 @@ showTransferModal: false, // 转账弹窗
     qrCodeTempUrl: '',
     qrCodeError: false,
     isGeneratingQR: false,
-    showQrcode: false
+    showQrcode: false,
+    // 悬浮按钮相关数据
+    fabExpanded: false, // 是否展开
+    fabX: 600, // 默认X位置（屏幕右侧）
+    fabY: 800  // 默认Y位置（屏幕下方）
   },
 
   /**
@@ -2819,12 +2823,34 @@ success: (res) => {
   },
   
   /**
+   * ==================== 悬浮按钮功能 ==================== */
+  /**
+   * 切换悬浮按钮展开状态
+   */
+  toggleFab() {
+    this.setData({
+      fabExpanded: !this.data.fabExpanded
+    });
+  },
+
+  /**
+   * ==================== 悬浮按钮功能 ==================== */
+  /**
+   * 切换悬浮按钮展开状态
+   */
+  toggleFab() {
+    this.setData({
+      fabExpanded: !this.data.fabExpanded
+    });
+  },
+
+  /*
    * ==================== 退出房间功能 ==================== */
   /**
    * 打开退出确认弹窗
    */
   openExitConfirm() {
-    this.setData({ showExitConfirm: true });
+    this.setData({ showExitConfirm: true, fabExpanded: false });
   },
 
   /**
@@ -2918,6 +2944,7 @@ success: (res) => {
   openSettingsModal() {
     this.setData({
       showSettingsModal: true,
+      fabExpanded: false,
       allInInput: this.data.room.allInValue ? this.data.room.allInValue.toString() : ''
     });
   },

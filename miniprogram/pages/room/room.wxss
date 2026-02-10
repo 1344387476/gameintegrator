@@ -25,14 +25,14 @@ page {
 .left-section {
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%);
-  border-right: 1rpx solid #d0d0d0;
+  background: linear-gradient(180deg, #f5f5f5 0%, #e8e8e8 100%);
+  border-right: 1rpx solid #e0e0e0;
   box-sizing: border-box;
   padding: 0;
   height: 100%;
-  width: 180rpx;  /* 适应胶囊卡片宽度 */
-  min-width: 180rpx;
-  max-width: 180rpx;
+  width: 160rpx;  /* 微调至160rpx */
+  min-width: 160rpx;
+  max-width: 160rpx;
   overflow: hidden;
 }
 
@@ -71,7 +71,7 @@ page {
   padding: 8rpx 0 16rpx;
 }
 
-/* ==================== 胶囊卡片设计 ==================== */
+/* ==================== 胶囊卡片设计 - 莫兰迪色系 ==================== */
 
 /* 胶囊卡片基础样式 */
 .capsule-card {
@@ -79,159 +79,140 @@ page {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20rpx 16rpx;
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  padding: 16rpx 12rpx;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 20rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.06);
   border: 2rpx solid transparent;
-  transition: all 0.25s ease;
+  transition: all 0.3s ease;
   box-sizing: border-box;
   position: relative;
 }
 
 .capsule-card:active {
-  transform: scale(0.96);
-  background: rgba(255, 255, 255, 0.85);
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.9);
 }
 
-/* 房主卡片 */
+/* 房主卡片 - 淡金色调 */
 .capsule-card.is-creator {
-  background: rgba(255, 251, 230, 0.75);
+  background: rgba(255, 251, 240, 0.8);
+  border: 2rpx solid rgba(255, 193, 7, 0.3);
 }
 
-/* 本人卡片 - 蓝色实线边框 + 外发光 */
+/* 本人卡片 - 蓝紫边框 + 浅蓝色投影 */
 .capsule-card.is-me {
-  border: 2rpx solid #409EFF;
-  background: rgba(230, 245, 255, 0.75);
-  box-shadow: 0 4rpx 16rpx rgba(64, 158, 255, 0.35), 0 0 0 2rpx rgba(64, 158, 255, 0.1);
+  border: 2rpx solid #5B73F9;
+  box-shadow: 0 4rpx 12rpx rgba(91, 115, 249, 0.2);
 }
 
 /* 既是房主又是本人 */
 .capsule-card.is-creator.is-me {
-  border: 2rpx solid #409EFF;
-  background: linear-gradient(135deg, rgba(255, 251, 230, 0.8) 0%, rgba(230, 245, 255, 0.8) 100%);
-  box-shadow: 0 4rpx 16rpx rgba(64, 158, 255, 0.35), 0 0 0 2rpx rgba(64, 158, 255, 0.1);
+  background: rgba(255, 251, 240, 0.8);
+  border: 2rpx solid #5B73F9;
+  box-shadow: 0 4rpx 12rpx rgba(91, 115, 249, 0.2);
 }
 
 /* 房主皇冠 - 右上角带投影 */
 .crown-badge {
   position: absolute;
-  top: -6rpx;
-  right: -6rpx;
-  font-size: 32rpx;
+  top: -4rpx;
+  right: -4rpx;
+  font-size: 28rpx;
   z-index: 10;
-  filter: drop-shadow(0 2rpx 6rpx rgba(255, 193, 7, 0.6));
+  filter: drop-shadow(0 2rpx 4rpx rgba(255, 193, 7, 0.5));
   animation: crown-float 2.5s ease-in-out infinite;
 }
 
 @keyframes crown-float {
-  0%, 100% { transform: translateY(0) rotate(-5deg); }
-  50% { transform: translateY(-6rpx) rotate(5deg); }
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-4rpx) rotate(3deg); }
 }
 
-/* 胶囊卡片头像 */
+/* 胶囊卡片头像 - 90rpx */
 .capsule-avatar {
-  width: 80rpx;
-  height: 80rpx;
+  width: 90rpx;
+  height: 90rpx;
   border-radius: 50%;
-  border: 3rpx solid #ffffff;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.12);
-  margin-bottom: 12rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
+  margin-bottom: 10rpx;
 }
 
-/* 胶囊卡片昵称 */
+/* 胶囊卡片昵称 - 22rpx，#666 */
 .capsule-name {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: #666666;
   font-weight: 500;
   text-align: center;
-  line-height: 1.3;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
-  margin-bottom: 10rpx;
+  margin-bottom: 6rpx;
 }
 
-/* 分数胶囊 */
+/* 分数胶囊 - 紧凑排列 */
 .score-capsule {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6rpx 16rpx;
-  border-radius: 16rpx;
-  min-width: 60rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  min-width: 50rpx;
 }
 
-/* 正分 - 红字淡红背景 */
+/* 正分（赢）- 莫兰迪：极淡薄荷绿背景 + 深翠绿文字 */
 .score-capsule.positive {
-  background: rgba(255, 59, 48, 0.12);
+  background: #E6F9F0;
 }
 
 .score-capsule.positive .score-capsule-text {
-  color: #FF3B30;
-  font-weight: 600;
+  color: #00B578;
+  font-weight: 700;
 }
 
-/* 负分 - 绿字淡绿背景 */
+/* 负分（输）- 莫兰迪：极淡樱花粉背景 + 赤红文字 */
 .score-capsule.negative {
-  background: rgba(76, 217, 100, 0.12);
+  background: #FFF0F0;
 }
 
 .score-capsule.negative .score-capsule-text {
-  color: #34C759;
-  font-weight: 600;
+  color: #FF4D4F;
+  font-weight: 700;
 }
 
-/* 零分 - 灰色 */
-.score-capsule.zero {
-  background: rgba(150, 150, 150, 0.12);
-}
-
-.score-capsule.zero .score-capsule-text {
-  color: #999999;
-  font-weight: 500;
-}
-
+/* 分数文字 - 24rpx加粗 */
 .score-capsule-text {
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1;
 }
 
 /* ==================== 功能按钮卡片 ==================== */
 
-/* 邀请好友卡片 */
+/* 邀请好友卡片 - 莫兰迪蓝虚线边框 */
 .capsule-card.invite-card {
   background: rgba(255, 255, 255, 0.65);
-  border: 2rpx solid transparent;
+  border: 2rpx dashed rgba(91, 115, 249, 0.5);
+  box-shadow: 0 4rpx 12rpx rgba(91, 115, 249, 0.1);
 }
 
 .capsule-card.invite-card:active {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: #07C160;
+  background: rgba(245, 247, 255, 0.9);
+  border-color: rgba(91, 115, 249, 0.8);
+  box-shadow: 0 4rpx 16rpx rgba(91, 115, 249, 0.2);
 }
 
-/* 图标容器 */
-.capsule-icon-wrap {
-  width: 72rpx;
-  height: 72rpx;
+/* 邀请图标 - 和头像一样大 (90rpx) */
+.invite-avatar-img {
+  width: 90rpx;
+  height: 90rpx;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12rpx;
+  margin-bottom: 10rpx;
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
-}
-
-.capsule-icon-wrap.green {
-  background: linear-gradient(135deg, #07C160 0%, #05a350 100%);
-}
-
-.capsule-icon-img {
-  width: 40rpx;
-  height: 40rpx;
 }
 
 /* 卡片标签文字 */
@@ -525,59 +506,6 @@ page {
 .setting-unit {
   font-size: 26rpx;
   color: #666666;
-}
-
-/* ==================== 左侧底部按钮区域 ==================== */
-.left-bottom-buttons {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  gap: 16rpx;
-  padding: 12rpx 16rpx 24rpx;
-  background: linear-gradient(180deg, transparent 0%, rgba(240, 240, 240, 0.9) 20%);
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-}
-
-.left-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 50%;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
-  transition: all 0.25s;
-  flex-shrink: 0;
-}
-
-.left-btn:active {
-  transform: scale(0.9);
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.1);
-}
-
-.left-btn.exit-btn {
-  background: linear-gradient(135deg, #FF5B5B 0%, #FF7A7A 100%);
-}
-
-.left-btn.settings-btn {
-  background: linear-gradient(135deg, #409EFF 0%, #66B1FF 100%);
-}
-
-.left-btn-icon {
-  font-size: 24rpx;
-  color: #ffffff;
-  line-height: 1;
-  margin-bottom: 2rpx;
-}
-
-.left-btn-text {
-  font-size: 14rpx;
-  font-weight: 500;
-  color: #ffffff;
-  line-height: 1;
 }
 
 /* ==================== 右侧：聊天室样式 ==================== */
@@ -915,25 +843,31 @@ page {
   box-shadow: none;
 }
 
+/* 支出按钮 - 温暖橙色渐变 */
 .action-btn.expense-btn {
-  background: linear-gradient(135deg, #FF7A2F 0%, #FF9559 100%);
-  box-shadow: 0 4rpx 16rpx rgba(255, 122, 47, 0.35);
+  background: linear-gradient(135deg, #FF9C6E 0%, #FF7A45 100%);
+  box-shadow: 0 4rpx 16rpx rgba(255, 122, 69, 0.35);
+  border-radius: 40rpx;
+  border: none;
 }
 
 .action-btn.expense-btn.disabled {
-  background: linear-gradient(135deg, #c8c8c8 0%, #d8d8d8 100%);
+  background: linear-gradient(135deg, #d9d9d9 0%, #e8e8e8 100%);
   color: #999999;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
   transform: none;
 }
 
+/* 结算按钮 - 清新青色渐变 */
 .action-btn.settle-btn {
-  background: linear-gradient(135deg, #4CD964 0%, #6FEB80 100%);
-  box-shadow: 0 4rpx 16rpx rgba(76, 217, 100, 0.35);
+  background: linear-gradient(135deg, #40C9C6 0%, #36AB60 100%);
+  box-shadow: 0 4rpx 16rpx rgba(64, 201, 198, 0.35);
+  border-radius: 40rpx;
+  border: none;
 }
 
 .action-btn.settle-btn.disabled {
-  background: linear-gradient(135deg, #c8c8c8 0%, #d8d8d8 100%);
+  background: linear-gradient(135deg, #d9d9d9 0%, #e8e8e8 100%);
   color: #999999;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
   transform: none;
@@ -2171,4 +2105,132 @@ page {
 
 .share-btn::after {
   border: none;
+}
+/* ==================== 全屏悬浮拖动菜单 (Floating Action Button) ==================== */
+
+/* 拖动区域 - 全屏覆盖 */
+.fab-area {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* 可拖动容器 - movable-view */
+.fab-container {
+  width: 100rpx !important;
+  height: 100rpx !important;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  /* 确保movable-view本身是正方形 */
+  min-width: 100rpx;
+  min-height: 100rpx;
+  max-width: 100rpx;
+  max-height: 100rpx;
+  overflow: visible;
+}
+
+/* 主按钮 - 圆形深色背景 */
+.fab-main {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  z-index: 2;
+  /* 确保严格圆形 */
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+.fab-main:active {
+  transform: scale(0.95);
+  background: #444444;
+}
+
+/* 主按钮图标 - 三道杠 */
+.fab-main-icon {
+  font-size: 40rpx;
+  color: #ffffff;
+  font-weight: 300;
+  transition: transform 0.3s ease;
+}
+
+.fab-main-icon.rotated {
+  transform: rotate(90deg);
+}
+
+/* 子按钮菜单容器 */
+.fab-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16rpx;
+  opacity: 0;
+  transform: translateY(20rpx) scale(0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.fab-menu.expanded {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* 子按钮 */
+.fab-sub-btn {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
+  transition: all 0.25s ease;
+  opacity: 0;
+  transform: translateY(20rpx);
+}
+
+.fab-menu.expanded .fab-sub-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 设置按钮 - 灰色 */
+.fab-sub-btn.settings {
+  background: #808080;
+  transition-delay: 0.05s;
+}
+
+.fab-sub-btn.settings:active {
+  background: #666666;
+  transform: scale(0.95);
+}
+
+/* 退出按钮 - 红色 */
+.fab-sub-btn.exit {
+  background: #FF5B5B;
+  transition-delay: 0.1s;
+}
+
+.fab-sub-btn.exit:active {
+  background: #FF4040;
+  transform: scale(0.95);
+}
+
+/* 子按钮图标 */
+.fab-sub-icon {
+  font-size: 32rpx;
 }
