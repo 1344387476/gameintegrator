@@ -108,16 +108,18 @@
           <view id="record-{{index}}" class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}}" wx:for="{{room.records}}" wx:key="index" bindtap="onRecordTap" data-record="{{item}}">
             <!-- 消息组件容器 -->
             <view class="message-component">
-              
-              <!-- 第一行：时间戳 -->
-              <text class="message-time">{{item.time}}</text>
-              
-              <!-- 第二行：内容行（头像+气泡） -->
-              <view class="message-content-row">
-                <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}" wx:if="{{!item.isSystem}}">
+
+              <!-- 头像和用户名容器 -->
+              <view class="avatar-name-container" wx:if="{{!item.isSystem}}">
+                <text class="message-username">{{item.detail.operator}}</text>
+                <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}">
                   <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" src="{{item.detail.operatorAvatar || '/images/avatar.png'}}"></image>
                 </view>
-                
+              </view>
+
+              <!-- 气泡和时间戳容器 -->
+              <view class="bubble-time-container">
+                <text class="message-time">{{item.time}}</text>
                 <view class="bubble {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.isReceive ? 'receive' : ''}}">
                   <text class="message-content {{item.isReceive ? 'receive-text' : ''}}">
                     <block wx:if="{{item.segments}}">
@@ -127,9 +129,9 @@
                   </text>
                 </view>
               </view>
-              
-    </view>
-  </view>
+
+            </view>
+          </view>
 </view>
 
 <!-- 全屏悬浮拖动菜单 (Floating Action Button) -->
@@ -526,7 +528,7 @@
     <!-- 头像编辑 -->
     <view class="avatar-edit-section">
       <button class="avatar-edit-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
-        <view class="avatar-container">
+        <view class="edit-avatar-wrapper">
           <image class="edit-avatar-img" src="{{editProfile.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image>
           <view class="avatar-edit-icon">
             <text class="edit-icon-text">✏️</text>

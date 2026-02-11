@@ -611,46 +611,71 @@ page {
 /* 新增：消息组件容器 */
 .message-component {
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20rpx;
+  max-width: calc(100% - 80rpx);
+}
+
+/* 自己的消息：调整顺序 - 气泡在左，头像在右 */
+.chat-message.mine .avatar-name-container {
+  order: 2;
+}
+
+.chat-message.mine .bubble-time-container {
+  order: 1;
+}
+
+/* 其他用户的消息：保持默认 - 头像在左，气泡在右 */
+.chat-message.others .avatar-name-container {
+  order: 1;
+}
+
+.chat-message.others .bubble-time-container {
+  order: 2;
+}
+
+/* 用户名称样式 */
+.message-username {
+  font-size: 20rpx;
+  color: rgba(0, 0, 0, 0.5);
+  font-weight: 500;
+  margin-bottom: 2rpx;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* 头像和用户名容器 */
+.avatar-name-container {
+  display: flex;
   flex-direction: column;
-  max-width: 75%;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 气泡和时间戳容器 */
+.bubble-time-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.chat-message.mine .bubble {
+  align-self: flex-start;
+}
+
+.chat-message.others .bubble {
+  align-self: flex-start;
 }
 
 /* 时间戳样式 */
 .message-time {
-  font-size: 18rpx;
-  color: rgba(0, 0, 0, 0.4);
-  margin-bottom: 4rpx;
-}
-
-.chat-message.mine .message-time {
-  text-align: right;
-}
-
-.chat-message.others .message-time {
-  text-align: left;
-}
-
-.chat-message.system .message-time {
+  font-size: 16rpx;
+  color: rgba(0, 0, 0, 0.35);
+  margin-bottom: 2rpx;
   text-align: center;
-}
-
-/* 内容行（头像+气泡） */
-.message-content-row {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-}
-
-.chat-message.mine .message-content-row {
-  flex-direction: row-reverse;
-}
-
-.chat-message.others .message-content-row {
-  flex-direction: row;
-}
-
-.chat-message.system .message-content-row {
-  justify-content: center;
+  width: 100%;
 }
 
 .bubble {
@@ -665,9 +690,9 @@ page {
 /* 自己的操作：绿色气泡，右对齐，头像在气泡右边 */
 .chat-message.mine .bubble {
   background: #07C160;
-  color: #ffffff;
+  color: #333333;
   border-radius: 12rpx;
-  max-width: 75%;
+  max-width: 100%;
 }
 
 /* 他人的操作：白色气泡，左对齐，头像在气泡左边 */
@@ -675,7 +700,7 @@ page {
   background: #FFFFFF;
   color: #333333;
   border-radius: 12rpx;
-  max-width: 75%;
+  max-width: 100%;
 }
 
 /* 系统消息：浅灰色气泡，居中对齐 */
@@ -697,6 +722,13 @@ page {
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100%;
+}
+
+.chat-message.system .bubble-time-container {
+  align-items: center;
+  flex: none;
+  width: 100%;
 }
 
 /* 确保消息内容能正确换行 */
@@ -756,20 +788,14 @@ page {
 /* ==================== 消息头像样式 ==================== */
 .avatar-container {
   position: relative;
-  width: 96rpx;
+  width: 48rpx;
   height: 48rpx;
   flex-shrink: 0;
-  margin-right: 8rpx;
-}
-
-.chat-message.mine .avatar-container {
-  margin-right: 0;
-  margin-left: 8rpx;
 }
 
 /* 下注模式单头像容器（缩小宽度以减少间距） */
 .avatar-container.bet-avatar {
-  width: 56rpx;
+  width: 48rpx;
   height: 48rpx;
 }
 
@@ -783,14 +809,10 @@ page {
 
 .chat-message.mine .single-avatar {
   border-color: #07C160;
-  position: absolute;
-  right: 0;
 }
 
 .chat-message.others .single-avatar {
   border-color: #E5E5E5;
-  position: absolute;
-  left: 0;
 }
 
 /* ==================== 弹窗通用样式 ==================== */
@@ -2372,8 +2394,8 @@ page {
   border: none;
 }
 
-/* 头像和图标的容器 */
-.avatar-container {
+/* 头像和图标的容器（编辑弹窗专用） */
+.edit-avatar-wrapper {
   position: relative;
   width: 160rpx;
   height: 160rpx;
