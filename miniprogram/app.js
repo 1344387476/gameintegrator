@@ -83,7 +83,7 @@ App({
    */
   initUserInfo() {
     this.globalData.userInfoStatus = 'loading'
-    
+
     wx.cloud.callFunction({
       name: 'userFunctions',
       data: { action: 'getUserInfo' },
@@ -91,29 +91,24 @@ App({
         console.log('获取用户信息成功:', res.result)
         if (res.result.success) {
           wx.setStorageSync('openid', res.result.openid)
-          
-          if (res.result.currentRoomId) {
+
+          // 优先处理外部进入的场景（扫码/分享卡片）
+          // 如果有pendingRoomId，说明用户是通过外部方式进入的，
+          // 此时不应自动导航到旧房间，而应由home页面处理加入新房间
+          if (this.globalData.pendingRoomId) {
+            console.log('检测到pendingRoomId，跳过自动导航到旧房间')
+          } else if (res.result.currentRoomId) {
             this.checkAndNavigateToRoom(res.result.currentRoomId)
           }
           
-          if (res.result.isNewUser) {
-            const randomNickName = '玩家' + Math.floor(Math.random() * 1000)
-            this.globalData.userInfo = {
-              nickname: randomNickName,
-              avatarUrl: '',
-              avatarFileID:'',
-              isNewUser: true
-            }
-            console.log('新用户初始化:', this.globalData.userInfo)
-          } else {
-            this.globalData.userInfo = {
-              nickname: res.result.userInfo.nickname || '',
-              avatarUrl: res.result.userInfo.avatar || '',
-              avatarFileID: res.result.userInfo.avatarFileID || '',
-              isNewUser: false
-            }
-            console.log('老用户信息:', this.globalData.userInfo)
+          // 云函数已统一处理新老用户，直接获取返回的用户信息
+          this.globalData.userInfo = {
+            nickname: res.result.userInfo.nickname || '',
+            avatarUrl: res.result.userInfo.avatar || '',
+            avatarFileID: res.result.userInfo.avatarFileID || '',
+            isNewUser: res.result.isNewUser
           }
+          console.log(res.result.isNewUser ? '新用户创建成功:' : '老用户信息:', this.globalData.userInfo)
           this.globalData.userInfoStatus = 'success'
         } else {
           console.error('获取用户信息失败:', res.result.error)

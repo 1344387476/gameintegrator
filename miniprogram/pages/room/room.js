@@ -101,7 +101,7 @@ showTransferModal: false, // 转账弹窗
     // 悬浮按钮相关数据
     fabExpanded: false, // 是否展开
     fabX: 20, // 默认X位置（距离屏幕左侧20rpx）
-    fabY: 800  // 默认Y位置（距离屏幕底部20rpx，具体值在onLoad中根据屏幕高度计算）
+    fabY: 600  // 默认Y位置（距离屏幕底部20rpx，具体值在onLoad中根据屏幕高度计算）
   },
 
   /**
@@ -111,17 +111,9 @@ showTransferModal: false, // 转账弹窗
   onLoad(options) {
     const { roomId } = options;
     
-    // 获取屏幕高度，计算悬浮按钮初始位置（左下角距离屏幕边缘20rpx）
-    const systemInfo = wx.getSystemInfoSync();
-    const screenHeight = systemInfo.windowHeight;
-    const fabBottomMargin = 20; // 距离底部20rpx
-    const fabHeight = 100; // 按钮高度100rpx
-    const fabY = screenHeight - fabHeight - fabBottomMargin;
     
     this.setData({ 
       roomId,
-      fabX: 20,  // 距离左侧20rpx
-      fabY: fabY // 计算后的Y坐标
     });
     console.log("房间id"+roomId)
     
@@ -242,10 +234,14 @@ showTransferModal: false, // 转账弹窗
 
   /**
    * 生命周期函数 - 页面显示
-   * 刷新消息列表并检查是否有未上传的战绩
+   * 刷新房间数据，确保从后台返回或从其他页面返回时数据同步
    */
   onShow() {
-
+    // 如果房间ID存在且数据已加载，刷新房间数据
+    if (this.data.roomId && this.data.room._id) {
+      console.log('页面显示，刷新房间数据')
+      this.refreshAllData()
+    }
   },
 
   /**
@@ -630,11 +626,15 @@ loadRoom(roomId) {
         success: (res) => {
           if (res.data) {
             const room = res.data;
+            // processRoomData处理房间数据（同步）
+            // 创建/加入房间时已在云函数中申请了临时URL并存入数据库
+            // 这里直接使用数据库中的avatar字段（临时URL）
             this.processRoomData(room);
             // 加载消息列表
             this.loadMessages(roomId);
             
-            // 首次进入房间，检查是否需要刷新头像（房间创建>2小时）
+            // 检查房间创建时间，超过2小时后刷新头像URL
+            // 因为临时URL只有2小时有效期
             this.checkAndRefreshAvatars(room, this.data.room.members);
             
             resolve(room);
@@ -675,6 +675,9 @@ loadRoom(roomId) {
   /**
    * 处理房间数据
    * 将云数据库的房间数据格式化并设置到页面
+   * 注意：创建/加入房间时已在云函数中申请了临时URL并存入数据库
+   * 这里直接使用数据库中的avatar字段（临时URL）
+   * 超过2小时后，checkAndRefreshAvatars会刷新所有头像
    * @param {Object} room - 房间数据
    */
   processRoomData(room) {
@@ -685,18 +688,36 @@ loadRoom(roomId) {
       });
     }
 
+    // 判断当前用户是否为房主
+    const myOpenid = wx.getStorageSync('openid');
+    const isCreator = room.owner === myOpenid;
+
     // 数据字段映射：云数据库字段 -> 页面显示字段
+    // 先使用原始的avatar（临时URL）作为初始值，后续会更新为新的临时URL
+    let members = room.players.map(player => ({
+      openid: player.openid,
+      name: player.nickname,
+      avatarUrl: player.avatar || '',  // 先使用数据库中的临时URL
+      avatarFileID: player.avatarFileID || '',  // 保留fileID用于刷新
+      score: player.score || 0,
+      isExited: player.isExited || false
+    }));
+
+    // 为members添加积分滚动检测
+    members = members.map(member => {
+      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
+      const scoreScroll = scoreText.length > 7;
+      return {
+        ...member,
+        scoreScroll
+      };
+    });
+
     const processedRoom = {
       _id: room._id,
       roomName: room.roomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
-      members: room.players.map(player => ({
-        openid: player.openid,
-        name: player.nickname,
-        avatarUrl: player.avatar,
-        score: player.score || 0,  // 防御性处理：防止 undefined
-        isExited: player.isExited || false
-      })),
+      members: members,
       records: [],
       creator: room.owner,
       // 状态映射：云函数 'active'/'settled' -> 前端 'playing'/'ended'
@@ -708,21 +729,6 @@ loadRoom(roomId) {
       },
       allInValue: room.allInVal || 0
     };
-
-    // 判断当前用户是否为房主
-    const myOpenid = wx.getStorageSync('openid');
-    const isCreator = room.owner === myOpenid;
-
-    // 为members添加默认头像和积分滚动检测
-    processedRoom.members = processedRoom.members.map(member => {
-      const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
-      const scoreScroll = scoreText.length > 7;
-      return {
-        ...member,
-        avatarUrl: member.avatarUrl || '',
-        scoreScroll
-      };
-    });
 
     // 下注模式：初始化跟注相关数据
     let lastDepositAmount = 0;
@@ -737,7 +743,7 @@ loadRoom(roomId) {
       isCreator
     });
   },
-  
+
   /**
    * 检查房间创建时间，如果超过2小时则刷新所有成员头像URL
    * @param {Object} room - 原始房间数据
@@ -800,7 +806,7 @@ loadRoom(roomId) {
       }
     }
   },
-
+  
   /**
    * 统一刷新房间和消息数据
    * 同时获取 rooms 和 messages，一次性 setData，避免重复刷新
@@ -903,8 +909,9 @@ loadRoom(roomId) {
         return {
           openid: player.openid,
           name: player.nickname,
-          avatarUrl: player.avatar,
-          score: player.score || 0,  // 防御性处理：防止 undefined
+          avatarUrl: player.avatar,  // 使用数据库中的临时URL，refreshAllData会保留现有的
+          avatarFileID: player.avatarFileID || '',  // 保留fileID用于后续刷新
+          score: player.score || 0,
           isExited: player.isExited || false,
           scoreScroll
         };

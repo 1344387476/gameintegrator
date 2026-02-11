@@ -33,54 +33,99 @@ Page({
 
   /**
    * 生命周期函数 - 页面加载
-   * 轮询检查 app.globalData.userInfoStatus
-   * loading -> 显示 loading 动画，继续轮询
-   * success -> 显示用户信息（调用 displayUserInfo）
-   * fail -> 弹窗 Modal "获取用户信息失败，请检查网络"，然后显示空资料
-   * 
-   * 新增：处理从外部扫码/分享进入的场景，自动加入房间
+   * 只监听一次用户信息加载完成事件，避免重复渲染
+   * 统一处理：显示用户信息 + 检查待加入房间
    */
   onLoad() {
-    this.checkUserInfoStatus();
-
-    // 检查是否有待处理的房间ID（从外部扫码或分享卡片进入）
-    this.checkPendingRoomId();
+    // 统一监听用户信息加载状态，只触发一次
+    this.waitForUserInfoAndInit();
   },
 
   /**
-   * 检查是否有待处理的房间ID
-   * 如果是从外部扫码或分享卡片进入，自动执行加入房间流程
+   * 统一等待用户信息加载完成
+   * 使用单次监听器，避免轮询导致的重复渲染
    */
-  checkPendingRoomId() {
+  waitForUserInfoAndInit() {
+    const app = getApp();
+    
+    // 清除可能存在的旧监听器
+    if (this._userInfoWatcher) {
+      clearTimeout(this._userInfoWatcher);
+    }
+
+    const checkStatus = () => {
+      const status = app.globalData.userInfoStatus;
+      console.log('waitForUserInfoAndInit 状态:', status);
+
+      if (status === 'success') {
+        // 用户信息已加载，统一初始化
+        this.initializeUserInfo();
+      } else if (status === 'fail') {
+        // 加载失败，显示错误状态
+        this.setData({
+          isLoading: false,
+          nickname: '',
+          avatarFileID: '',
+          avatarUrl: ''
+        });
+        wx.showModal({
+          title: '提示',
+          content: '获取用户信息失败，请检查网络',
+          showCancel: false
+        });
+      } else {
+        // 仍在加载，继续等待（使用单次定时器）
+        this._userInfoWatcher = setTimeout(checkStatus, 300);
+      }
+    };
+
+    checkStatus();
+  },
+
+  /**
+   * 统一初始化用户信息
+   * 只执行一次setData，避免重复渲染
+   * 注意：Home页面直接使用avatarFileID显示头像，不申请临时URL
+   * 因为fileID不会过期，且自己创建的文件自己有读取权限
+   */
+  initializeUserInfo() {
+    const app = getApp();
+    const userInfo = app.globalData.userInfo;
+
+    console.log('统一初始化用户信息:', userInfo);
+
+    // Home页面直接使用fileID显示头像，不申请临时URL
+    // 微信image组件支持cloud://协议直接显示
+    this.setData({
+      isLoading: false,
+      nickname: userInfo.nickname || '',
+      avatarFileID: userInfo.avatarFileID || '',
+      avatarUrl: userInfo.avatarUrl || ''  // 保留临时URL备用
+    });
+
+    this.checkPendingRoomIdAfterInit();
+  },
+
+  /**
+   * 初始化完成后检查待加入房间
+   * 确保在用户信息加载完成后再执行
+   */
+  checkPendingRoomIdAfterInit() {
     const app = getApp();
     const pendingRoomId = app.globalData.pendingRoomId;
 
     if (pendingRoomId) {
-      console.log('检测到待处理房间ID:', pendingRoomId);
+      console.log('初始化完成后检测到待处理房间ID:', pendingRoomId);
+      this.handleAutoJoinRoom(pendingRoomId);
+    }
+  },
 
-      // 等待用户信息初始化完成后再加入房间
-      const tryJoinRoom = () => {
-        const status = app.globalData.userInfoStatus;
-
-        if (status === 'success') {
-          // 用户信息已加载，执行加入房间
-          this.handleAutoJoinRoom(pendingRoomId);
-        } else if (status === 'fail') {
-          // 用户信息加载失败，清除pendingRoomId并提示
-          app.globalData.pendingRoomId = null;
-          wx.showModal({
-            title: '提示',
-            content: '获取用户信息失败，无法加入房间',
-            showCancel: false
-          });
-        } else {
-          // 仍在加载中，继续等待
-          setTimeout(tryJoinRoom, 300);
-        }
-      };
-
-      // 开始尝试加入房间
-      tryJoinRoom();
+  /**
+   * 页面卸载时清理定时器
+   */
+  onUnload() {
+    if (this._userInfoWatcher) {
+      clearTimeout(this._userInfoWatcher);
     }
   },
 
@@ -131,70 +176,6 @@ Page({
   },
 
   /**
-   * 检查用户信息状态并相应处理
-   */
-  checkUserInfoStatus() {
-    const status = app.globalData.userInfoStatus;
-    console.log('检查用户信息状态:', status);
-
-    if (status === 'success') {
-      const userInfo = app.globalData.userInfo;
-      
-      // 如果有 fileID，先获取 URL 再统一 setData，避免多次渲染
-      if (userInfo?.avatarFileID) {
-        wx.cloud.getTempFileURL({
-          fileList: [userInfo.avatarFileID],
-          success: (res) => {
-            // 统一 setData，只渲染一次
-            this.setData({
-              isLoading: false,
-              nickname: userInfo?.nickname || '',
-              avatarFileID: userInfo?.avatarFileID || '',
-              avatarUrl: res.fileList[0]?.tempFileURL || userInfo?.avatarUrl || ''
-            });
-          },
-          fail: (err) => {
-            console.error('获取头像URL失败:', err);
-            // 获取失败，使用原有 URL
-            this.setData({
-              isLoading: false,
-              nickname: userInfo?.nickname || '',
-              avatarFileID: userInfo?.avatarFileID || '',
-              avatarUrl: userInfo?.avatarUrl || ''
-            });
-          }
-        });
-      } else {
-        // 没有 fileID，直接 setData
-        this.setData({
-          isLoading: false,
-          nickname: userInfo?.nickname || '',
-          avatarFileID: userInfo?.avatarFileID || '',
-          avatarUrl: userInfo?.avatarUrl || ''
-        });
-      }
-    } else if (status === 'fail') {
-      // 一次性设置空数据并显示错误
-      this.setData({
-        isLoading: false,
-        nickname: '',
-        avatarFileID:'',
-        avatarUrl: ''
-      });
-      wx.showModal({
-        title: '提示',
-        content: '获取用户信息失败，请检查网络',
-        showCancel: false
-      });
-    } else if (status === 'loading') {
-      // 继续轮询
-      setTimeout(() => this.checkUserInfoStatus(), 300);
-    }
-  },
-
-
-
-  /**
    * 生命周期函数 - 页面显示
    */
   onShow() {
@@ -207,7 +188,43 @@ Page({
    */
   onChooseAvatar(e) {
     const { avatarUrl } = e.detail;
-    this.setData({ avatarUrl });
+    console.log('选择新头像，临时路径:', avatarUrl);
+    
+    // 显示加载中
+    wx.showLoading({ title: '上传头像...' });
+    
+    // 立即上传到云存储获取fileID
+    // 因为home页面使用avatarFileID显示头像（永不过期）
+    wx.cloud.uploadFile({
+      cloudPath: 'avatars/' + Date.now() + '.jpg',
+      filePath: avatarUrl,
+      success: (uploadRes) => {
+        console.log('头像上传成功，fileID:', uploadRes.fileID);
+        
+        // 更新本地数据，使用fileID显示头像
+        this.setData({
+          avatarUrl: '',  // 清空临时URL
+          avatarFileID: uploadRes.fileID  // 使用fileID显示（永不过期）
+        });
+        
+        // 同步更新globalData
+        const app = getApp();
+        app.globalData.userInfo.avatarFileID = uploadRes.fileID;
+        
+        wx.hideLoading();
+        wx.showToast({ title: '头像上传成功', icon: 'success' });
+      },
+      fail: (err) => {
+        console.error('上传头像失败:', err);
+        wx.hideLoading();
+        wx.showToast({ title: '上传失败，请重试', icon: 'none' });
+        
+        // 上传失败时保留旧头像
+        this.setData({
+          avatarUrl: ''
+        });
+      }
+    });
   },
 
   /**
@@ -224,36 +241,38 @@ Page({
    * @param {Function} callback - 回调函数，参数为 boolean 表示是否成功
    */
   uploadUserInfo(callback) {
-    const { nickname, avatarUrl } = this.data;
-    
+    // 不要在函数开头解构，每次使用都直接从this.data获取最新值
+    // const { nickname, avatarUrl, avatarFileID } = this.data;
+
     // 检查是否是临时文件，需要上传到云存储
-    if (avatarUrl && (avatarUrl.startsWith('wxfile://') || avatarUrl.startsWith('http://tmp'))) {
-      console.log('检测到临时头像，先上传到云存储');
-      
+    if (this.data.avatarUrl && (this.data.avatarUrl.startsWith('wxfile://') || this.data.avatarUrl.startsWith('http://tmp'))) {
+      console.log('检测到临时头像，先上传到云存储，当前昵称:', this.data.nickname);
+
       wx.cloud.uploadFile({
         cloudPath: 'avatars/' + Date.now() + '.jpg',
-        filePath: avatarUrl,
+        filePath: this.data.avatarUrl,
         success: (uploadRes) => {
           // 获取永久 URL
           wx.cloud.getTempFileURL({
             fileList: [uploadRes.fileID],
             success: (urlRes) => {
               const permanentUrl = urlRes.fileList[0].tempFileURL;
-              console.log('头像已转换为永久URL:', permanentUrl);
-              
+              console.log('头像已转换为永久URL:', permanentUrl, 'fileID:', uploadRes.fileID);
+
                // 关键：更新本地 avatarUrl 和 avatarFileID
-               this.setData({ 
+               this.setData({
                  avatarUrl: permanentUrl,
                  avatarFileID: uploadRes.fileID
                });
-               
+
                // 同步更新 globalData，确保返回首页后数据一致
                const app = getApp();
                app.globalData.userInfo.avatarUrl = permanentUrl;
                app.globalData.userInfo.avatarFileID = uploadRes.fileID;
-               
-               // 用临时URL和fileID上传到数据库
-               this.doUploadUserInfo(nickname, permanentUrl, uploadRes.fileID, callback);
+
+               // 用临时URL和fileID上传到数据库 - 使用最新的nickname
+               console.log('上传用户信息到数据库，昵称:', this.data.nickname, 'fileID:', uploadRes.fileID);
+               this.doUploadUserInfo(this.data.nickname, permanentUrl, uploadRes.fileID, callback);
             },
             fail: (err) => {
               console.error('获取临时URL失败:', err);
@@ -267,13 +286,17 @@ Page({
         }
       });
     } else {
-      // 已经是URL或为空，直接上传（没有fileID）
-      // 同步更新 globalData 的 avatarUrl
-      if (avatarUrl) {
-        const app = getApp();
-        app.globalData.userInfo.avatarUrl = avatarUrl;
+      // 已经是URL或为空，直接上传（使用已有的avatarFileID）
+      // 同步更新 globalData 的 avatarUrl 和 avatarFileID
+      const app = getApp();
+      if (this.data.avatarUrl) {
+        app.globalData.userInfo.avatarUrl = this.data.avatarUrl;
       }
-      this.doUploadUserInfo(nickname, avatarUrl, '', callback);
+      if (this.data.avatarFileID) {
+        app.globalData.userInfo.avatarFileID = this.data.avatarFileID;
+      }
+      console.log('使用已有头像上传，昵称:', this.data.nickname, 'avatarFileID:', this.data.avatarFileID);
+      this.doUploadUserInfo(this.data.nickname, this.data.avatarUrl, this.data.avatarFileID || '', callback);
     }
   },
 
@@ -288,24 +311,24 @@ Page({
     wx.cloud.callFunction({
       name: 'userFunctions',
       data: {
-        action: 'login',
+        action: 'updateUserInfo',
         userData: {
-          nickName: nickname,
-          avatarUrl: avatarUrl,        // 临时 URL
+          nickname: nickname,
+          avatar: avatarUrl,        // 临时 URL
           avatarFileID: avatarFileID   // fileID（永久）
         }
       },
       success: (res) => {
         if (res.result.success) {
-          console.log('用户资料上传成功');
+          console.log('用户资料更新成功，更新字段:', res.result.updatedFields);
           callback && callback(true);
         } else {
-          console.error('用户资料上传失败:', res.result.error);
+          console.error('用户资料更新失败:', res.result.error);
           callback && callback(false);
         }
       },
       fail: (err) => {
-        console.error('调用 userFunctions.login 失败:', err);
+        console.error('调用 userFunctions.updateUserInfo 失败:', err);
         callback && callback(false);
       }
     });

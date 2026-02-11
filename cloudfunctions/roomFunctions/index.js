@@ -46,6 +46,23 @@ exports.main = async (event, context) => {
         }
       }
 
+      // 如果有avatarFileID，申请临时URL
+      let avatarTempUrl = avatar
+      if (avatarFileID) {
+        try {
+          const tempUrlRes = await cloud.getTempFileURL({
+            fileList: [avatarFileID]
+          })
+          if (tempUrlRes.fileList && tempUrlRes.fileList[0] && tempUrlRes.fileList[0].tempFileURL) {
+            avatarTempUrl = tempUrlRes.fileList[0].tempFileURL
+            console.log('加入房间：申请头像临时URL成功', avatarTempUrl)
+          }
+        } catch (err) {
+          console.error('加入房间：申请头像临时URL失败', err)
+          // 失败时使用传入的avatar
+        }
+      }
+
       const transaction = await db.startTransaction()
       try {
         let newPlayers = [...room.players]
@@ -54,12 +71,15 @@ exports.main = async (event, context) => {
           // 重新加入已退出的房间
           const idx = newPlayers.findIndex(p => p.openid === OPENID)
           newPlayers[idx].isExited = false
+          // 更新头像信息
+          newPlayers[idx].avatar = avatarTempUrl
+          newPlayers[idx].avatarFileID = avatarFileID
         } else {
           // 新玩家加入
           newPlayers.push({
             openid: OPENID,
             nickname,
-            avatar,           // 临时 URL（2小时内有效）
+            avatar: avatarTempUrl,           // 临时 URL（2小时内有效）
             avatarFileID,     // fileID（永久，用于重新获取URL）
             score: 0,
             isExited: false
@@ -82,7 +102,7 @@ exports.main = async (event, context) => {
             messages: _.push({
               fromOpenid: OPENID,
               fromNickname: nickname,
-              fromAvatar: avatar,
+              fromAvatar: avatarTempUrl,
               content: `${nickname} 加入了房间`,
               messageType: 'join',
               timestamp: db.serverDate()
@@ -110,6 +130,23 @@ exports.main = async (event, context) => {
 
       const roomId = Math.random().toString(36).substr(2, 6).toUpperCase()
 
+      // 如果有avatarFileID，申请临时URL
+      let avatarTempUrl = payload.avatar
+      if (payload.avatarFileID) {
+        try {
+          const tempUrlRes = await cloud.getTempFileURL({
+            fileList: [payload.avatarFileID]
+          })
+          if (tempUrlRes.fileList && tempUrlRes.fileList[0] && tempUrlRes.fileList[0].tempFileURL) {
+            avatarTempUrl = tempUrlRes.fileList[0].tempFileURL
+            console.log('创建房间：申请头像临时URL成功', avatarTempUrl)
+          }
+        } catch (err) {
+          console.error('创建房间：申请头像临时URL失败', err)
+          // 失败时使用传入的avatar
+        }
+      }
+
       // 启动事务
       const transaction = await db.startTransaction()
       let qrCodeFileID = null
@@ -128,7 +165,7 @@ exports.main = async (event, context) => {
             players: [{
               openid: OPENID,
               nickname: payload.nickname,
-              avatar: payload.avatar,           // 临时 URL（2小时内有效）
+              avatar: avatarTempUrl,           // 临时 URL（2小时内有效）
               avatarFileID: payload.avatarFileID,  // fileID（永久，用于重新获取URL）
               score: 0,
               isExited: false
@@ -154,7 +191,7 @@ exports.main = async (event, context) => {
             messages: _.push({
               fromOpenid: OPENID,
               fromNickname: payload.nickname,
-              fromAvatar: payload.avatar,
+              fromAvatar: avatarTempUrl,
               content: `${payload.nickname} 创建了房间`,
               messageType: 'create',
               timestamp: db.serverDate()
