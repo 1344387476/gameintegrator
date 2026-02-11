@@ -496,6 +496,67 @@ exports.main = async (event, context) => {
       return { success: true, msg: '已清理房间记录' }
     }
 
+    // === 动作 I：更新用户资料 ===
+    if (action === 'updateProfile') {
+      const { roomId, nickname, avatarUrl, avatarFileID } = payload
+      
+      // 获取房间信息
+      const roomRes = await db.collection('rooms').doc(roomId).get()
+      if (!roomRes || !roomRes.data) {
+        throw new Error('房间不存在')
+      }
+      
+      const room = roomRes.data
+      
+      // 查找当前玩家
+      const playerIndex = room.players.findIndex(p => p.openid === OPENID)
+      if (playerIndex === -1) {
+        throw new Error('您不在该房间中')
+      }
+      
+      // 更新玩家信息
+      const updatedPlayers = [...room.players]
+      updatedPlayers[playerIndex] = {
+        ...updatedPlayers[playerIndex],
+        nickname: nickname,
+        avatar: avatarUrl || updatedPlayers[playerIndex].avatar,
+        avatarFileID: avatarFileID || updatedPlayers[playerIndex].avatarFileID
+      }
+      
+      // 更新房间数据
+      await db.collection('rooms').doc(roomId).update({
+        data: { players: updatedPlayers }
+      })
+      
+      // 更新用户集合中的昵称和头像
+      await db.collection('users').doc(OPENID).update({
+        data: { 
+          nickname: nickname,
+          avatar: avatarUrl || updatedPlayers[playerIndex].avatar,
+          avatarFileID: avatarFileID || updatedPlayers[playerIndex].avatarFileID
+        }
+      })
+      
+      // 添加系统消息通知其他玩家
+      const oldNickname = room.players[playerIndex].nickname
+      if (oldNickname !== nickname) {
+        await db.collection('messages').doc(roomId).update({
+          data: {
+            messages: _.push({
+              fromOpenid: OPENID,
+              fromNickname: nickname,
+              fromAvatar: avatarUrl || updatedPlayers[playerIndex].avatar,
+              content: `${oldNickname} 修改昵称为 ${nickname}`,
+              messageType: 'system',
+              timestamp: db.serverDate()
+            })
+          }
+        })
+      }
+      
+      return { success: true, msg: '资料更新成功' }
+    }
+
     return { success: false, msg: '未知动作' }
 
   } catch (e) {

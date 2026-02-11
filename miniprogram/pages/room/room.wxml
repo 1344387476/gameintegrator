@@ -514,3 +514,45 @@
     </view>
   </view>
 </view>
+
+<!-- 编辑用户信息弹窗 -->
+<view class="modal-mask {{showEditProfileModal ? 'show' : ''}}" wx:if="{{showEditProfileModal}}" bindtap="closeEditProfileModal"></view>
+<view class="edit-profile-modal {{showEditProfileModal ? 'show' : ''}}" wx:if="{{showEditProfileModal}}">
+  <view class="edit-profile-header">
+    <text class="edit-profile-title">编辑资料</text>
+    <text class="edit-profile-close" bindtap="closeEditProfileModal">✕</text>
+  </view>
+  <view class="edit-profile-body">
+    <!-- 头像编辑 -->
+    <view class="avatar-edit-section">
+      <button class="avatar-edit-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+        <view class="avatar-container">
+          <image class="edit-avatar-img" src="{{editProfile.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image>
+          <view class="avatar-edit-icon">
+            <text class="edit-icon-text">✏️</text>
+          </view>
+        </view>
+      </button>
+    </view>
+    
+    <!-- 昵称编辑 -->
+    <view class="nickname-edit-section">
+      <text class="edit-label">昵称</text>
+      <input 
+        class="nickname-input" 
+        type="nickname" 
+        placeholder="请输入昵称" 
+        value="{{editProfile.nickname}}"
+        bindinput="onNicknameInput"
+        bindblur="onNicknameConfirm"
+      />
+    </view>
+    
+    <!-- 保存按钮 -->
+    <view class="edit-profile-actions">
+      <view class="action-btn save-profile-btn {{isSavingProfile ? 'disabled' : ''}}" bindtap="{{isSavingProfile ? '' : 'saveProfile'}}">
+        <text class="save-btn-text">{{isSavingProfile ? '保存中...' : '保存'}}</text>
+      </view>
+    </view>
+  </view>
+</view>

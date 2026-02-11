@@ -100,8 +100,17 @@ showTransferModal: false, // 转账弹窗
     showQrcode: false,
     // 悬浮按钮相关数据
     fabExpanded: false, // 是否展开
-    fabX: 20, // 默认X位置（距离屏幕左侧20rpx）
-    fabY: 600  // 默认Y位置（距离屏幕底部20rpx，具体值在onLoad中根据屏幕高度计算）
+    fabX: 630, // 默认X位置（距离屏幕右侧20rpx，基于750rpx标准屏幕宽度计算：750 - 100 - 20 = 630）
+    fabY: 650,  // 默认Y位置（距离下方结算按钮20rpx，基于标准屏幕高度计算）
+    // 编辑用户信息弹窗相关数据
+    showEditProfileModal: false, // 是否显示编辑资料弹窗
+    editProfile: {
+      nickname: '', // 编辑中的昵称
+      avatarUrl: '', // 编辑中的头像URL
+      avatarFileID: '', // 编辑中的头像fileID
+      tempAvatarUrl: '' // 临时头像URL（选择后未保存）
+    },
+    isSavingProfile: false // 是否正在保存资料
   },
 
   /**
@@ -126,7 +135,19 @@ showTransferModal: false, // 转账弹窗
         myOpenid: wx.getStorageSync('openid') || ''
       });
       
-      this.loadRoom(roomId);
+      this.loadRoom(roomId).then(() => {
+        // 检查是否为新用户通过外部方式（扫码/分享）首次进入房间
+        const app = getApp();
+        if (app.globalData.isNewUserFromExternal) {
+          console.log('检测到新用户通过外部方式进入，自动弹出编辑资料弹窗')
+          // 延迟一点弹出，让页面完全渲染
+          setTimeout(() => {
+            this.showEditProfile();
+            // 重置标记，避免重复弹出
+            app.globalData.isNewUserFromExternal = false;
+          }, 500);
+        }
+      });
       this.initMessagesWatch(roomId);
     });
   },
@@ -965,7 +986,8 @@ loadRoom(roomId) {
   /**
    * 处理玩家点击事件
    * 根据游戏模式执行不同的操作：
-   * - 普通模式：显示转账弹窗
+   * - 点击自己：显示编辑资料弹窗
+   * - 普通模式+点击他人：显示转账弹窗
    * - 下注模式：提示仅支持向奖池转入
    * @param {Object} e - 事件对象
    */
@@ -973,20 +995,20 @@ loadRoom(roomId) {
     const index = e.currentTarget.dataset.index;
     const member = this.data.room.members[index];
 
+    // 点击自己：显示编辑资料弹窗
+    if (member.openid === this.data.myOpenid) {
+      this.showEditProfile();
+      return;
+    }
+
     // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
       // this.showTip('游戏已结束，无法操作');
       return;
     }
 
-    // 普通模式：检查是否点击自己
+    // 普通模式：点击其他玩家头像弹出转账弹窗
     if (this.data.room.gameMode === 'normal') {
-      if (member.openid === this.data.myOpenid) {
-        // this.showTip('不能向自己转账');
-        return;
-      }
-
-      // 普通模式：点击玩家头像弹出转账弹窗
       this.setData({
         targetMemberIndex: index,
         targetMember: member.name,
@@ -998,6 +1020,196 @@ loadRoom(roomId) {
       // 下注模式：提示仅支持向奖池转入
       // this.showTip('本模式仅支持向奖池转入积分');
     }
+  },
+
+  /**
+   * 显示编辑资料弹窗
+   */
+  showEditProfile() {
+    const myMember = this.data.room.members.find(m => m.openid === this.data.myOpenid);
+    if (!myMember) return;
+
+    this.setData({
+      showEditProfileModal: true,
+      editProfile: {
+        nickname: myMember.name,
+        avatarUrl: myMember.avatarUrl,
+        avatarFileID: myMember.avatarFileID || '',
+        tempAvatarUrl: ''
+      },
+      isSavingProfile: false
+    });
+  },
+
+  /**
+   * 关闭编辑资料弹窗
+   */
+  closeEditProfileModal() {
+    this.setData({ showEditProfileModal: false });
+  },
+
+  /**
+   * 选择头像
+   * @param {Object} e - 事件对象
+   */
+  onChooseAvatar(e) {
+    const { avatarUrl } = e.detail;
+    
+    this.setData({
+      'editProfile.tempAvatarUrl': avatarUrl
+    });
+
+    // 上传头像到云存储
+    wx.cloud.uploadFile({
+      cloudPath: `avatars/${Date.now()}_${Math.random().toString(36).substr(2, 6)}.jpg`,
+      filePath: avatarUrl,
+      success: (res) => {
+        // 获取临时URL
+        wx.cloud.getTempFileURL({
+          fileList: [res.fileID],
+          success: (urlRes) => {
+            const tempFileURL = urlRes.fileList[0]?.tempFileURL || '';
+            this.setData({
+              'editProfile.avatarUrl': tempFileURL,
+              'editProfile.avatarFileID': res.fileID
+            });
+          },
+          fail: (err) => {
+            console.error('获取头像URL失败:', err);
+            wx.showToast({
+              title: '头像上传失败',
+              icon: 'none'
+            });
+          }
+        });
+      },
+      fail: (err) => {
+        console.error('上传头像失败:', err);
+        wx.showToast({
+          title: '头像上传失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  /**
+   * 昵称输入
+   * @param {Object} e - 事件对象
+   */
+  onNicknameInput(e) {
+    const value = e.detail.value;
+    this.setData({
+      'editProfile.nickname': value
+    });
+  },
+
+  /**
+   * 昵称输入完成（失焦）
+   * @param {Object} e - 事件对象
+   */
+  onNicknameConfirm(e) {
+    const value = e.detail.value;
+    this.setData({
+      'editProfile.nickname': value
+    });
+  },
+
+  /**
+   * 保存用户资料
+   */
+  saveProfile() {
+    const { editProfile, roomId, myOpenid } = this.data;
+    
+    // 验证昵称
+    const nickname = editProfile.nickname?.trim();
+    if (!nickname) {
+      wx.showToast({
+        title: '请输入昵称',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // 检查是否有变化
+    const myMember = this.data.room.members.find(m => m.openid === myOpenid);
+    const hasNicknameChanged = nickname !== myMember.name;
+    const hasAvatarChanged = editProfile.avatarFileID !== myMember.avatarFileID;
+    
+    if (!hasNicknameChanged && !hasAvatarChanged) {
+      this.closeEditProfileModal();
+      return;
+    }
+
+    this.setData({ isSavingProfile: true });
+
+    // 调用云函数更新用户信息
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: {
+        action: 'updateProfile',
+        payload: {
+          roomId: roomId,
+          nickname: nickname,
+          avatarUrl: editProfile.avatarUrl,
+          avatarFileID: editProfile.avatarFileID
+        }
+      },
+      success: (res) => {
+        if (res.result.success) {
+          // 更新本地数据
+          const members = this.data.room.members.map(member => {
+            if (member.openid === myOpenid) {
+              return {
+                ...member,
+                name: nickname,
+                avatarUrl: editProfile.avatarUrl || member.avatarUrl,
+                avatarFileID: editProfile.avatarFileID || member.avatarFileID
+              };
+            }
+            return member;
+          });
+
+          this.setData({
+            'room.members': members,
+            currentUser: nickname
+          });
+
+          // 更新 globalData
+          const app = getApp();
+          if (app.globalData.userInfo) {
+            app.globalData.userInfo.nickname = nickname;
+            if (editProfile.avatarUrl) {
+              app.globalData.userInfo.avatarUrl = editProfile.avatarUrl;
+            }
+            if (editProfile.avatarFileID) {
+              app.globalData.userInfo.avatarFileID = editProfile.avatarFileID;
+            }
+          }
+
+          this.closeEditProfileModal();
+          wx.showToast({
+            title: '保存成功',
+            icon: 'success'
+          });
+        } else {
+          wx.showToast({
+            title: res.result.msg || '保存失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('保存资料失败:', err);
+        wx.showToast({
+          title: '保存失败，请重试',
+          icon: 'none'
+        });
+      },
+      complete: () => {
+        this.setData({ isSavingProfile: false });
+      }
+    });
   },
 
   /**

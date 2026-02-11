@@ -6,7 +6,9 @@ App({
     userInfo: null,
     userInfoStatus: 'loading',
     // 存储从外部进入时传入的房间ID，用于home页面自动加入房间
-    pendingRoomId: null
+    pendingRoomId: null,
+    // 标记新用户通过外部方式（扫码/分享）首次进入房间
+    isNewUserFromExternal: false
   },
 
   /**
@@ -109,6 +111,13 @@ App({
             isNewUser: res.result.isNewUser
           }
           console.log(res.result.isNewUser ? '新用户创建成功:' : '老用户信息:', this.globalData.userInfo)
+          
+          // 标记新用户通过外部方式（扫码/分享）进入，需要在房间页面自动弹出编辑资料弹窗
+          if (res.result.isNewUser && this.globalData.pendingRoomId) {
+            this.globalData.isNewUserFromExternal = true
+            console.log('新用户通过外部方式进入，标记isNewUserFromExternal为true')
+          }
+          
           this.globalData.userInfoStatus = 'success'
         } else {
           console.error('获取用户信息失败:', res.result.error)
