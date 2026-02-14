@@ -28,11 +28,7 @@
             </view>
           </view>
           
-          <!-- 添加成员卡片（虚线框） -->
-          <view class="capsule-card add-card" wx:if="{{room.status === 'playing'}}" bindtap="addMember">
-            <view class="add-icon-wrap">+</view>
-            <text class="capsule-label gray">添加</text>
-          </view>
+
         </view>
       </scroll-view>
     </view>
@@ -131,38 +127,8 @@
               </view>
 
             </view>
-          </view>
+      </view>
 </view>
-
-<!-- 全屏悬浮拖动菜单 (Floating Action Button) -->
-<movable-area class="fab-area">
-  <movable-view 
-    class="fab-container"
-    direction="all"
-    x="{{fabX}}"
-    y="{{fabY}}"
-    inertia
-    friction="2"
-    damping="20"
-    width="100"
-    height="100">
-    <!-- 子按钮菜单 -->
-    <view class="fab-menu {{fabExpanded ? 'expanded' : ''}}">
-      <!-- 设置按钮 -->
-      <view class="fab-sub-btn settings" wx:if="{{isCreator}}" bindtap="openSettingsModal">
-        <text class="fab-sub-icon">⚙️</text>
-      </view>
-      <!-- 退出按钮 -->
-      <view class="fab-sub-btn exit" bindtap="openExitConfirm">
-        <text class="fab-sub-icon">🚪</text>
-      </view>
-    </view>
-    <!-- 主按钮 -->
-    <view class="fab-main" bindtap="toggleFab">
-      <text class="fab-main-icon {{fabExpanded ? 'rotated' : ''}}">☰</text>
-    </view>
-  </movable-view>
-</movable-area>
       </scroll-view>
 
       <view class="bottom-actions-container">
@@ -177,6 +143,36 @@
       </view>
     </view>
   </view>
+
+  <!-- 全屏悬浮拖动菜单 (Floating Action Button) - 放在最外层确保 iOS z-index 正确 -->
+  <movable-area class="fab-area">
+    <movable-view
+      class="fab-container"
+      direction="all"
+      x="{{fabX}}"
+      y="{{fabY}}"
+      inertia
+      friction="2"
+      damping="20"
+      width="100"
+      height="100">
+      <!-- 子按钮菜单 -->
+      <view class="fab-menu {{fabExpanded ? 'expanded' : ''}}">
+        <!-- 设置按钮 -->
+        <view class="fab-sub-btn settings" wx:if="{{isCreator}}" bindtap="openSettingsModal">
+          <text class="fab-sub-icon">⚙️</text>
+        </view>
+        <!-- 退出按钮 -->
+        <view class="fab-sub-btn exit" bindtap="openExitConfirm">
+          <text class="fab-sub-icon">🚪</text>
+        </view>
+      </view>
+      <!-- 主按钮 -->
+      <view class="fab-main" bindtap="toggleFab">
+        <text class="fab-main-icon {{fabExpanded ? 'rotated' : ''}}">☰</text>
+      </view>
+    </movable-view>
+  </movable-area>
 </view>
 
 <view class="float-animation-container" wx:if="{{showFloatAnimation}}">

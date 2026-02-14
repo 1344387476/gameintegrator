@@ -227,36 +227,6 @@ page {
   color: #999999;
 }
 
-/* 添加成员卡片（虚线框） */
-.capsule-card.add-card {
-  background: rgba(255, 255, 255, 0.4);
-  border: 2rpx dashed rgba(150, 150, 150, 0.4);
-}
-
-.capsule-card.add-card:active {
-  background: rgba(255, 255, 255, 0.6);
-  border-color: #999999;
-}
-
-.add-icon-wrap {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(150, 150, 150, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40rpx;
-  color: #999999;
-  font-weight: 300;
-  margin-bottom: 12rpx;
-}
-
-.capsule-card.add-card:active .add-icon-wrap {
-  background: rgba(150, 150, 150, 0.25);
-  color: #666666;
-}
-
 /* ==================== 右侧：底部按钮区域 ==================== */
 .bottom-actions-container {
   flex-shrink: 0;
@@ -713,12 +683,13 @@ page {
   margin: 0 20rpx; /* 增加两侧间距 */
   word-wrap: break-word;
   word-break: break-all;
-  max-width: 90%; /* 增加最大宽度限制 */
+  max-width: 100%; /* 允许气泡填满容器 */
   display: inline-block; /* 确保气泡能自适应 */
+  align-self: center; /* 确保气泡在容器中居中 */
 }
 
 .chat-message.system .message-component {
-  max-width: 70%; /* 进一步增加宽度 */
+  max-width: 90%; /* 增加宽度以适应长文本 */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -727,8 +698,11 @@ page {
 
 .chat-message.system .bubble-time-container {
   align-items: center;
+  justify-content: center; /* 垂直方向居中 */
   flex: none;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 确保消息内容能正确换行 */

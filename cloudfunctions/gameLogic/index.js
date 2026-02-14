@@ -82,6 +82,9 @@ exports.main = async (event, context) => {
         const player = players.find(p => p.openid === OPENID)
         if (player) {
           player.score = (player.score || 0) - betAmount
+          // 记录最后转入金额和时间，用于"跟"功能
+          player.lastDepositAmount = betAmount
+          player.lastDepositTime = new Date().toISOString()
         }
         // 更新整个 players 数组和奖池
         await transaction.collection('rooms').doc(roomId).update({

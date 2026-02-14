@@ -967,9 +967,8 @@ loadRoom(roomId) {
         lastDepositOperator = lastDepositPlayer.nickname;
         
         const currentPlayer = room.players.find(p => p.openid === currentUserOpenid);
-        canFollow = lastDepositPlayer.openid !== currentUserOpenid && 
-                    room.allInVal > 0 &&
-                    currentPlayer && 
+        canFollow = lastDepositPlayer.openid !== currentUserOpenid &&
+                    currentPlayer &&
                     !currentPlayer.isExited;
       }
     }
@@ -1695,39 +1694,6 @@ success: (res) => {
   },
 
   /**
-   * 添加成员
-   * 弹出输入框让用户输入新成员昵称
-   */
-  addMember() {
-    const room = this.data.room;
-    if (room.members.length >= 8) {
-      this.showTip('房间人数已达上限（8人）');
-      return;
-    }
-
-    wx.showModal({
-      title: '添加成员',
-      editable: true,
-      placeholderText: '请输入成员昵称',
-      success: (res) => {
-        if (res.confirm && res.content) {
-          const memberName = res.content.trim();
-          const exists = room.members.some(m => m.name === memberName);
-
-          if (memberName && !exists) {
-            room.members.push({ name: memberName, avatarUrl: '', score: 0 });
-            this.setData({ room });
-            this.saveRoomData();
-            this.showTip('添加成功');
-          } else if (exists) {
-            this.showTip('该成员已存在');
-          }
-        }
-      }
-    });
-  },
-
-  /**
    * 处理支出按钮点击事件
    * 打开批量支出弹窗
    */
@@ -1909,6 +1875,18 @@ success: (res) => {
    */
   confirmSettle() {
     const roomId = this.data.roomId;
+
+    // 下注模式：检查奖池是否还有积分
+    if (this.data.room.gameMode === 'bet' && this.data.room.prizePool && this.data.room.prizePool.total > 0) {
+      wx.showToast({
+        title: '奖池中还有积分，请先收取',
+        icon: 'none',
+        duration: 2000
+      });
+      this.closeSettleConfirm();
+      return;
+    }
+
     // 参数标准化：云函数期望 { roomId }
     wx.cloud.callFunction({
       name: 'roomFunctions',
@@ -3201,9 +3179,9 @@ success: (res) => {
   /**
    * 保存设置
    */
-  saveSettings() {
+  async saveSettings() {
     const room = this.data.room;
-    
+
     // 如果是下注模式，保存all in值
     if (room.gameMode === 'bet') {
       const value = parseInt(this.data.allInInput);
@@ -3212,18 +3190,39 @@ success: (res) => {
           this.showTip('请输入正整数');
           return;
         }
-        room.allInValue = value;
+
+        // 调用云函数保存 allInVal 到数据库
+        try {
+          const res = await wx.cloud.callFunction({
+            name: 'roomFunctions',
+            data: {
+              action: 'updateAllInValue',
+              payload: {
+                roomId: this.data.roomId,
+                allInValue: value
+              }
+            }
+          });
+
+          if (res.result.success) {
+            // 更新本地数据
+            this.setData({
+              'room.allInValue': value
+            });
+            this.showTip('All In 值已保存');
+          } else {
+            this.showTip(res.result.msg || '保存失败');
+            return;
+          }
+        } catch (err) {
+          console.error('保存 All In 值失败:', err);
+          this.showTip('保存失败，请重试');
+          return;
+        }
       }
     }
 
-    // 保存数据
-    this.setData({ 
-      room,
-      'room.prizePool.total': room.prizePool.total  // 显式更新奖池路径
-    });
-    this.saveRoomData();
     this.closeSettingsModal();
-    this.showTip('设置已保存');
   },
 
   /**

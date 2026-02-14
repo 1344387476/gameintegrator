@@ -240,6 +240,9 @@ exports.main = async (event, context) => {
       let isLastUser = false
 
       if (roomExists && roomExists.data) {
+        // 保存二维码文件ID（在事务外获取，用于后续删除）
+        const qrCodeFileID = roomExists.data.qrCode
+
         // 房间存在，启动事务处理房间相关操作
         const transaction = await db.startTransaction()
         try {
@@ -258,14 +261,14 @@ exports.main = async (event, context) => {
               if (playersAfterRemove.length === 0) {
                 // 如果是最后一个玩家，删除房间
                 await transaction.collection('rooms').doc(roomId).remove()
-                
+
                 // 删除消息（非事务，不阻塞）
                 try {
                   await db.collection('messages').doc(roomId).remove()
                 } catch (e) {
                   console.log('消息文档删除失败:', e.message)
                 }
-                
+
                 // 清空当前用户房间ID
                 await db.collection('users').doc(OPENID).update({
                   data: { currentRoomId: null }
@@ -280,7 +283,7 @@ exports.main = async (event, context) => {
                 await transaction.collection('rooms').doc(roomId).update({
                   data: { players: playersAfterRemove, owner: newOwner }
                 })
-                
+
                 // 写入退出消息（在事务内）
                 await transaction.collection('messages').doc(roomId).update({
                   data: {
@@ -302,6 +305,18 @@ exports.main = async (event, context) => {
 
           // 判断是否是最后一个用户（在事务提交后）
           isLastUser = roomExists && roomExists.data && roomExists.data.players && roomExists.data.players.length <= 1
+
+          // 如果是最后一个用户离开，删除云存储中的二维码图片
+          if (isLastUser && qrCodeFileID) {
+            try {
+              await cloud.deleteFile({
+                fileList: [qrCodeFileID]
+              })
+              console.log('最后一个用户离开，二维码文件删除成功:', qrCodeFileID)
+            } catch (e) {
+              console.log('二维码文件删除失败（可能已被手动删除）:', e.message)
+            }
+          }
         } catch (error) {
           await transaction.rollback()
           throw error
@@ -385,22 +400,25 @@ exports.main = async (event, context) => {
     // === 动作 E：解散 (物理删除 + 不存战绩) ===
     if (action === 'dismiss') {
       const { roomId } = payload
-      
+
       // 先检查房间是否存在（非事务查询）
       const roomCheck = await db.collection('rooms').doc(roomId).get().catch(() => null)
-      
+
       if (!roomCheck || !roomCheck.data) {
         throw new Error('房间不存在')
       }
-      
+
       if (roomCheck.data.owner !== OPENID) throw new Error('权限不足')
-      
+
+      // 保存二维码文件ID（在事务外获取，用于后续删除）
+      const qrCodeFileID = roomCheck.data.qrCode
+
       // 房间存在且用户有权限，启动事务
       const transaction = await db.startTransaction()
       try {
         const roomRes = await transaction.collection('rooms').doc(roomId).get()
         const room = roomRes.data
-        
+
         if (!room) {
           throw new Error('房间不存在')
         }
@@ -414,7 +432,7 @@ exports.main = async (event, context) => {
 
         // 2. 物理删除房间
         await transaction.collection('rooms').doc(roomId).remove()
-        
+
         // 3. 删除消息文档（非事务，不阻塞）
         try {
           await db.collection('messages').doc(roomId).remove()
@@ -423,6 +441,18 @@ exports.main = async (event, context) => {
         }
 
         await transaction.commit()
+
+        // 4. 删除云存储中的二维码图片（非事务，不阻塞主流程）
+        if (qrCodeFileID) {
+          try {
+            await cloud.deleteFile({
+              fileList: [qrCodeFileID]
+            })
+            console.log('二维码文件删除成功:', qrCodeFileID)
+          } catch (e) {
+            console.log('二维码文件删除失败（可能已被手动删除）:', e.message)
+          }
+        }
 
         return { success: true, msg: '房间已解散' }
       } catch (error) {
@@ -555,6 +585,29 @@ exports.main = async (event, context) => {
       }
       
       return { success: true, msg: '资料更新成功' }
+    }
+
+    // === 动作 J：更新 All In 值 ===
+    if (action === 'updateAllInValue') {
+      const { roomId, allInValue } = payload
+      
+      // 检查房间是否存在
+      const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
+      if (!roomRes || !roomRes.data) {
+        throw new Error('房间不存在')
+      }
+      
+      // 检查权限（只有房主可以设置）
+      if (roomRes.data.owner !== OPENID) {
+        throw new Error('权限不足，只有房主可以设置')
+      }
+      
+      // 更新 allInVal
+      await db.collection('rooms').doc(roomId).update({
+        data: { allInVal: allInValue }
+      })
+      
+      return { success: true, msg: 'All In 值已设置' }
     }
 
     return { success: false, msg: '未知动作' }
