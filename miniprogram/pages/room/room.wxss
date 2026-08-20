@@ -535,6 +535,61 @@ page {
   background-color: #EDEDED;
 }
 
+.record-filter-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64rpx;
+  margin: 0 4rpx 12rpx;
+  padding: 6rpx 8rpx 6rpx 18rpx;
+  box-sizing: border-box;
+  border: 1rpx solid rgba(0, 0, 0, 0.04);
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 3rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.record-filter-title {
+  color: #555555;
+  font-size: 23rpx;
+  font-weight: 600;
+}
+
+.record-filter {
+  width: 238rpx;
+  display: flex;
+  padding: 4rpx;
+  box-sizing: border-box;
+  border-radius: 14rpx;
+  background: #EEEEF2;
+}
+
+.record-filter-item {
+  flex: 1;
+  height: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11rpx;
+  color: #777777;
+  font-size: 21rpx;
+  line-height: 1;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.record-filter-item.active {
+  color: #4d63dc;
+  font-weight: 600;
+  background: #ffffff;
+  box-shadow: 0 2rpx 8rpx rgba(60, 72, 120, 0.14);
+}
+
+.record-filter-item:active {
+  opacity: 0.72;
+}
+
 .chat-scroll {
   flex: 1;
   min-height: 0;
@@ -546,6 +601,13 @@ page {
   padding: 0;
   min-height: 100%;
   padding: 0 4rpx; /* 为消息内容添加内部间距 */
+}
+
+.records-empty {
+  padding: 100rpx 20rpx 0;
+  color: rgba(0, 0, 0, 0.35);
+  font-size: 24rpx;
+  text-align: center;
 }
 
 .chat-message {
@@ -2167,7 +2229,7 @@ page {
   height: 100rpx !important;
   pointer-events: auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: flex-end;
   /* 确保movable-view本身是正方形 */
@@ -2185,6 +2247,7 @@ page {
   border-radius: 50%;
   background: #333333;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.3);
@@ -2200,11 +2263,12 @@ page {
   background: #444444;
 }
 
-/* 主按钮图标 - 三道杠 */
+/* 主按钮三道杠图标 */
 .fab-main-icon {
   font-size: 40rpx;
   color: #ffffff;
   font-weight: 300;
+  line-height: 1;
   transition: transform 0.3s ease;
 }
 
@@ -2214,40 +2278,57 @@ page {
 
 /* 子按钮菜单容器 */
 .fab-menu {
+  position: absolute;
+  top: 14rpx;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  margin-bottom: 16rpx;
+  gap: 12rpx;
   opacity: 0;
-  transform: translateY(20rpx) scale(0.8);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
 
+/* 主按钮在右侧：菜单向左展开 */
+.fab-menu.expand-left {
+  right: 116rpx;
+  left: auto;
+  flex-direction: row-reverse;
+  transform: translateX(20rpx) scale(0.8);
+}
+
+/* 主按钮在左侧：菜单向右展开 */
+.fab-menu.expand-right {
+  left: 116rpx;
+  right: auto;
+  transform: translateX(-20rpx) scale(0.8);
+}
+
 .fab-menu.expanded {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateX(0) scale(1);
   pointer-events: auto;
 }
 
 /* 子按钮 */
 .fab-sub-btn {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
+  width: 106rpx;
+  height: 72rpx;
+  border-radius: 36rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12rpx;
+  box-sizing: border-box;
+  padding: 0 12rpx;
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
   transition: all 0.25s ease;
   opacity: 0;
-  transform: translateY(20rpx);
+  transform: scale(0.85);
 }
 
 .fab-menu.expanded .fab-sub-btn {
   opacity: 1;
-  transform: translateY(0);
+  transform: scale(1);
 }
 
 /* 设置按钮 - 灰色 */
@@ -2261,20 +2342,58 @@ page {
   transform: scale(0.95);
 }
 
-/* 退出按钮 - 红色 */
-.fab-sub-btn.exit {
-  background: #FF5B5B;
+/* 结算按钮 - 青色 */
+.fab-sub-btn.settle {
+  background: #24B8A6;
   transition-delay: 0.1s;
 }
 
-.fab-sub-btn.exit:active {
-  background: #FF4040;
+.fab-sub-btn.settle.disabled {
+  opacity: 0.45;
+}
+
+/* 解散按钮 - 深红色 */
+.fab-sub-btn.dismiss {
+  background: #D83A3A;
+  transition-delay: 0.15s;
+}
+
+.fab-sub-btn.dismiss:active {
+  background: #B92F2F;
   transform: scale(0.95);
 }
 
-/* 子按钮图标 */
+/* 退出按钮 - 琥珀色，与“解散”危险操作明确区分 */
+.fab-sub-btn.exit {
+  background: #F59E0B;
+  transition-delay: 0.2s;
+}
+
+.fab-sub-btn.exit:active {
+  background: #D97706;
+  transform: scale(0.95);
+}
+
+/* 子按钮图标与明确文字标签 */
 .fab-sub-icon {
-  font-size: 32rpx;
+  flex-shrink: 0;
+  margin-right: 6rpx;
+  color: #ffffff;
+  font-size: 25rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fab-sub-label {
+  color: #ffffff;
+  font-size: 21rpx;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dismiss-confirm-btn {
+  background: #D83A3A !important;
 }
 
 /* ==================== 编辑用户信息弹窗 ==================== */

@@ -25,6 +25,9 @@ Page({
     gameMode: 'normal',
     // 加入房间按钮文字
     joinButtonText: '加入房间',
+    // 当前用户可返回的进行中房间
+    currentRoomId: '',
+    hasActiveRoom: false,
     // 是否正在加载用户信息
     isLoading: true,
     // 是否正在创建或加入房间
@@ -96,14 +99,23 @@ Page({
 
     // Home页面直接使用fileID显示头像，不申请临时URL
     // 微信image组件支持cloud://协议直接显示
+    const currentRoomId = app.globalData.currentRoomId || '';
+
     this.setData({
       isLoading: false,
       nickname: userInfo.nickname || '',
       avatarFileID: userInfo.avatarFileID || '',
-      avatarUrl: userInfo.avatarUrl || ''  // 保留临时URL备用
+      avatarUrl: userInfo.avatarUrl || '',  // 保留临时URL备用
+      currentRoomId,
+      hasActiveRoom: false
     });
 
-    this.checkPendingRoomIdAfterInit();
+    // 外部扫码/分享进入的待加入房间优先于旧房间返回入口。
+    if (app.globalData.pendingRoomId) {
+      this.checkPendingRoomIdAfterInit();
+    } else {
+      this.checkCurrentRoomStatus(currentRoomId);
+    }
   },
 
   /**
@@ -179,7 +191,75 @@ Page({
    * 生命周期函数 - 页面显示
    */
   onShow() {
-    // 不需要检查房间状态（由 app.js 处理）
+    // 用户从 room 页返回时，重新校验“返回房间”入口。
+    const app = getApp();
+    if (!app.globalData.pendingRoomId) {
+      this.checkCurrentRoomStatus(app.globalData.currentRoomId || this.data.currentRoomId);
+    }
+  },
+
+  /**
+   * 校验当前用户是否仍在一个可返回的进行中房间。
+   * @param {string} roomId - getUserInfo 返回的当前房间 ID
+   */
+  checkCurrentRoomStatus(roomId) {
+    if (!roomId) {
+      this.setData({ currentRoomId: '', hasActiveRoom: false });
+      return;
+    }
+
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: { action: 'checkUserStatus' },
+      success: (res) => {
+        const result = res.result || {};
+        const activeRoomId = result.success && result.inRoom ? result.roomId : '';
+        getApp().globalData.currentRoomId = activeRoomId || null;
+        this.setData({
+          currentRoomId: activeRoomId,
+          hasActiveRoom: Boolean(activeRoomId)
+        });
+      },
+      fail: (err) => {
+        console.error('检查当前房间状态失败:', err);
+        this.setData({ currentRoomId: '', hasActiveRoom: false });
+      }
+    });
+  },
+
+  /**
+   * 返回仍在进行中的房间。
+   */
+  returnToRoom() {
+    const roomId = this.data.currentRoomId;
+    if (!roomId) return;
+
+    this.setData({ isCreatingOrJoining: true });
+    wx.cloud.callFunction({
+      name: 'roomFunctions',
+      data: { action: 'checkUserStatus' },
+      success: (res) => {
+        const result = res.result || {};
+        if (result.success && result.inRoom && result.roomId === roomId) {
+          this.setData({ isCreatingOrJoining: false });
+          wx.navigateTo({ url: `/pages/room/room?roomId=${roomId}` });
+          return;
+        }
+
+        getApp().globalData.currentRoomId = null;
+        this.setData({
+          isCreatingOrJoining: false,
+          currentRoomId: '',
+          hasActiveRoom: false
+        });
+        wx.showToast({ title: '房间已结束或已退出', icon: 'none' });
+      },
+      fail: (err) => {
+        console.error('返回房间前校验失败:', err);
+        this.setData({ isCreatingOrJoining: false });
+        wx.showToast({ title: '房间状态检查失败，请重试', icon: 'none' });
+      }
+    });
   },
 
   /**
@@ -453,6 +533,7 @@ Page({
          if (res.result.success) {
            // 成功：获取 roomId
            const roomId = res.result.roomId;
+           app.globalData.currentRoomId = roomId;
            wx.showToast({
              icon: 'success'
            });
@@ -460,10 +541,12 @@ Page({
            // 关闭弹窗和 loading
            this.setData({
              showCreateModal: false,
-             isCreatingOrJoining: false
+             isCreatingOrJoining: false,
+             currentRoomId: roomId,
+             hasActiveRoom: true
            });
            // 进入新房间
-             wx.reLaunch({
+             wx.navigateTo({
                url: `/pages/room/room?roomId=${roomId}`
              });
 
@@ -564,8 +647,13 @@ Page({
        },
       success: (res) => {
         if (res.result.success) {
-          this.setData({ isCreatingOrJoining: false });
-            wx.reLaunch({
+          app.globalData.currentRoomId = roomId;
+          this.setData({
+            isCreatingOrJoining: false,
+            currentRoomId: roomId,
+            hasActiveRoom: true
+          });
+            wx.navigateTo({
               url: `/pages/room/room?roomId=${roomId}`
             });
         } else {
@@ -581,4 +669,3 @@ Page({
     });
   }
 });
-

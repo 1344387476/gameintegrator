@@ -7,6 +7,8 @@ App({
     userInfoStatus: 'loading',
     // 存储从外部进入时传入的房间ID，用于home页面自动加入房间
     pendingRoomId: null,
+    // 当前用户仍在进行中的房间ID，由首页提供“返回房间”入口
+    currentRoomId: null,
     // 标记新用户通过外部方式（扫码/分享）首次进入房间
     isNewUserFromExternal: false
   },
@@ -94,14 +96,8 @@ App({
         if (res.result.success) {
           wx.setStorageSync('openid', res.result.openid)
 
-          // 优先处理外部进入的场景（扫码/分享卡片）
-          // 如果有pendingRoomId，说明用户是通过外部方式进入的，
-          // 此时不应自动导航到旧房间，而应由home页面处理加入新房间
-          if (this.globalData.pendingRoomId) {
-            console.log('检测到pendingRoomId，跳过自动导航到旧房间')
-          } else if (res.result.currentRoomId) {
-            this.checkAndNavigateToRoom(res.result.currentRoomId)
-          }
+          // 不再自动跳转到旧房间；由首页显示“返回房间”入口。
+          this.globalData.currentRoomId = res.result.currentRoomId || null
           
           // 云函数已统一处理新老用户，直接获取返回的用户信息
           this.globalData.userInfo = {

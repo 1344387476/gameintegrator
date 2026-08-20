@@ -221,6 +221,51 @@
   margin-bottom: 40rpx;
 }
 
+.active-room-tip {
+  width: 100%;
+  min-height: 112rpx;
+  padding: 22rpx 28rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #edfff4;
+  border: 2rpx solid rgba(7, 193, 96, 0.22);
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 14rpx rgba(7, 193, 96, 0.08);
+}
+
+.active-room-tip_active {
+  opacity: 0.78;
+  transform: scale(0.99);
+}
+
+.active-room-tip__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.active-room-tip__title {
+  color: #1a1a1a;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.active-room-tip__action,
+.active-room-tip__arrow {
+  color: #07c160;
+}
+
+.active-room-tip__action {
+  font-size: 24rpx;
+}
+
+.active-room-tip__arrow {
+  font-size: 44rpx;
+  line-height: 1;
+}
+
 .weui-btn {
   width: 100%;
   height: 88rpx;

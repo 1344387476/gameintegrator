@@ -53,9 +53,19 @@
 
       <!-- 按钮组 -->
       <view class="button-group">
-        <view class="weui-btn weui-btn_primary" bindtap="openCreateRoomModal">创建房间</view>
-        <!-- 新增：按钮文字动态绑定 -->
-        <view class="weui-btn weui-btn_default" bindtap="joinRoom">加入房间</view>
+        <block wx:if="{{hasActiveRoom}}">
+          <view class="active-room-tip" bindtap="returnToRoom" hover-class="active-room-tip_active">
+            <view class="active-room-tip__content">
+              <text class="active-room-tip__title">你已在房间中</text>
+              <text class="active-room-tip__action">点击返回房间继续</text>
+            </view>
+            <text class="active-room-tip__arrow">›</text>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="weui-btn weui-btn_primary" bindtap="openCreateRoomModal" style="position: relative; left: 1rpx; top: -2rpx">创建房间</view>
+          <view class="weui-btn weui-btn_default" bindtap="joinRoom">加入房间</view>
+        </block>
       </view>
     </view>
 

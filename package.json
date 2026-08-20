@@ -18,7 +18,7 @@
   "dependencies": {
     "weui-wxss": "^2.4.4",
     "wx-server-sdk": "^3.0.1"
-  }
+  },
   "devDependencies": {},
   "repository": {
     "type": "git",
@@ -29,3 +29,4 @@
     "url": "https://github.com/1344387476/gameintegrator/issues"
   },
   "homepage": "https://github.com/1344387476/gameintegrator#readme"
+}

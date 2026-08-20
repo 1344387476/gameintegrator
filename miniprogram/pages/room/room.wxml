@@ -17,7 +17,7 @@
             <view class="crown-badge" wx:if="{{item.openid === room.creator}}">👑</view>
             
             <!-- 头像 -->
-            <image class="capsule-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
+            <image class="capsule-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" data-file-id="{{item.avatarFileID}}" binderror="handleAvatarError"></image>
             
             <!-- 昵称 -->
             <text class="capsule-name">{{item.name}}</text>
@@ -81,6 +81,13 @@
 
 
     <view class="chat-section">
+      <view class="record-filter-bar">
+        <text class="record-filter-title">信息记录</text>
+        <view class="record-filter" aria-label="流水筛选">
+          <view class="record-filter-item {{recordFilter === 'all' ? 'active' : ''}}" bindtap="onRecordFilterChange" data-filter="all">全部</view>
+          <view class="record-filter-item {{recordFilter === 'mine' ? 'active' : ''}}" bindtap="onRecordFilterChange" data-filter="mine">关于我</view>
+        </view>
+      </view>
       <scroll-view 
         class="chat-scroll" 
         scroll-y 
@@ -88,9 +95,10 @@
         scroll-into-view="{{scrollIntoView}}"
         bindscrolltoupper="onScrollToUpper">
         <view class="chat-list">
+          <view class="records-empty" wx:if="{{room.records.length === 0 && recordFilter === 'mine'}}">暂无与我相关的记录</view>
           <!-- 加载更多提示 -->
           <view 
-            wx:if="{{room.records.length > 0 && (loadingMoreText || isLoadingMore)}}" 
+            wx:if="{{loadedRecords.length > 0 && (loadingMoreText || isLoadingMore)}}"
             class="load-more-container {{hasMore ? 'clickable' : ''}}" 
             bindtap="onLoadingMoreTap">
             <block wx:if="{{isLoadingMore}}">
@@ -131,14 +139,10 @@
 </view>
       </scroll-view>
 
-      <view class="bottom-actions-container">
-        <view class="action-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn" wx:if="{{room.gameMode === 'normal'}}">
+      <view class="bottom-actions-container" wx:if="{{room.gameMode === 'normal'}}">
+        <view class="action-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn">
           <text class="btn-icon">💸</text>
           <text class="btn-text">支出</text>
-        </view>
-        <view class="action-btn settle-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleSettleBtn">
-          <text class="btn-icon">📋</text>
-          <text class="btn-text">{{room.status === 'playing' ? '结算' : '已结算'}}</text>
         </view>
       </view>
     </view>
@@ -154,17 +158,31 @@
       inertia
       friction="2"
       damping="20"
+      out-of-bounds="{{false}}"
+      bindchange="onFabChange"
       width="100"
       height="100">
       <!-- 子按钮菜单 -->
-      <view class="fab-menu {{fabExpanded ? 'expanded' : ''}}">
+      <view class="fab-menu {{fabOnLeft ? 'expand-right' : 'expand-left'}} {{fabExpanded ? 'expanded' : ''}}">
         <!-- 设置按钮 -->
         <view class="fab-sub-btn settings" wx:if="{{isCreator}}" bindtap="openSettingsModal">
-          <text class="fab-sub-icon">⚙️</text>
+          <text class="fab-sub-icon">⚙</text>
+          <text class="fab-sub-label">设置</text>
+        </view>
+        <!-- 结算按钮 -->
+        <view class="fab-sub-btn settle {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleSettleBtn">
+          <text class="fab-sub-icon">✓</text>
+          <text class="fab-sub-label">结算</text>
+        </view>
+        <!-- 解散按钮（仅房主可见） -->
+        <view class="fab-sub-btn dismiss" wx:if="{{isCreator && room.status === 'playing'}}" bindtap="openDismissConfirm">
+          <text class="fab-sub-icon">✕</text>
+          <text class="fab-sub-label">解散</text>
         </view>
         <!-- 退出按钮 -->
         <view class="fab-sub-btn exit" bindtap="openExitConfirm">
-          <text class="fab-sub-icon">🚪</text>
+          <text class="fab-sub-icon">↩</text>
+          <text class="fab-sub-label">退出</text>
         </view>
       </view>
       <!-- 主按钮 -->
@@ -445,6 +463,22 @@
     <view class="modal-actions">
       <view class="action-btn cancel" bindtap="closeExitConfirm">取消</view>
       <view class="action-btn confirm" bindtap="confirmExit">确认退出</view>
+    </view>
+  </view>
+</view>
+
+<view class="modal-mask {{showDismissConfirm ? 'show' : ''}}" wx:if="{{showDismissConfirm}}" bindtap="closeDismissConfirm"></view>
+<view class="confirm-modal {{showDismissConfirm ? 'show' : ''}}" wx:if="{{showDismissConfirm}}">
+  <view class="modal-header">
+    <text class="modal-title">确认解散</text>
+    <text class="modal-close" bindtap="closeDismissConfirm">✕</text>
+  </view>
+  <view class="modal-body">
+    <view class="confirm-text">确认解散本房间？</view>
+    <view class="confirm-sub">房间将直接删除，不结算、也不生成战绩</view>
+    <view class="modal-actions">
+      <view class="action-btn cancel" bindtap="closeDismissConfirm">取消</view>
+      <view class="action-btn confirm dismiss-confirm-btn" bindtap="confirmDismiss">确认解散</view>
     </view>
   </view>
 </view>

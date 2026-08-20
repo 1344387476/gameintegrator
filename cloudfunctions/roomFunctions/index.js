@@ -11,6 +11,51 @@ exports.main = async (event, context) => {
   const { action, payload } = event
 
   try {
+    // 为房间成员换取头像临时链接。
+    // 由云函数统一换取，避免客户端受“只能读取自己上传文件”的存储权限影响。
+    if (action === 'getAvatarUrls') {
+      const { roomId } = payload || {}
+      if (!roomId) {
+        throw new Error('房间ID不能为空')
+      }
+
+      const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
+      if (!roomRes || !roomRes.data) {
+        throw new Error('房间不存在')
+      }
+
+      const players = roomRes.data.players || []
+      const requester = players.find(player => player.openid === OPENID && !player.isExited)
+      if (!requester) {
+        throw new Error('您不在该房间中')
+      }
+
+      // 同时包含历史消息中的头像，使已退出玩家的旧消息仍能显示头像。
+      const messagesRes = await db.collection('messages').doc(roomId).get().catch(() => ({ data: null }))
+      const messageFileIDs = (messagesRes.data?.messages || []).flatMap(message => [
+        message.fromAvatarFileID,
+        message.toAvatarFileID
+      ])
+      const fileIDs = [...new Set([
+        ...players.map(player => player.avatarFileID),
+        ...messageFileIDs
+      ].filter(Boolean))]
+      if (fileIDs.length === 0) {
+        return { success: true, avatarUrls: {} }
+      }
+
+      const result = await cloud.getTempFileURL({ fileList: fileIDs })
+      const avatarUrls = {}
+      ;(result.fileList || []).forEach((file, index) => {
+        const fileID = file.fileID || file.fileId || fileIDs[index]
+        if (fileID && file.tempFileURL) {
+          avatarUrls[fileID] = file.tempFileURL
+        }
+      })
+
+      return { success: true, avatarUrls }
+    }
+
     // 动作 A：加入房间
     if (action === 'join') {
       const { roomId, nickname, avatar, avatarFileID } = payload
@@ -46,22 +91,8 @@ exports.main = async (event, context) => {
         }
       }
 
-      // 如果有avatarFileID，申请临时URL
-      let avatarTempUrl = avatar
-      if (avatarFileID) {
-        try {
-          const tempUrlRes = await cloud.getTempFileURL({
-            fileList: [avatarFileID]
-          })
-          if (tempUrlRes.fileList && tempUrlRes.fileList[0] && tempUrlRes.fileList[0].tempFileURL) {
-            avatarTempUrl = tempUrlRes.fileList[0].tempFileURL
-            console.log('加入房间：申请头像临时URL成功', avatarTempUrl)
-          }
-        } catch (err) {
-          console.error('加入房间：申请头像临时URL失败', err)
-          // 失败时使用传入的avatar
-        }
-      }
+      // 临时 URL 不入库；页面始终从永久 fileID 换取可显示的链接。
+      const avatarTempUrl = ''
 
       const transaction = await db.startTransaction()
       try {
@@ -102,7 +133,7 @@ exports.main = async (event, context) => {
             messages: _.push({
               fromOpenid: OPENID,
               fromNickname: nickname,
-              fromAvatar: avatarTempUrl,
+              fromAvatarFileID: avatarFileID || '',
               content: `${nickname} 加入了房间`,
               messageType: 'join',
               timestamp: db.serverDate()
@@ -130,22 +161,8 @@ exports.main = async (event, context) => {
 
       const roomId = Math.random().toString(36).substr(2, 6).toUpperCase()
 
-      // 如果有avatarFileID，申请临时URL
-      let avatarTempUrl = payload.avatar
-      if (payload.avatarFileID) {
-        try {
-          const tempUrlRes = await cloud.getTempFileURL({
-            fileList: [payload.avatarFileID]
-          })
-          if (tempUrlRes.fileList && tempUrlRes.fileList[0] && tempUrlRes.fileList[0].tempFileURL) {
-            avatarTempUrl = tempUrlRes.fileList[0].tempFileURL
-            console.log('创建房间：申请头像临时URL成功', avatarTempUrl)
-          }
-        } catch (err) {
-          console.error('创建房间：申请头像临时URL失败', err)
-          // 失败时使用传入的avatar
-        }
-      }
+      // 临时 URL 不入库；页面始终从永久 fileID 换取可显示的链接。
+      const avatarTempUrl = ''
 
       // 启动事务
       const transaction = await db.startTransaction()
@@ -191,7 +208,7 @@ exports.main = async (event, context) => {
             messages: _.push({
               fromOpenid: OPENID,
               fromNickname: payload.nickname,
-              fromAvatar: avatarTempUrl,
+              fromAvatarFileID: payload.avatarFileID || '',
               content: `${payload.nickname} 创建了房间`,
               messageType: 'create',
               timestamp: db.serverDate()
@@ -290,7 +307,7 @@ exports.main = async (event, context) => {
                     messages: db.command.push({
                       fromOpenid: OPENID,
                       fromNickname: players[idx].nickname,
-                      fromAvatar: players[idx].avatar || '',
+                      fromAvatarFileID: players[idx].avatarFileID || '',
                       content: `${players[idx].nickname} 退出了房间`,
                       messageType: 'leave',
                       timestamp: db.serverDate()
@@ -423,6 +440,9 @@ exports.main = async (event, context) => {
           throw new Error('房间不存在')
         }
 
+        if (room.owner !== OPENID) throw new Error('权限不足')
+        if (room.status !== 'active') throw new Error('房间已结束，无法解散')
+
         // 1. 清空所有玩家的 currentRoomId
         for (const player of room.players) {
           await transaction.collection('users').doc(player.openid).update({
@@ -433,14 +453,14 @@ exports.main = async (event, context) => {
         // 2. 物理删除房间
         await transaction.collection('rooms').doc(roomId).remove()
 
-        // 3. 删除消息文档（非事务，不阻塞）
+        await transaction.commit()
+
+        // 3. 删除消息文档（事务提交后清理，不阻塞主流程）
         try {
           await db.collection('messages').doc(roomId).remove()
         } catch (e) {
           console.log('消息文档删除失败:', e.message)
         }
-
-        await transaction.commit()
 
         // 4. 删除云存储中的二维码图片（非事务，不阻塞主流程）
         if (qrCodeFileID) {
@@ -504,7 +524,7 @@ exports.main = async (event, context) => {
         // 检查房间是否存在且用户是否在其中
         const room = await db.collection('rooms').doc(currentRoomId).get().catch(() => null)
         if (room && room.data) {
-          const isInRoom = room.data.players.some(p => p.openid === OPENID)
+          const isInRoom = room.data.players.some(p => p.openid === OPENID && !p.isExited)
           if (isInRoom && room.data.status === 'active') {
             return { success: true, inRoom: true, roomId: currentRoomId }
           }
@@ -549,7 +569,7 @@ exports.main = async (event, context) => {
       updatedPlayers[playerIndex] = {
         ...updatedPlayers[playerIndex],
         nickname: nickname,
-        avatar: avatarUrl || updatedPlayers[playerIndex].avatar,
+        avatar: '',
         avatarFileID: avatarFileID || updatedPlayers[playerIndex].avatarFileID
       }
       
@@ -562,7 +582,7 @@ exports.main = async (event, context) => {
       await db.collection('users').doc(OPENID).update({
         data: { 
           nickname: nickname,
-          avatar: avatarUrl || updatedPlayers[playerIndex].avatar,
+          avatar: '',
           avatarFileID: avatarFileID || updatedPlayers[playerIndex].avatarFileID
         }
       })
@@ -575,7 +595,7 @@ exports.main = async (event, context) => {
             messages: _.push({
               fromOpenid: OPENID,
               fromNickname: nickname,
-              fromAvatar: avatarUrl || updatedPlayers[playerIndex].avatar,
+              fromAvatarFileID: updatedPlayers[playerIndex].avatarFileID || '',
               content: `${oldNickname} 修改昵称为 ${nickname}`,
               messageType: 'system',
               timestamp: db.serverDate()
