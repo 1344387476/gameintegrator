@@ -1,4 +1,4 @@
-<view class="record-page theme-{{appearanceTheme}}">
+<view class="record-page theme-{{appearanceTheme}} motion-{{motionLevel}}">
   <view class="record-intro">
     <text class="record-kicker">GAME HISTORY</text>
     <text class="record-title">每一局，都有迹可循</text>
@@ -10,7 +10,7 @@
   <view class="state-card empty" wx:elif="{{!loading && items.length === 0}}"><text class="empty-icon">◎</text><text class="empty-title">还没有战绩</text><text class="empty-subtitle">完成并结算一局后，记录会出现在这里</text></view>
 
   <view class="history-list" wx:else>
-    <view class="history-card" wx:for="{{items}}" wx:key="historyId" data-id="{{item.historyId}}" bindtap="openDetail" hover-class="history-card--pressed">
+    <view class="history-card motion-card" wx:for="{{items}}" wx:key="historyId" data-id="{{item.historyId}}" bindtap="openDetail" hover-class="history-card--pressed" style="animation-delay: {{item.motionDelay}}ms;">
       <view class="history-card__top"><text class="history-card__name">{{item.roomName}}</text><text class="result-pill {{item.resultClass}}">{{item.resultText}}</text></view>
       <view class="history-card__meta"><text>{{item.displayTime}}</text><text>·</text><text>{{item.modeText}}</text><text>·</text><text>{{item.participantCount}} 人</text></view>
       <view class="history-card__bottom"><text class="history-card__label">我的积分</text><text class="history-score {{item.resultClass}}">{{item.displayScore}}</text><text class="history-arrow">›</text></view>
@@ -28,7 +28,7 @@
     <scroll-view class="detail-scroll" scroll-y wx:elif="{{detail}}">
       <view class="ranking-card">
         <text class="section-label">最终排名</text>
-        <view class="player-row {{item.isMe ? 'is-me' : ''}}" wx:for="{{detailPlayers}}" wx:key="openid">
+        <view class="player-row motion-row {{item.isMe ? 'is-me' : ''}}" wx:for="{{detailPlayers}}" wx:key="openid" style="animation-delay: {{item.motionDelay}}ms;">
           <text class="rank-number">{{index + 1}}</text><image class="player-avatar" src="{{item.avatarUrl}}" mode="aspectFill"></image><text class="player-name">{{item.nickname}}{{item.isMe ? '（我）' : ''}}</text><text class="player-score {{item.scoreClass}}">{{item.displayScore}}</text>
         </view>
       </view>
@@ -40,7 +40,7 @@
       </view>
       <view class="detail-spacer"></view>
     </scroll-view>
-    <view class="detail-actions" wx:if="{{detail}}"><button class="detail-button secondary" open-type="share"><text>分享</text></button><button class="detail-button primary" bindtap="savePoster"><text>{{savingPoster ? '生成中…' : '保存海报'}}</text></button></view>
+    <view class="detail-actions" wx:if="{{detail}}"><button class="detail-button secondary" open-type="share" hover-class="control-pressed"><text>分享</text></button><button class="detail-button primary" bindtap="savePoster" hover-class="control-pressed"><text>{{savingPoster ? '生成中…' : '保存海报'}}</text></button></view>
   </view>
   <canvas type="2d" id="historyPoster" class="history-poster"></canvas>
 </view>

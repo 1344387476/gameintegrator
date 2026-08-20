@@ -5,10 +5,10 @@
    <view class="loading-content">
      <view class="weui-loading"></view>
      <text class="loading-text">正在准备牌局</text>
+      </view>
    </view>
- </view>
 
- <view class="container theme-{{appearanceTheme}} {{isLoading || isCreatingOrJoining ? 'hidden' : ''}}">
+ <view class="container theme-{{appearanceTheme}} motion-{{motionLevel}} {{isLoading || isCreatingOrJoining ? 'hidden' : 'motion-visible'}}">
   <view class="appearance-button" hover-class="button-pressed" bindtap="openAppearanceSettings" aria-label="外观设置">
     <text class="appearance-button__icon">{{appearanceTheme === 'dark' ? '☾' : '☼'}}</text>
   </view>
@@ -28,6 +28,7 @@
           class="avatar-btn"
           open-type="chooseAvatar"
           bindchooseavatar="onChooseAvatar"
+          hover-class="avatar-pressed"
         >
           <image
             class="avatar"
@@ -78,6 +79,7 @@
         <text class="footer-text">所有积分以房间内的实时记录为准</text>
       </view>
     </view>
+
   </view>
 
   <!-- 创建房间弹窗 -->
@@ -107,6 +109,7 @@
             class="mode-option {{gameMode === 'normal' ? 'active' : ''}}"
             bindtap="selectMode"
             data-mode="normal"
+            hover-class="card-pressed"
           >
             <view class="mode-copy"><text class="mode-text">普通模式</text><text class="mode-description">玩家间直接计分</text></view>
             <view class="mode-check" wx:if="{{gameMode === 'normal'}}">✓</view>
@@ -115,6 +118,7 @@
             class="mode-option {{gameMode === 'bet' ? 'active' : ''}}"
             bindtap="selectMode"
             data-mode="bet"
+            hover-class="card-pressed"
           >
             <view class="mode-copy"><text class="mode-text">下注模式</text><text class="mode-description">下注、跟注与奖池</text></view>
             <view class="mode-check" wx:if="{{gameMode === 'bet'}}">✓</view>

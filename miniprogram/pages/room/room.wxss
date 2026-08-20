@@ -2635,7 +2635,7 @@ page {
 .room-page .chat-section { background: var(--page-bg); }
 .room-page .record-filter-bar { margin: 0 20rpx; padding: 16rpx 0 12rpx; border-bottom: 0; background: transparent; }
 .room-page .record-filter-title { color: var(--text-primary); font-weight: 700; }
-.room-page .record-filter { padding: 4rpx; border-radius: 18rpx; background: var(--surface-secondary); }
+.room-page .record-filter { padding: 0; border-radius: 18rpx; background: transparent; }
 .room-page .record-filter-item { min-width: 86rpx; border-radius: 14rpx; color: var(--text-tertiary); }
 .room-page .record-filter-item.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 3rpx 10rpx var(--shadow); }
 .room-page .chat-scroll,.room-page .chat-list { background: var(--page-bg); }
@@ -2645,7 +2645,7 @@ page {
 .room-page .bubble.system { border: 0; background: var(--surface-secondary) !important; box-shadow: none; }
 .room-page .message-content,.room-page .message-username { color: var(--text-primary); }.room-page .message-time { color: var(--text-tertiary); }
 .room-page .records-empty,.room-page .load-more-container { background: transparent; color: var(--text-tertiary); }
-.room-page .bottom-actions-container { margin: 0 18rpx calc(18rpx + env(safe-area-inset-bottom)); padding: 12rpx; border: 1rpx solid var(--separator); border-radius: 24rpx; background: var(--glass); box-shadow: 0 10rpx 34rpx var(--shadow); backdrop-filter: blur(20rpx); -webkit-backdrop-filter: blur(20rpx); }
+.room-page .bottom-actions-container { margin: 0 18rpx calc(10rpx + env(safe-area-inset-bottom)); padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .room-page .bottom-actions-container .action-btn { display: flex; width: 100%; height: 78rpx; flex: none; align-items: center; justify-content: center; gap: 14rpx; border-radius: 20rpx; background: var(--accent); color: #fff; }
 .room-page .bottom-actions-container .expense-btn,.room-page .bottom-actions-container .expense-btn text { color: #fff; }
 .room-page .bottom-actions-container .btn-text { color: #fff; font-size: 27rpx; font-weight: 650; }
@@ -2700,3 +2700,194 @@ page {
 .theme-dark .prize-pool-card-modern { border-color: rgba(232,190,88,.25); background: linear-gradient(145deg,rgba(54,49,35,.96),rgba(34,36,33,.96)); box-shadow: 0 14rpx 38rpx rgba(0,0,0,.34); }.theme-dark .prize-amount-number { color: #f1ce72; }.theme-dark .prize-pool-hint { color: #b7aa87; }.theme-dark .collect-pool-btn { border-color: rgba(241,206,114,.24); background: rgba(255,255,255,.07); color: #f1ce72; }
 .theme-dark .game-action-btn.allin { background: #f2f3f2 !important; }.theme-dark .game-action-btn.allin .action-btn-text { color: #171a18; }
 .theme-dark .receive-animation-container { background: rgba(0,0,0,.5); }
+
+/* ==================== 原生时间线与交互动效 ==================== */
+.motion-full .main-container { animation: room-enter var(--motion-base) var(--motion-ease-out) both; }
+.room-page .capsule-card,
+.room-page .prize-pool-card-modern,
+.room-page .collect-pool-btn,
+.room-page .game-action-btn,
+.room-page .record-filter-item,
+.room-page .bottom-actions-container .action-btn,
+.room-page .fab-main { transition: transform var(--motion-fast,140ms) var(--motion-ease-standard,ease), opacity var(--motion-fast,140ms) ease, box-shadow var(--motion-base,240ms) ease; }
+.room-page .pool-pressed { transform: scale(.985); }
+.room-page .disabled.control-pressed { opacity: .4; transform: none; }
+.room-page .chat-message { will-change: transform, opacity; }
+@keyframes room-enter { from { opacity: 0; transform: translate3d(0,10rpx,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes messageFadeIn { from { opacity: 0; transform: translate3d(0,12rpx,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+
+/* wx:if 会让弹层直接以 show 状态挂载，因此使用 transform keyframe 进入。 */
+.motion-full .modal-mask.show { animation: motion-mask-in var(--motion-base) ease-out both; }
+.motion-full .transfer-modal.show,
+.motion-full .prize-modal.show,
+.motion-full .confirm-modal.show,
+.motion-full .result-modal.show,
+.motion-full .qrcode-modal.show,
+.motion-full .transfer-picker-modal.show { animation: motion-sheet-in var(--motion-slow) var(--motion-ease-out) both; will-change: transform; }
+.motion-full .settings-modal.show,
+.motion-full .edit-profile-modal.show { animation: motion-center-in var(--motion-base) var(--motion-ease-out) both; will-change: transform, opacity; }
+.motion-full .expense-modal.show { animation: motion-card-in var(--motion-base) var(--motion-ease-out) both; will-change: transform, opacity; }
+@keyframes motion-mask-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes motion-sheet-in { from { opacity: .7; transform: translate3d(0,100%,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes motion-center-in { from { opacity: 0; transform: translate(-50%,-50%) scale(.94); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+@keyframes motion-card-in { from { opacity: 0; transform: translate3d(0,20rpx,0) scale(.97); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }
+
+/* claim 时间线：focus(0) → travel(160) → reward(560) → exit(1040)。 */
+.room-page .prize-pool-card-modern.claiming { animation: none; will-change: transform; transition: transform 220ms var(--motion-ease-out,ease); }
+.room-page .prize-pool-card-modern.claim-focus { transform: scale(.965); }
+.room-page .prize-pool-card-modern.claim-travel { transform: scale(.985); }
+.room-page .prize-pool-card-modern.claim-reward { transform: scale(1.012); }
+.room-page .prize-pool-card-modern.claim-exit { transform: scale(1); }
+.room-page .capsule-card.claim-target { animation: none; transition: transform 220ms var(--motion-ease-out,ease), box-shadow 300ms ease; }
+.room-page .capsule-card.claim-target-reward { transform: scale(1.035); box-shadow: 0 0 0 12rpx rgba(255,196,52,.12),0 9rpx 30rpx var(--shadow); }
+
+.room-page .receive-animation-container { opacity: 1; transition: opacity 180ms ease; }
+.room-page .receive-animation-container.phase-focus { background: rgba(13,16,14,.18); }
+.room-page .receive-animation-container.phase-exit { opacity: 0; }
+.claim-orb { position: fixed; z-index: 4; width: 22rpx; height: 22rpx; margin: -11rpx 0 0 -11rpx; border: 3rpx solid rgba(255,255,255,.65); border-radius: 50%; background: #f3c552; box-shadow: 0 0 0 8rpx rgba(243,197,82,.14),0 8rpx 22rpx rgba(145,104,16,.3); opacity: 0; pointer-events: none; will-change: transform, opacity; }
+.phase-travel .claim-orb { animation: claim-orb-flight 400ms var(--motion-ease-out,ease) both; }
+.phase-reward .claim-orb { opacity: 0; transform: translate3d(var(--claim-x),var(--claim-y),0) scale(.45); }
+@keyframes claim-orb-flight { 0% { opacity: 0; transform: translate3d(0,0,0) scale(.65); } 16% { opacity: 1; } 100% { opacity: 1; transform: translate3d(var(--claim-x),var(--claim-y),0) scale(.82); } }
+
+.reward-token { opacity: 0; animation: none; transform: translate3d(0,24rpx,0) scale(.86); transition: transform 260ms var(--motion-ease-out,ease), opacity 180ms ease; will-change: transform, opacity; }
+.phase-travel .reward-token { opacity: .72; transform: translate3d(0,10rpx,0) scale(.92); }
+.phase-reward .reward-token { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+.phase-exit .reward-token { opacity: 0; transform: translate3d(0,-24rpx,0) scale(.96); }
+.reward-particle { animation: none; opacity: 0; will-change: transform, opacity; }
+.phase-reward .reward-particle { animation: particle-burst 480ms ease-out both; }
+.claim-reward-badge { animation: reward-badge 520ms var(--motion-ease-out,ease) both; will-change: transform, opacity; }
+
+.motion-reduced .main-container { animation: motion-mask-in var(--motion-base) ease-out both; }
+.motion-reduced .chat-message { animation-duration: var(--motion-base); }
+.motion-reduced .receive-animation-container { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.motion-reduced .reward-token { transition-duration: var(--motion-base); }
+
+/* 悬浮菜单：主按钮三道杠，功能项为低饱和纯文字圆钮。 */
+.room-page .fab-main {
+  width: 88rpx;
+  height: 88rpx;
+  flex: none;
+  border: 1rpx solid var(--separator);
+  background: rgba(28,32,30,.9);
+  box-shadow: 0 10rpx 28rpx rgba(0,0,0,.16);
+  backdrop-filter: blur(18rpx);
+  -webkit-backdrop-filter: blur(18rpx);
+}
+.room-page .fab-main-icon { color: #fff; font-size: 34rpx; font-weight: 400; letter-spacing: 0; transform: translate3d(0,-1rpx,0); transition: transform var(--motion-base) var(--motion-ease-out); }
+.room-page .fab-main-icon.rotated { transform: translate3d(0,-1rpx,0) rotate(90deg); }
+.room-page .fab-menu { top: 8rpx; gap: 10rpx; transition: transform var(--motion-base) var(--motion-ease-out), opacity var(--motion-fast) ease; will-change: transform,opacity; }
+.room-page .fab-menu.expand-left { right: 108rpx; }
+.room-page .fab-menu.expand-right { left: 108rpx; }
+.room-page .fab-sub-btn,
+.room-page .fab-sub-btn.settings,
+.room-page .fab-sub-btn.settle,
+.room-page .fab-sub-btn.dismiss,
+.room-page .fab-sub-btn.exit {
+  width: 72rpx;
+  height: 72rpx;
+  min-width: 72rpx;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 6rpx 16rpx rgba(0,0,0,.07);
+  backdrop-filter: blur(18rpx);
+  -webkit-backdrop-filter: blur(18rpx);
+  transition-property: transform,opacity;
+  transition-duration: var(--motion-base),var(--motion-fast);
+  transition-timing-function: var(--motion-ease-out),ease;
+}
+.room-page .fab-sub-btn.settings { background: rgba(110,110,115,.14); transition-delay: 30ms; }
+.room-page .fab-sub-btn.settle { background: rgba(52,199,89,.14); transition-delay: 60ms; }
+.room-page .fab-sub-btn.dismiss { background: rgba(255,59,48,.13); transition-delay: 90ms; }
+.room-page .fab-sub-btn.exit { background: rgba(201,132,24,.14); transition-delay: 120ms; }
+.room-page .fab-sub-label { color: #636366; font-size: 21rpx; font-weight: 650; }
+.room-page .fab-sub-btn.settle .fab-sub-label { color: #2d8e4c; }
+.room-page .fab-sub-btn.dismiss .fab-sub-label { color: #bc4b44; }
+.room-page .fab-sub-btn.exit .fab-sub-label { color: #9b6b20; }
+.room-page .fab-sub-pressed { opacity: .7 !important; transform: scale(.95) !important; }
+.room-page .fab-sub-btn.disabled { opacity: .38; }
+.theme-dark .fab-main { background: rgba(242,245,243,.92); }
+.theme-dark .fab-main-icon { color: #171a18; }
+.theme-dark .fab-sub-btn.settings { background: rgba(174,174,178,.15); }
+.theme-dark .fab-sub-btn.settle { background: rgba(72,209,123,.16); }
+.theme-dark .fab-sub-btn.dismiss { background: rgba(255,105,97,.15); }
+.theme-dark .fab-sub-btn.exit { background: rgba(225,161,63,.16); }
+.theme-dark .fab-sub-label { color: #c1c5c2; }
+.theme-dark .fab-sub-btn.settle .fab-sub-label { color: #70d695; }
+.theme-dark .fab-sub-btn.dismiss .fab-sub-label { color: #ef8983; }
+.theme-dark .fab-sub-btn.exit .fab-sub-label { color: #ddb36d; }
+
+/* 普通模式底部操作锚定在右侧栏底部，不受消息数量影响。 */
+.room-page .chat-section { position: relative; box-sizing: border-box; }
+.room-page .chat-section.has-bottom-action { padding-bottom: calc(100rpx + env(safe-area-inset-bottom)); }
+.room-page .chat-section .bottom-actions-container { position: absolute; right: 18rpx; bottom: calc(10rpx + env(safe-area-inset-bottom)); left: 18rpx; z-index: 12; margin: 0; }
+
+/* 房间弹窗统一为轻量玻璃组件。 */
+.room-page .modal-mask { background: rgba(10,12,11,.3); backdrop-filter: blur(10rpx); -webkit-backdrop-filter: blur(10rpx); }
+.theme-dark .modal-mask { background: rgba(0,0,0,.48); }
+.room-page .transfer-modal,
+.room-page .prize-modal,
+.room-page .result-modal,
+.room-page .qrcode-modal {
+  overflow: hidden;
+  border: 1rpx solid var(--separator);
+  border-radius: 32rpx 32rpx 0 0;
+  background: var(--glass);
+  box-shadow: 0 -18rpx 54rpx rgba(0,0,0,.12);
+  backdrop-filter: blur(30rpx);
+  -webkit-backdrop-filter: blur(30rpx);
+}
+.room-page .settings-modal,
+.room-page .expense-modal,
+.room-page .edit-profile-modal,
+.room-page .transfer-picker-modal {
+  overflow: hidden;
+  border: 1rpx solid var(--separator);
+  border-radius: 28rpx;
+  background: var(--glass);
+  box-shadow: 0 20rpx 64rpx rgba(0,0,0,.14);
+  backdrop-filter: blur(30rpx);
+  -webkit-backdrop-filter: blur(30rpx);
+}
+.room-page .confirm-modal { top: 50%; right: 42rpx; bottom: auto; left: 42rpx; width: auto; overflow: hidden; border: 1rpx solid var(--separator); border-radius: 28rpx; background: var(--glass); box-shadow: 0 20rpx 64rpx rgba(0,0,0,.16); opacity: 1; transform: translate3d(0,-50%,0); backdrop-filter: blur(30rpx); -webkit-backdrop-filter: blur(30rpx); }
+.room-page .confirm-modal.show { bottom: auto; }
+.motion-full .confirm-modal.show { animation: refined-confirm-in var(--motion-base) var(--motion-ease-out) both; }
+@keyframes refined-confirm-in { from { opacity: 0; transform: translate3d(0,-46%,0) scale(.96); } to { opacity: 1; transform: translate3d(0,-50%,0) scale(1); } }
+.room-page .modal-header,
+.room-page .qrcode-header,
+.room-page .edit-profile-header { min-height: 84rpx; padding: 16rpx 18rpx 16rpx 28rpx; box-sizing: border-box; border-bottom: 1rpx solid var(--separator); background: transparent; }
+.room-page .modal-title,
+.room-page .qrcode-title,
+.room-page .edit-profile-title { color: var(--text-primary); font-size: 29rpx; font-weight: 700; letter-spacing: 0; }
+.room-page .modal-close,
+.room-page .qrcode-close,
+.room-page .edit-profile-close { display: flex; width: 52rpx; height: 52rpx; align-items: center; justify-content: center; padding: 0; border-radius: 50%; background: var(--surface-secondary); color: var(--text-tertiary); font-size: 23rpx; line-height: 1; }
+.room-page .modal-body { padding: 26rpx 28rpx 30rpx; }
+.room-page .confirm-modal .modal-body { padding: 30rpx 28rpx 26rpx; }
+.room-page .transfer-info,
+.room-page .prize-input-info,
+.room-page .expense-info,
+.room-page .room-info-card,
+.room-page .settlement-info-section,
+.room-page .result-section,
+.room-page .setting-input-wrapper { border: 0; border-radius: 20rpx; background: rgba(127,127,127,.075); box-shadow: none; }
+.room-page .score-input,
+.room-page .setting-input,
+.room-page .edit-profile-modal .nickname-input { border: 1rpx solid var(--separator); border-radius: 18rpx; background: var(--surface-raised); color: var(--text-primary); box-shadow: none; }
+.room-page .modal-actions,
+.room-page .qrcode-actions,
+.room-page .edit-profile-actions { display: flex; gap: 14rpx; padding-top: 22rpx; border-top: 0; }
+.room-page .modal-actions .action-btn,
+.room-page .qrcode-actions .action-btn,
+.room-page .edit-profile-actions .action-btn { height: 82rpx; border: 0; border-radius: 20rpx; box-shadow: none; }
+.room-page .action-btn.cancel,
+.room-page .action-btn.secondary { border: 0; background: var(--surface-secondary); color: var(--text-primary); }
+.room-page .action-btn.confirm,
+.room-page .save-profile-btn { background: var(--accent); color: #fff; }
+.room-page .dismiss-confirm-btn { background: var(--danger) !important; }
+.room-page .result-actions { gap: 14rpx; padding: 18rpx 28rpx calc(18rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid var(--separator); background: var(--glass); box-shadow: none; backdrop-filter: blur(24rpx); -webkit-backdrop-filter: blur(24rpx); }
+.room-page .result-actions .action-btn { height: 82rpx; border-radius: 20rpx; box-shadow: none; }
+.room-page .tip-modal,
+.room-page .all-in-tip { border: 1rpx solid var(--separator); border-radius: 999rpx; background: var(--glass); color: var(--text-primary); box-shadow: 0 10rpx 30rpx rgba(0,0,0,.12); backdrop-filter: blur(24rpx); -webkit-backdrop-filter: blur(24rpx); }
+.room-page .tip-content-text,
+.room-page .tip-modal text { color: var(--text-primary); text-shadow: none; }

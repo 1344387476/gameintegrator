@@ -1,8 +1,10 @@
 const theme = require('../../utils/theme')
+const motion = require('../../utils/motion')
 
 Page({
   data: {
     appearanceTheme: getApp().globalData.appearanceTheme || 'light',
+    motionLevel: motion.getMotionLevel(),
     items: [],
     page: 1,
     hasMore: true,
@@ -44,7 +46,7 @@ Page({
     return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
   },
 
-  decorateItem(item) {
+  decorateItem(item, index = 0) {
     const score = Number(item.myScore) || 0
     return {
       ...item,
@@ -52,7 +54,8 @@ Page({
       displayScore: score > 0 ? `+${score}` : `${score}`,
       resultText: score > 0 ? '胜' : (score < 0 ? '负' : '平'),
       resultClass: score > 0 ? 'win' : (score < 0 ? 'lose' : 'draw'),
-      modeText: item.mode === 'bet' ? '下注模式' : '普通模式'
+      modeText: item.mode === 'bet' ? '下注模式' : '普通模式',
+      motionDelay: motion.getStaggerDelay(index)
     }
   },
 
@@ -66,7 +69,7 @@ Page({
     }).then(res => {
       const result = res.result || {}
       if (!result.success) throw new Error(result.msg || '战绩加载失败')
-      const incoming = (result.items || []).map(item => this.decorateItem(item))
+      const incoming = (result.items || []).map((item, index) => this.decorateItem(item, index))
       this.setData({
         items: reset ? incoming : this.data.items.concat(incoming),
         page: page + 1,
@@ -94,12 +97,13 @@ Page({
       if (!result.success) throw new Error(result.msg || '详情加载失败')
       const detail = result.detail
       const avatarUrls = detail.avatarUrls || {}
-      const players = (detail.players || []).map(player => ({
+      const players = (detail.players || []).map((player, index) => ({
         ...player,
         avatarUrl: avatarUrls[player.avatarFileID] || '/images/avatar.png',
         displayScore: player.score > 0 ? `+${player.score}` : `${player.score}`,
         scoreClass: player.score > 0 ? 'positive' : (player.score < 0 ? 'negative' : 'zero'),
-        isMe: player.openid === wx.getStorageSync('openid')
+        isMe: player.openid === wx.getStorageSync('openid'),
+        motionDelay: motion.getStaggerDelay(index, 35, 210)
       })).sort((a, b) => b.score - a.score)
       this.setData({
         detail: { ...detail, displayTime: this.formatTime(detail.endTime), modeText: detail.mode === 'bet' ? '下注模式' : '普通模式' },

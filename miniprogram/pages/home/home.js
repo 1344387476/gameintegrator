@@ -6,6 +6,7 @@
  */
 const app = getApp();
 const theme = require('../../utils/theme');
+const motion = require('../../utils/motion');
 
 Page({
   /**
@@ -13,6 +14,7 @@ Page({
    */
   data: {
     appearanceTheme: app.globalData.appearanceTheme || 'light',
+    motionLevel: motion.getMotionLevel(),
     showAppearanceSettings: false,
     // 当前显示的昵称
     nickname: '',

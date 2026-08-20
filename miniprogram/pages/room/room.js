@@ -6,6 +6,7 @@
  * 创建时间：2026-01-19
  */
 const theme = require('../../utils/theme')
+const motion = require('../../utils/motion')
 
 Page({
   /**
@@ -13,6 +14,7 @@ Page({
    */
   data: {
     appearanceTheme: getApp().globalData.appearanceTheme || 'light',
+    motionLevel: motion.getMotionLevel(),
     showTransferPicker: false,
     // 房间ID
     roomId: '',
@@ -81,8 +83,14 @@ showTransferModal: false, // 转账弹窗
     coinList: [], // 金币列表
     receiveAmount: 0, // 收取动画显示的金额
     receiveAnimationRole: 'compact',
+    receiveAnimationPhase: 'idle',
     receivePlayerName: '',
     receiveTargetOpenid: '',
+    claimMotionReady: false,
+    claimStartX: 0,
+    claimStartY: 0,
+    claimDeltaX: 0,
+    claimDeltaY: 0,
     // 战绩上传提示
     showUploadTip: false, // 是否显示上传提示
     uploadTipText: '', // 上传提示文字
@@ -348,7 +356,8 @@ showTransferModal: false, // 转账弹窗
       clearInterval(this.data.roomStatusPollingTimer);
     }
     clearTimeout(this._realtimeFallbackTimer);
-    clearTimeout(this._receiveAnimationTimer);
+    clearTimeout(this._floatAnimationTimer);
+    this.clearReceiveAnimationTimeline();
 
   },
 
@@ -3799,7 +3808,7 @@ success: (res) => {
    * @param {number} amount - 金额
    */
   createFloatAnimation(startX, startY, amount) {
-
+    clearTimeout(this._floatAnimationTimer);
     // 设置动画数据（纯 CSS 动画，不使用 wx.createAnimation）
     this.setData({
       showFloatAnimation: true,
@@ -3809,46 +3818,94 @@ success: (res) => {
     });
 
     // 动画结束后清理
-    setTimeout(() => {
+    this._floatAnimationTimer = setTimeout(() => {
       this.setData({
         showFloatAnimation: false
       });
     }, 900);
   },
 
+  clearReceiveAnimationTimeline() {
+    (this._receiveAnimationTimers || []).forEach(timer => clearTimeout(timer));
+    this._receiveAnimationTimers = [];
+    clearTimeout(this._receiveAnimationTimer);
+  },
+
+  scheduleReceivePhase(phase, delay, callback) {
+    const timer = setTimeout(() => {
+      this.setData({ receiveAnimationPhase: phase });
+      if (callback) callback();
+    }, delay);
+    this._receiveAnimationTimers.push(timer);
+  },
+
+  resolveClaimMotion() {
+    if (this.data.receiveAnimationRole !== 'full') return;
+    const query = wx.createSelectorQuery().in(this);
+    query.select('.prize-pool-card-modern').boundingClientRect();
+    query.select('.claim-target').boundingClientRect();
+    query.exec(result => {
+      const pool = result && result[0];
+      const target = result && result[1];
+      if (!pool || !target || !this.data.showReceiveAnimation) return;
+      const claimStartX = pool.left + pool.width / 2;
+      const claimStartY = pool.top + pool.height / 2;
+      const targetX = target.left + target.width / 2;
+      const targetY = target.top + target.height / 2;
+      this.setData({
+        claimMotionReady: true,
+        claimStartX,
+        claimStartY,
+        claimDeltaX: targetX - claimStartX,
+        claimDeltaY: targetY - claimStartY
+      });
+    });
+  },
+
   /**
-   * 触发收取奖池动画（彩带+金币）
-   * @param {number} amount - 收取的金额
+   * 按 focus → travel → reward → exit 时间线播放收取奖池动画。
+   * 小程序没有 DOM，因此采用 GSAP timeline 的阶段编排方式驱动原生 transform。
    */
   triggerReceiveAnimation(amount, role = 'full', targetOpenid = '', playerName = '玩家') {
     if (!Number.isSafeInteger(amount) || amount <= 0) return;
-    clearTimeout(this._receiveAnimationTimer);
-    let effectiveRole = role;
-    try {
-      const device = wx.getSystemInfoSync();
-      if (role === 'full' && device.benchmarkLevel > 0 && device.benchmarkLevel <= 10) effectiveRole = 'compact';
-    } catch (err) {}
+    this.clearReceiveAnimationTimeline();
+    const effectiveRole = role === 'full' && this.data.motionLevel === 'full' ? 'full' : 'compact';
     const particleCount = effectiveRole === 'full' ? 6 : 0;
     const confettiList = Array.from({ length: particleCount }, (_, index) => ({ id: index }));
     this.setData({
+      showReceiveAnimation: false,
+      receiveAnimationPhase: 'idle',
+      claimMotionReady: false
+    }, () => this.setData({
       showReceiveAnimation: true,
       confettiList,
       coinList: [],
       receiveAmount: amount,
       receiveAnimationRole: effectiveRole,
+      receiveAnimationPhase: 'focus',
       receivePlayerName: playerName,
-      receiveTargetOpenid: targetOpenid
-    });
-    if (effectiveRole === 'full' && wx.vibrateShort) wx.vibrateShort({ type: 'light', fail: () => {} });
-    this._receiveAnimationTimer = setTimeout(() => {
+      receiveTargetOpenid: targetOpenid,
+      claimMotionReady: false
+    }, () => {
+      wx.nextTick(() => this.resolveClaimMotion());
+      this.scheduleReceivePhase('travel', motion.CLAIM_TIMELINE.travel);
+      this.scheduleReceivePhase('reward', motion.CLAIM_TIMELINE.reward, () => {
+        if (effectiveRole === 'full' && wx.vibrateShort) wx.vibrateShort({ type: 'light', fail: () => {} });
+      });
+      this.scheduleReceivePhase('exit', motion.CLAIM_TIMELINE.exit);
+      this._receiveAnimationTimer = setTimeout(() => {
       this.setData({
         showReceiveAnimation: false,
         confettiList: [],
         coinList: [],
         receiveAmount: 0,
+        receiveAnimationPhase: 'idle',
         receivePlayerName: '',
-        receiveTargetOpenid: ''
+        receiveTargetOpenid: '',
+        claimMotionReady: false
       });
-    }, 1250);
+      }, motion.CLAIM_TIMELINE.complete);
+      this._receiveAnimationTimers.push(this._receiveAnimationTimer);
+    }));
   }
 });
