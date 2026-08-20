@@ -1,26 +1,25 @@
 <!--pages/home/home.wxml-->
 
  <!-- 全屏 loading 遮罩 -->
- <view class="loading-mask" wx:if="{{isLoading || isCreatingOrJoining}}">
+ <view class="loading-mask theme-{{appearanceTheme}}" wx:if="{{isLoading || isCreatingOrJoining}}">
    <view class="loading-content">
      <view class="weui-loading"></view>
-     <text class="loading-text">Loading...</text>
+     <text class="loading-text">正在准备牌局</text>
    </view>
  </view>
 
- <view class="container {{isLoading || isCreatingOrJoining ? 'hidden' : ''}}">
-  <!-- 背景装饰 -->
-  <view class="bg-decoration bg-1"></view>
-  <view class="bg-decoration bg-2"></view>
-  <view class="bg-decoration bg-3"></view>
-
+ <view class="container theme-{{appearanceTheme}} {{isLoading || isCreatingOrJoining ? 'hidden' : ''}}">
+  <view class="appearance-button" hover-class="button-pressed" bindtap="openAppearanceSettings" aria-label="外观设置">
+    <text class="appearance-button__icon">{{appearanceTheme === 'dark' ? '☾' : '☼'}}</text>
+  </view>
   <view class="content">
     <!-- 上部分：标题、头像、输入框、按钮（占3/5） -->
     <view class="top-section">
       <!-- 欢迎文字 -->
       <view class="welcome-section">
-        <text class="welcome-title">欢迎来到</text>
-        <text class="app-name">打牌计分器</text>
+        <text class="welcome-title">YOUR GAME, CLEARLY SCORED</text>
+        <text class="app-name">牌局计分</text>
+        <text class="welcome-subtitle">轻松记录每一局，输赢清清楚楚</text>
       </view>
 
       <!-- Logo区域 - 微信头像选择按钮 -->
@@ -36,7 +35,7 @@
             mode="aspectFill"
           ></image>
         </button>
-        <view class="avatar-ring"></view>
+        <view class="avatar-edit-mark">编辑</view>
       </view>
 
       <!-- 昵称输入 - 微信昵称输入 -->
@@ -44,7 +43,7 @@
         <input
           class="nickname-input"
           type="nickname"
-          placeholder="请输入你的昵称"
+          placeholder="输入你的昵称"
           value="{{nickname}}"
           bindinput="onNicknameInput"
           maxlength="10"
@@ -63,8 +62,12 @@
           </view>
         </block>
         <block wx:else>
-          <view class="weui-btn weui-btn_primary" bindtap="openCreateRoomModal" style="position: relative; left: 1rpx; top: -2rpx">创建房间</view>
-          <view class="weui-btn weui-btn_default" bindtap="joinRoom">加入房间</view>
+          <view class="weui-btn weui-btn_primary" hover-class="button-pressed" bindtap="openCreateRoomModal">
+            <text class="button-label">创建新房间</text>
+          </view>
+          <view class="weui-btn weui-btn_default" hover-class="button-pressed" bindtap="joinRoom">
+            <text class="button-label">扫码加入房间</text>
+          </view>
         </block>
       </view>
     </view>
@@ -72,7 +75,7 @@
     <!-- 下部分：底部文字（占2/5） -->
     <view class="bottom-section">
       <view class="footer">
-        <text class="footer-text">简单快捷，享受打牌乐趣</text>
+        <text class="footer-text">所有积分以房间内的实时记录为准</text>
       </view>
     </view>
   </view>
@@ -80,6 +83,7 @@
   <!-- 创建房间弹窗 -->
   <view class="modal-mask {{showCreateModal ? 'show' : ''}}" bindtap="closeCreateRoomModal"></view>
   <view class="modal-content {{showCreateModal ? 'show' : ''}}">
+    <view class="sheet-handle"></view>
     <view class="modal-header">创建房间</view>
 
     <view class="modal-body">
@@ -104,7 +108,7 @@
             bindtap="selectMode"
             data-mode="normal"
           >
-            <text class="mode-text">普通模式</text>
+            <view class="mode-copy"><text class="mode-text">普通模式</text><text class="mode-description">玩家间直接计分</text></view>
             <view class="mode-check" wx:if="{{gameMode === 'normal'}}">✓</view>
           </view>
           <view
@@ -112,7 +116,7 @@
             bindtap="selectMode"
             data-mode="bet"
           >
-            <text class="mode-text">下注模式</text>
+            <view class="mode-copy"><text class="mode-text">下注模式</text><text class="mode-description">下注、跟注与奖池</text></view>
             <view class="mode-check" wx:if="{{gameMode === 'bet'}}">✓</view>
           </view>
         </view>
@@ -120,7 +124,27 @@
 
       <!-- 立即创建按钮 -->
       <view class="create-btn-section">
-        <view class="weui-btn weui-btn_primary create-submit-btn" bindtap="submitCreateRoom">立即创建</view>
+        <view class="weui-btn weui-btn_primary create-submit-btn" bindtap="submitCreateRoom">
+          <text class="button-label">立即创建</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="modal-mask {{showAppearanceSettings ? 'show' : ''}}" bindtap="closeAppearanceSettings"></view>
+  <view class="modal-content appearance-sheet {{showAppearanceSettings ? 'show' : ''}}">
+    <view class="sheet-handle"></view>
+    <view class="modal-header">外观</view>
+    <view class="appearance-options">
+      <view class="appearance-option" bindtap="selectAppearanceTheme" data-theme="light">
+        <view class="appearance-option__preview preview-light"></view>
+        <view class="appearance-option__copy"><text class="appearance-option__title">浅色</text><text class="appearance-option__desc">明亮、清晰的默认外观</text></view>
+        <text class="appearance-option__check">{{appearanceTheme === 'light' ? '✓' : ''}}</text>
+      </view>
+      <view class="appearance-option" bindtap="selectAppearanceTheme" data-theme="dark">
+        <view class="appearance-option__preview preview-dark"></view>
+        <view class="appearance-option__copy"><text class="appearance-option__title">深色</text><text class="appearance-option__desc">适合昏暗环境使用</text></view>
+        <text class="appearance-option__check">{{appearanceTheme === 'dark' ? '✓' : ''}}</text>
       </view>
     </view>
   </view>

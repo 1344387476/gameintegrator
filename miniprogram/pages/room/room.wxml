@@ -1,4 +1,5 @@
 <!--pages/room/room.wxml-->
+<view class="room-page theme-{{appearanceTheme}}">
 <view class="main-container">
   <view class="left-section">
     <view class="members-section">
@@ -11,8 +12,8 @@
           </view>
           
           <!-- 玩家胶囊卡片 -->
-          <view class="capsule-card {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}}"
-                wx:for="{{room.members}}" wx:key="index" bindtap="handleMemberTap" data-index="{{index}}">
+          <view class="capsule-card {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}} {{item.openid === receiveTargetOpenid ? 'claim-target' : ''}}"
+                wx:for="{{room.members}}" wx:key="openid" bindtap="handleMemberTap" data-index="{{index}}">
             <!-- 房主皇冠 - 右上角 -->
             <view class="crown-badge" wx:if="{{item.openid === room.creator}}">👑</view>
             
@@ -26,6 +27,7 @@
             <view class="score-capsule {{item.score > 0 ? 'positive' : 'negative'}}" wx:if="{{item.score !== 0}}">
               <text class="score-capsule-text">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
             </view>
+            <view class="claim-reward-badge" wx:if="{{showReceiveAnimation && item.openid === receiveTargetOpenid}}">+{{receiveAmount}}</view>
           </view>
           
 
@@ -39,7 +41,7 @@
     <!-- 下注模式面板 -->
     <view class="bet-panel-wrapper" wx:if="{{room.gameMode === 'bet'}}">
       <!-- 公共奖池卡片 -->
-      <view class="prize-pool-card-modern" bindtap="transferToPrizePool">
+      <view class="prize-pool-card-modern {{showReceiveAnimation ? 'claiming' : ''}}" bindtap="transferToPrizePool">
         <!-- 点击区域：奖袋、数字、提示 -->
         <view class="prize-pool-content">
           <!-- 奖袋图标 -->
@@ -60,21 +62,21 @@
         </view>
         
         <!-- 收取奖池按钮 - 在卡片内部，阻止冒泡 -->
-        <view class="collect-pool-btn {{room.prizePool.receiver ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" catchtap="onCollectPoolTap">
-          收取奖池
+        <view class="collect-pool-btn {{room.prizePool.receiver || gameOperationSubmitting ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" catchtap="onCollectPoolTap">
+          <text class="collect-pool-text">收取奖池</text>
         </view>
       </view>
 
       <!-- 游戏操作按钮 - 紧贴奖池下方 -->
       <view class="game-actions-row" wx:if="{{room.status === 'playing'}}">
-        <view class="game-action-btn call {{!canFollow ? 'disabled' : ''}}" bindtap="handleFollow">
+        <view class="game-action-btn call {{!canFollow || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleFollow">
           <text class="action-btn-text">跟</text>
         </view>
-        <view class="game-action-btn pass" bindtap="handlePass">
+        <view class="game-action-btn pass {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handlePass">
           <text class="action-btn-text">过</text>
         </view>
-        <view class="game-action-btn allin {{!room.allInValue ? 'disabled' : ''}}" bindtap="handleAllIn">
-          <text class="action-btn-text">all in</text>
+        <view class="game-action-btn allin {{!room.allInValue || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleAllIn">
+          <text class="action-btn-text">All-in</text>
         </view>
       </view>
     </view>
@@ -109,7 +111,7 @@
               <text>{{loadingMoreText}}</text>
             </block>
           </view>
-          <view id="record-{{index}}" class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}}" wx:for="{{room.records}}" wx:key="index" bindtap="onRecordTap" data-record="{{item}}">
+          <view id="record-{{index}}" class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}}" wx:for="{{room.records}}" wx:key="recordKey" bindtap="onRecordTap" data-record="{{item}}">
             <!-- 消息组件容器 -->
             <view class="message-component">
 
@@ -141,8 +143,7 @@
 
       <view class="bottom-actions-container" wx:if="{{room.gameMode === 'normal'}}">
         <view class="action-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn">
-          <text class="btn-icon">💸</text>
-          <text class="btn-text">支出</text>
+          <text class="btn-text">批量支出</text>
         </view>
       </view>
     </view>
@@ -197,22 +198,15 @@
   <text class="float-amount" style="left: {{floatLeft}}px; top: {{floatTop}}px;">+{{floatAmount}}</text>
 </view>
 
-<view class="receive-animation-container" wx:if="{{showReceiveAnimation}}">
-  <view class="receive-amount-display">
-    <text class="receive-amount-text">+{{receiveAmount}}</text>
-  </view>
-
-  <view class="confetti-item" wx:for="{{confettiList}}" wx:key="id"
-    style="left: {{item.left}}px; top: {{item.top}}px; background: {{item.color}}; width: {{item.width}}px; height: {{item.height}}px; animation-duration: {{item.duration}}ms; animation-delay: {{item.delay}}ms;">
-  </view>
-  <view class="coin-item" wx:for="{{coinList}}" wx:key="id"
-    style="left: {{item.left}}px; top: {{item.top}}px; width: {{item.size}}px; height: {{item.size}}px; animation-duration: {{item.duration}}ms; animation-delay: {{item.delay}}ms;">
-    <view class="coin-inner">
-      <text class="coin-text">💰</text>
+<view class="receive-animation-container {{receiveAnimationRole}}" wx:if="{{showReceiveAnimation}}">
+  <view class="reward-focus">
+    <view class="reward-particle particle-{{index}}" wx:for="{{confettiList}}" wx:key="id"></view>
+    <view class="reward-token">
+      <text class="reward-token__amount">+{{receiveAmount}}</text>
+      <text class="reward-token__name">{{receivePlayerName}} 收取奖池</text>
     </view>
   </view>
 </view>
-
 <view class="modal-mask {{showExpenseModal ? 'show' : ''}}" wx:if="{{showExpenseModal}}" bindtap="closeExpenseModal"></view>
 <view class="expense-modal {{showExpenseModal ? 'show' : ''}}" wx:if="{{showExpenseModal}}">
   <view class="modal-header">
@@ -249,6 +243,15 @@
   </view>
 </view>
 
+<view class="modal-mask {{showTransferPicker ? 'show' : ''}}" wx:if="{{showTransferPicker}}" bindtap="closeTransferPicker"></view>
+<view class="transfer-picker-modal {{showTransferPicker ? 'show' : ''}}" wx:if="{{showTransferPicker}}">
+  <view class="modal-header"><text class="modal-title">选择接收玩家</text><text class="modal-close" bindtap="closeTransferPicker">✕</text></view>
+  <scroll-view class="transfer-player-list" scroll-y>
+    <view class="transfer-player-row" wx:for="{{room.members}}" wx:key="openid" wx:if="{{item.openid !== myOpenid && !item.isExited}}" data-openid="{{item.openid}}" bindtap="selectTransferTarget" hover-class="transfer-player-row--pressed">
+      <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image><text class="player-name">{{item.name}}</text><text class="player-current-score">{{item.score > 0 ? '+' : ''}}{{item.score}}</text><text class="history-arrow">›</text>
+    </view>
+  </scroll-view>
+</view>
 <view class="modal-mask {{showTransferModal ? 'show' : ''}}" wx:if="{{showTransferModal}}" bindtap="closeTransferModal"></view>
 <view class="transfer-modal {{showTransferModal ? 'show' : ''}}" wx:if="{{showTransferModal}}">
   <view class="modal-header">
@@ -296,7 +299,7 @@
     </view>
     <view class="modal-actions">
       <view class="action-btn cancel" bindtap="closePrizeModal">取消</view>
-      <view class="action-btn confirm" bindtap="confirmPrizeTransfer">确认转入</view>
+      <view class="action-btn confirm {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="confirmPrizeTransfer">{{gameOperationSubmitting ? '转入中…' : '确认转入'}}</view>
     </view>
   </view>
 </view>
@@ -312,7 +315,7 @@
     <view class="confirm-sub">收取后奖池清空</view>
     <view class="modal-actions">
       <view class="action-btn cancel" bindtap="closeReceiveModal">取消</view>
-      <view class="action-btn confirm" bindtap="confirmReceive">确认收取</view>
+      <view class="action-btn confirm {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="confirmReceive">{{gameOperationSubmitting ? '收取中…' : '确认收取'}}</view>
     </view>
   </view>
 </view>
@@ -440,8 +443,8 @@
 
   <!-- 底部按钮区域（固定，不滚动） -->
   <view class="result-actions">
-    <view class="action-btn share-btn" bindtap="shareResult">分享</view>
-    <view class="action-btn save-btn" bindtap="saveResultToAlbum">保存到相册</view>
+    <view class="action-btn share-btn" bindtap="shareResult"><text>分享</text></view>
+    <view class="action-btn save-btn" bindtap="saveResultToAlbum"><text>保存到相册</text></view>
   </view>
 </view>
 
@@ -541,8 +544,8 @@
     <text class="qrcode-tip" wx:if="{{!qrCodeError}}">微信扫码即可加入房间</text>
     
     <view class="qrcode-actions">
-      <view class="action-btn confirm {{!qrCodeFileID || qrCodeError ? 'disabled' : ''}}" bindtap="{{qrCodeFileID && !qrCodeError ? 'saveQrcode' : ''}}">保存图片</view>
-      <button class="action-btn secondary share-btn" open-type="share">分享给好友</button>
+      <view class="action-btn confirm {{!qrCodeFileID || qrCodeError ? 'disabled' : ''}}" bindtap="{{qrCodeFileID && !qrCodeError ? 'saveQrcode' : ''}}"><text>保存图片</text></view>
+      <button class="action-btn secondary share-btn" open-type="share"><text>分享给好友</text></button>
     </view>
   </view>
 </view>
@@ -588,3 +591,4 @@
     </view>
   </view>
 </view>
+</view><!-- /room-page -->

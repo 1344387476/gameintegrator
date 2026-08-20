@@ -1,3 +1,5 @@
+const theme = require('./utils/theme')
+
 App({
   /**
    * 全局数据
@@ -10,13 +12,15 @@ App({
     // 当前用户仍在进行中的房间ID，由首页提供“返回房间”入口
     currentRoomId: null,
     // 标记新用户通过外部方式（扫码/分享）首次进入房间
-    isNewUserFromExternal: false
+    isNewUserFromExternal: false,
+    appearanceTheme: ''
   },
 
   /**
    * 生命周期函数 - 应用启动
    */
   onLaunch(options) {
+    this.globalData.appearanceTheme = theme.getTheme()
     wx.cloud.init({
       env: 'cloud1-5gv2wyv347737dc9',
       traceUser: true
@@ -79,6 +83,10 @@ App({
       this.handleLaunchOptions(options)
     }
 
+    const pages = getCurrentPages()
+    const route = pages.length ? pages[pages.length - 1].route : 'pages/home/home'
+    const pageType = route === 'pages/room/room' ? 'room' : (route === 'pages/record/record' ? 'record' : 'home')
+    theme.applyNativeChrome(pageType, this.globalData.appearanceTheme)
     this.initUserInfo()
   },
 

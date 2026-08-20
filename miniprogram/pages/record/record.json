@@ -1,0 +1,8 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "战绩",
+  "navigationBarBackgroundColor": "#F2F2F7",
+  "navigationBarTextStyle": "black",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#F2F2F7"
+}

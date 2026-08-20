@@ -1,10 +1,31 @@
-/**
- * 全局样式 - 打牌记账小程序
- * 作者：Craft
- * 创建时间：2026-01-19
- */
-
-/* 页面基础样式 */
+/* 全局视觉基础：轻量、克制的 iOS 分组界面语言 */
 page {
-  background-color: #F5F5F5;
+  min-height: 100%;
+  background: #f2f2f7;
+  color: #1c1c1e;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea { font-family: inherit; }
+button::after { border: 0; }
+.pressable { transition: transform 160ms ease, opacity 160ms ease; }
+.pressable:active { opacity: .72; transform: scale(.98); }
+
+.theme-light {
+  --page-bg: #f2f2f7; --page-top: #f7faf8; --surface: #ffffff;
+  --surface-raised: rgba(255,255,255,.92); --surface-secondary: #f7f7fa;
+  --text-primary: #1c1c1e; --text-secondary: #6e6e73; --text-tertiary: #8e8e93;
+  --separator: rgba(60,60,67,.12); --accent: #28a860; --accent-soft: #eef9f2;
+  --danger: #ff3b30; --positive: #248d52; --negative: #d64545;
+  --glass: rgba(255,255,255,.86); --mask: rgba(0,0,0,.28); --shadow: rgba(28,28,30,.10);
+}
+
+.theme-dark {
+  --page-bg: #0f1210; --page-top: #111513; --surface: #1c201e;
+  --surface-raised: rgba(31,36,33,.94); --surface-secondary: #171a18;
+  --text-primary: #f4f5f4; --text-secondary: #c1c5c2; --text-tertiary: #8e938f;
+  --separator: rgba(235,235,245,.12); --accent: #48d17b; --accent-soft: rgba(72,209,123,.12);
+  --danger: #ff6961; --positive: #57d985; --negative: #ff716b;
+  --glass: rgba(27,32,29,.86); --mask: rgba(0,0,0,.52); --shadow: rgba(0,0,0,.34);
 }

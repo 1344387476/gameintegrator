@@ -1,3 +1,6 @@
 {
-  "usingComponents": {}
+  "usingComponents": {},
+  "navigationBarTitleText": "牌局",
+  "navigationBarBackgroundColor": "#F7FAF8",
+  "navigationBarTextStyle": "black"
 }

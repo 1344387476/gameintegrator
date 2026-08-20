@@ -5,12 +5,32 @@
     "pages/record/record"
   ],
   "window": {
-    "backgroundColor": "#f7f7f7",
+    "backgroundColor": "#f2f2f7",
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#ffffff",
-    "navigationBarTitleText": "打牌记账",
+    "navigationBarTitleText": "牌局",
     "navigationBarTextStyle": "black",
     "enablePullDownRefresh": false
+  },
+  "tabBar": {
+    "color": "#8E8E93",
+    "selectedColor": "#248D52",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "牌局",
+        "iconPath": "images/tab-game.png",
+        "selectedIconPath": "images/tab-game-active.png"
+      },
+      {
+        "pagePath": "pages/record/record",
+        "text": "战绩",
+        "iconPath": "images/tab-record.png",
+        "selectedIconPath": "images/tab-record-active.png"
+      }
+    ]
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",

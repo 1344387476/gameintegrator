@@ -2599,3 +2599,104 @@ page {
   color: #ffffff;
   letter-spacing: 2rpx;
 }
+
+/* ==================== 2026 iOS 视觉与深浅主题统一层 ==================== */
+.room-page { width: 100vw; height: 100vh; overflow: hidden; background: var(--page-bg); color: var(--text-primary); transition: background-color 180ms ease,color 180ms ease; }
+.room-page .main-container { background: var(--page-bg); }
+.room-page .left-section { width: 154rpx; min-width: 154rpx; max-width: 154rpx; border-right: 1rpx solid var(--separator); background: var(--surface-secondary); }
+.room-page .right-section { min-width: 0; background: var(--page-bg); }
+.room-page .members-section { padding: 12rpx 8rpx; }
+.room-page .sidebar-list { gap: 14rpx; }
+.room-page .capsule-card { width: 134rpx; padding: 14rpx 10rpx; border: 1rpx solid var(--separator); border-radius: 24rpx; background: var(--glass); box-shadow: 0 7rpx 22rpx var(--shadow); backdrop-filter: blur(18rpx); -webkit-backdrop-filter: blur(18rpx); }
+.room-page .capsule-card.is-me { border: 2rpx solid var(--accent); box-shadow: 0 0 0 5rpx var(--accent-soft); }
+.room-page .capsule-card.is-creator,.room-page .capsule-card.is-creator.is-me { background: var(--surface); border-color: rgba(219,168,55,.42); }
+.room-page .capsule-card.invite-card { border: 2rpx dashed rgba(40,168,96,.32); background: var(--surface-raised); }
+.room-page .capsule-avatar,.room-page .invite-avatar-img { width: 78rpx; height: 78rpx; border: 3rpx solid var(--surface); box-shadow: 0 4rpx 14rpx var(--shadow); }
+.room-page .capsule-name,.room-page .capsule-label { color: var(--text-secondary); font-size: 21rpx; }
+.room-page .score-capsule { border-radius: 99rpx; }
+.room-page .score-capsule.positive { background: var(--accent-soft); }.room-page .score-capsule.positive .score-capsule-text { color: var(--positive); }
+.room-page .score-capsule.negative { background: rgba(214,69,69,.11); }.room-page .score-capsule.negative .score-capsule-text { color: var(--negative); }
+
+.room-page .bet-panel-wrapper { padding: 18rpx 20rpx 14rpx; background: var(--page-bg); }
+.room-page .prize-pool-card-modern { margin: 0; padding: 24rpx 28rpx; border: 1rpx solid rgba(198,151,42,.22); border-radius: 28rpx; background: linear-gradient(145deg,#fffdf6 0%,#f7edd1 100%); box-shadow: 0 12rpx 34rpx rgba(145,104,16,.13); }
+.room-page .prize-pool-card-modern::before { background: radial-gradient(circle at 30% 10%,rgba(255,255,255,.72),transparent 48%); }
+.room-page .prize-icon-wrap { margin-bottom: 2rpx; }.room-page .prize-bag-icon { font-size: 42rpx; filter: none; }
+.room-page .prize-amount-wrap { margin-bottom: 4rpx; }.room-page .prize-amount-number { color: #8e6815; font-size: 66rpx; text-shadow: none; }
+.room-page .prize-pool-hint { color: #8d7950; font-size: 21rpx; }
+.room-page .collect-pool-btn { display: flex; width: 210rpx; height: 62rpx; align-items: center; justify-content: center; gap: 10rpx; margin-top: 16rpx; border: 1rpx solid rgba(142,104,21,.2); border-radius: 99rpx; background: rgba(255,255,255,.72); color: #72520e; box-shadow: none; }
+.room-page .collect-pool-text { color: inherit; font-size: 24rpx; font-weight: 650; }
+.room-page .game-actions-row { gap: 14rpx; padding: 16rpx 4rpx 0; }
+.room-page .game-action-btn { display: flex; height: 74rpx; align-items: center; justify-content: center; gap: 9rpx; border: 1rpx solid var(--separator); border-radius: 20rpx; background: var(--surface) !important; box-shadow: 0 6rpx 18rpx var(--shadow); }
+.room-page .game-action-btn .action-btn-text { color: var(--text-primary); font-size: 25rpx; }
+.room-page .game-action-btn.call { border-color: rgba(40,168,96,.3); background: var(--accent-soft) !important; }.room-page .game-action-btn.call .action-btn-text { color: var(--positive); }
+.room-page .game-action-btn.allin { background: #282b2a !important; }.room-page .game-action-btn.allin .action-btn-text { color: #fff; }
+.room-page .game-action-btn.disabled { opacity: .4; }
+
+.room-page .chat-section { background: var(--page-bg); }
+.room-page .record-filter-bar { margin: 0 20rpx; padding: 16rpx 0 12rpx; border-bottom: 0; background: transparent; }
+.room-page .record-filter-title { color: var(--text-primary); font-weight: 700; }
+.room-page .record-filter { padding: 4rpx; border-radius: 18rpx; background: var(--surface-secondary); }
+.room-page .record-filter-item { min-width: 86rpx; border-radius: 14rpx; color: var(--text-tertiary); }
+.room-page .record-filter-item.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 3rpx 10rpx var(--shadow); }
+.room-page .chat-scroll,.room-page .chat-list { background: var(--page-bg); }
+.room-page .chat-list { padding: 12rpx 18rpx 130rpx; }
+.room-page .bubble { border: 1rpx solid var(--separator); border-radius: 20rpx !important; background: var(--surface) !important; box-shadow: 0 4rpx 14rpx var(--shadow); }
+.room-page .bubble.mine { border-color: rgba(40,168,96,.18); background: var(--accent-soft) !important; }
+.room-page .bubble.system { border: 0; background: var(--surface-secondary) !important; box-shadow: none; }
+.room-page .message-content,.room-page .message-username { color: var(--text-primary); }.room-page .message-time { color: var(--text-tertiary); }
+.room-page .records-empty,.room-page .load-more-container { background: transparent; color: var(--text-tertiary); }
+.room-page .bottom-actions-container { margin: 0 18rpx calc(18rpx + env(safe-area-inset-bottom)); padding: 12rpx; border: 1rpx solid var(--separator); border-radius: 24rpx; background: var(--glass); box-shadow: 0 10rpx 34rpx var(--shadow); backdrop-filter: blur(20rpx); -webkit-backdrop-filter: blur(20rpx); }
+.room-page .bottom-actions-container .action-btn { display: flex; width: 100%; height: 78rpx; flex: none; align-items: center; justify-content: center; gap: 14rpx; border-radius: 20rpx; background: var(--accent); color: #fff; }
+.room-page .bottom-actions-container .expense-btn,.room-page .bottom-actions-container .expense-btn text { color: #fff; }
+.room-page .bottom-actions-container .btn-text { color: #fff; font-size: 27rpx; font-weight: 650; }
+.room-page .bottom-actions-container .expense-btn.disabled,.room-page .bottom-actions-container .expense-btn.disabled text { color: rgba(255,255,255,.72); }
+
+.room-page .modal-mask { background: var(--mask); backdrop-filter: blur(4rpx); -webkit-backdrop-filter: blur(4rpx); }
+.room-page .transfer-modal,.room-page .transfer-picker-modal,.room-page .prize-modal,.room-page .settings-modal,.room-page .qrcode-modal,.room-page .expense-modal,.room-page .confirm-modal,.room-page .result-modal,.room-page .edit-profile-modal { border: 1rpx solid var(--separator); background: var(--surface-secondary); color: var(--text-primary); box-shadow: 0 24rpx 80rpx var(--shadow); }
+.room-page .transfer-picker-modal { position: fixed; right: 24rpx; bottom: calc(24rpx + env(safe-area-inset-bottom)); left: 178rpx; z-index: 1000; overflow: hidden; border-radius: 30rpx; }
+.room-page .transfer-player-list { max-height: 560rpx; padding: 0 24rpx 20rpx; box-sizing: border-box; }
+.room-page .transfer-player-row { display: flex; height: 102rpx; align-items: center; border-top: 1rpx solid var(--separator); }
+.room-page .transfer-player-row--pressed { opacity: .65; background: var(--surface); }
+.room-page .transfer-player-row .player-avatar { width: 58rpx; height: 58rpx; border-radius: 50%; }
+.room-page .transfer-player-row .player-name { flex: 1; margin-left: 16rpx; color: var(--text-primary); font-size: 26rpx; }
+.room-page .player-current-score { color: var(--text-secondary); font-size: 24rpx; font-weight: 650; }
+.room-page .history-arrow { margin-left: 12rpx; color: var(--text-tertiary); font-size: 36rpx; }
+.room-page .bottom-actions-container .transfer-entry { background: var(--surface) !important; color: var(--text-primary); border: 1rpx solid var(--separator); }
+.room-page .modal-header,.room-page .qrcode-header,.room-page .edit-profile-header { border-color: var(--separator); background: var(--glass); }
+.room-page .modal-title,.room-page .qrcode-title,.room-page .edit-profile-title,.room-page .confirm-text,.room-page .info-title,.room-page .title-text,.room-page .setting-label { color: var(--text-primary); }
+.room-page .modal-close,.room-page .qrcode-close,.room-page .edit-profile-close,.room-page .confirm-sub,.room-page .info-label,.room-page .setting-description { color: var(--text-tertiary); }
+.room-page .transfer-info,.room-page .prize-input-info,.room-page .expense-info,.room-page .room-info-card,.room-page .settlement-info-section,.room-page .result-section,.room-page .setting-input-wrapper { border-color: var(--separator); background: var(--surface); }
+.room-page .score-input,.room-page .setting-input,.room-page .nickname-input { border-color: var(--separator); background: var(--surface); color: var(--text-primary); }
+.room-page .action-btn.cancel { background: var(--surface); color: var(--text-primary); }.room-page .action-btn.confirm,.room-page .save-profile-btn { background: var(--accent); color: #fff; }
+.room-page .action-btn.cancel text,.room-page .action-btn.secondary text { color: var(--text-primary); }
+.room-page .action-btn.confirm text,.room-page .save-profile-btn text { color: #fff; }
+.room-page .modal-actions .action-btn { gap: 9rpx; }
+.room-page .qrcode-actions .action-btn { display: flex; align-items: center; justify-content: center; gap: 10rpx; }
+.room-page .result-actions .action-btn { gap: 10rpx; }
+.room-page .result-actions .action-btn text { color: inherit; }
+.room-page .result-actions { border-color: var(--separator); background: var(--glass); }
+.room-page .result-actions .share-btn { background: var(--accent); color: #fff; box-shadow: 0 7rpx 20rpx rgba(40,168,96,.2); }
+.room-page .result-actions .save-btn { border-color: var(--accent); background: var(--surface); color: var(--accent); }
+.room-page .dismiss-confirm-btn { background: var(--danger) !important; }
+.room-page .edit-profile-modal { background: var(--surface-secondary); backdrop-filter: blur(24rpx); -webkit-backdrop-filter: blur(24rpx); }
+
+.prize-pool-card-modern.claiming { animation: pool-focus 1.15s cubic-bezier(.2,.8,.2,1); }
+@keyframes pool-focus { 0%,100% { transform: scale(1); } 35% { transform: scale(.96); } 62% { transform: scale(1.015); } }
+.capsule-card.claim-target { animation: winner-halo 1.2s ease-out; }
+@keyframes winner-halo { 0% { box-shadow: 0 0 0 0 rgba(255,196,52,.7); } 55% { box-shadow: 0 0 0 14rpx rgba(255,196,52,.08); } 100% { box-shadow: 0 0 0 0 rgba(255,196,52,0); } }
+.claim-reward-badge { position: absolute; top: -12rpx; left: 50%; z-index: 30; padding: 7rpx 13rpx; border-radius: 99rpx; background: #d99b20; color: #fff; font-size: 20rpx; font-weight: 800; animation: reward-badge 1.2s ease-out both; }
+@keyframes reward-badge { 0% { opacity: 0; transform: translate(-50%,18rpx) scale(.6); } 30%,72% { opacity: 1; transform: translate(-50%,-10rpx) scale(1); } 100% { opacity: 0; transform: translate(-50%,-28rpx) scale(.9); } }
+.room-page .receive-animation-container { display: flex; align-items: center; justify-content: center; background: rgba(13,16,14,.36); backdrop-filter: blur(8rpx); -webkit-backdrop-filter: blur(8rpx); }
+.room-page .receive-animation-container.compact { background: transparent; backdrop-filter: none; }
+.reward-focus { position: relative; display: flex; width: 320rpx; height: 220rpx; align-items: center; justify-content: center; }
+.reward-token { position: relative; z-index: 3; display: flex; flex-direction: column; align-items: center; padding: 24rpx 34rpx; border: 1rpx solid rgba(255,255,255,.3); border-radius: 28rpx; background: rgba(28,31,29,.86); box-shadow: 0 18rpx 60rpx rgba(0,0,0,.34); animation: reward-token-pop 1.2s cubic-bezier(.2,.8,.2,1) both; }
+.compact .reward-token { position: fixed; top: 24rpx; padding: 16rpx 24rpx; border-radius: 99rpx; }
+.reward-token__amount { color: #ffd66b; font-size: 58rpx; font-weight: 850; }.reward-token__name { margin-top: 6rpx; color: rgba(255,255,255,.82); font-size: 23rpx; }
+.compact .reward-token__amount { font-size: 28rpx; }.compact .reward-token__name { margin: 0 0 0 12rpx; }.compact .reward-token { flex-direction: row; }
+@keyframes reward-token-pop { 0% { opacity: 0; transform: translateY(34rpx) scale(.7); } 28%,72% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-30rpx) scale(.94); } }
+.reward-particle { position: absolute; left: 50%; top: 50%; width: 16rpx; height: 16rpx; border-radius: 50%; background: #ffd66b; animation: particle-burst 1s ease-out both; }.particle-0 { --px: -118rpx; --py: -48rpx; }.particle-1 { --px: -76rpx; --py: -100rpx; }.particle-2 { --px: 68rpx; --py: -105rpx; }.particle-3 { --px: 122rpx; --py: -34rpx; }.particle-4 { --px: 74rpx; --py: 82rpx; }.particle-5 { --px: -98rpx; --py: 72rpx; }
+@keyframes particle-burst { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.2); } 35% { opacity: 1; transform: translate(calc(-50% + var(--px)),calc(-50% + var(--py))) scale(1); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(.2); } }
+
+.theme-dark .prize-pool-card-modern { border-color: rgba(232,190,88,.25); background: linear-gradient(145deg,rgba(54,49,35,.96),rgba(34,36,33,.96)); box-shadow: 0 14rpx 38rpx rgba(0,0,0,.34); }.theme-dark .prize-amount-number { color: #f1ce72; }.theme-dark .prize-pool-hint { color: #b7aa87; }.theme-dark .collect-pool-btn { border-color: rgba(241,206,114,.24); background: rgba(255,255,255,.07); color: #f1ce72; }
+.theme-dark .game-action-btn.allin { background: #f2f3f2 !important; }.theme-dark .game-action-btn.allin .action-btn-text { color: #171a18; }
+.theme-dark .receive-animation-container { background: rgba(0,0,0,.5); }

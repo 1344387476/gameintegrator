@@ -5,12 +5,15 @@
  * 创建时间：2026-01-19
  */
 const app = getApp();
+const theme = require('../../utils/theme');
 
 Page({
   /**
    * 页面初始数据
    */
   data: {
+    appearanceTheme: app.globalData.appearanceTheme || 'light',
+    showAppearanceSettings: false,
     // 当前显示的昵称
     nickname: '',
     // 临时URL
@@ -40,8 +43,22 @@ Page({
    * 统一处理：显示用户信息 + 检查待加入房间
    */
   onLoad() {
+    this.setData({ appearanceTheme: theme.getTheme() });
+    theme.applyNativeChrome('home', this.data.appearanceTheme);
     // 统一监听用户信息加载状态，只触发一次
     this.waitForUserInfoAndInit();
+  },
+
+  openAppearanceSettings() {
+    this.setData({ showAppearanceSettings: true });
+  },
+
+  closeAppearanceSettings() {
+    this.setData({ showAppearanceSettings: false });
+  },
+
+  selectAppearanceTheme(e) {
+    theme.setTheme(e.currentTarget.dataset.theme, this, 'home');
   },
 
   /**
@@ -191,6 +208,9 @@ Page({
    * 生命周期函数 - 页面显示
    */
   onShow() {
+    const appearanceTheme = theme.getTheme();
+    if (appearanceTheme !== this.data.appearanceTheme) this.setData({ appearanceTheme });
+    theme.applyNativeChrome('home', appearanceTheme);
     // 用户从 room 页返回时，重新校验“返回房间”入口。
     const app = getApp();
     if (!app.globalData.pendingRoomId) {

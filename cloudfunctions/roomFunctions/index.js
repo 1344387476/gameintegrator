@@ -2,6 +2,7 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const { buildBetSummary, historyPlayer } = require('./historyUtils')
 //体验trial  //开发板develop
 const qrVersion = 'trial'
 
@@ -14,7 +15,7 @@ exports.main = async (event, context) => {
     // 为房间成员换取头像临时链接。
     // 由云函数统一换取，避免客户端受“只能读取自己上传文件”的存储权限影响。
     if (action === 'getAvatarUrls') {
-      const { roomId } = payload || {}
+      const { roomId, fileIDs: requestedFileIDs } = payload || {}
       if (!roomId) {
         throw new Error('房间ID不能为空')
       }
@@ -36,10 +37,14 @@ exports.main = async (event, context) => {
         message.fromAvatarFileID,
         message.toAvatarFileID
       ])
-      const fileIDs = [...new Set([
+      let fileIDs = [...new Set([
         ...players.map(player => player.avatarFileID),
         ...messageFileIDs
       ].filter(Boolean))]
+      if (Array.isArray(requestedFileIDs) && requestedFileIDs.length) {
+        const allowed = new Set(fileIDs)
+        fileIDs = [...new Set(requestedFileIDs.filter(fileID => allowed.has(fileID)))]
+      }
       if (fileIDs.length === 0) {
         return { success: true, avatarUrls: {} }
       }
@@ -54,6 +59,53 @@ exports.main = async (event, context) => {
       })
 
       return { success: true, avatarUrls }
+    }
+
+    if (action === 'listHistory') {
+      const requestedPage = Number((payload || {}).page)
+      const requestedSize = Number((payload || {}).pageSize)
+      const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+      const pageSize = Number.isInteger(requestedSize) && requestedSize > 0 ? Math.min(requestedSize, 50) : 20
+      const result = await db.collection('history')
+        .where({ schemaVersion: 2, participantOpenids: _.all([OPENID]) })
+        .orderBy('endTime', 'desc')
+        .skip((page - 1) * pageSize)
+        .limit(pageSize + 1)
+        .get()
+      const docs = result.data || []
+      const hasMore = docs.length > pageSize
+      const items = docs.slice(0, pageSize).map(item => {
+        const me = (item.players || []).find(player => player.openid === OPENID) || { score: 0 }
+        return {
+          historyId: item._id,
+          roomId: item.roomId,
+          roomName: item.roomName || '未命名牌局',
+          mode: item.mode === 'bet' ? 'bet' : 'normal',
+          endTime: item.endTime,
+          myScore: Number.isSafeInteger(me.score) ? me.score : 0,
+          participantCount: (item.players || []).length
+        }
+      })
+      return { success: true, items, page, hasMore }
+    }
+
+    if (action === 'getHistoryDetail') {
+      const { historyId } = payload || {}
+      if (!historyId || typeof historyId !== 'string') throw new Error('战绩ID无效')
+      const historyRes = await db.collection('history').doc(historyId).get().catch(() => null)
+      const history = historyRes && historyRes.data
+      if (!history || history.schemaVersion !== 2) throw new Error('战绩不存在')
+      if (!(history.participantOpenids || []).includes(OPENID)) throw new Error('无权查看该战绩')
+      const fileIDs = [...new Set((history.players || []).map(player => player.avatarFileID).filter(Boolean))]
+      const avatarUrls = {}
+      if (fileIDs.length) {
+        const urlResult = await cloud.getTempFileURL({ fileList: fileIDs })
+        ;(urlResult.fileList || []).forEach((file, index) => {
+          const fileID = file.fileID || file.fileId || fileIDs[index]
+          if (fileID && file.tempFileURL) avatarUrls[fileID] = file.tempFileURL
+        })
+      }
+      return { success: true, detail: { ...history, historyId: history._id, avatarUrls } }
     }
 
     // 动作 A：加入房间
@@ -369,14 +421,25 @@ exports.main = async (event, context) => {
           throw new Error('房间不存在')
         }
 
-        // 1. 存入历史战绩
+        const messageRes = await transaction.collection('messages').doc(roomId).get().catch(() => null)
+        const messages = messageRes && messageRes.data ? (messageRes.data.messages || []) : []
+        const players = (room.players || []).map(historyPlayer)
+        const owner = players.find(player => player.openid === room.owner)
+
+        // 1. 存入新版历史战绩。旧记录不迁移，也不会进入新版列表。
         await transaction.collection('history').add({
           data: {
+            schemaVersion: 2,
             roomId,
             roomName: room.roomName,
             endTime: db.serverDate(),
-            players: room.players,
-            mode: room.mode
+            players,
+            participantOpenids: [...new Set(players.map(player => player.openid).filter(Boolean))],
+            ownerOpenid: room.owner,
+            ownerNickname: owner ? owner.nickname : '',
+            settledBy: OPENID,
+            mode: room.mode,
+            betSummary: room.mode === 'bet' ? buildBetSummary(messages) : null
           }
         })
 

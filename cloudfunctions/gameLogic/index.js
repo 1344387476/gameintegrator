@@ -36,7 +36,7 @@ function assertOperationId(operationId) {
   return operationId
 }
 
-function buildMessage({ sender, content, messageType, toPlayer, operationId }) {
+function buildMessage({ sender, content, messageType, toPlayer, operationId, amount, potAfter }) {
   return {
     operationId,
     fromOpenid: sender.openid,
@@ -47,7 +47,9 @@ function buildMessage({ sender, content, messageType, toPlayer, operationId }) {
     toOpenid: toPlayer ? toPlayer.openid : '',
     toNickname: toPlayer ? (toPlayer.nickname || '') : '',
     toAvatarFileID: toPlayer ? (toPlayer.avatarFileID || '') : '',
-    timestamp: db.serverDate()
+    timestamp: db.serverDate(),
+    ...(Number.isSafeInteger(amount) ? { amount } : {}),
+    ...(Number.isSafeInteger(potAfter) ? { potAfter } : {})
   }
 }
 
@@ -73,7 +75,7 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
     const receiver = findActivePlayer(payload.toOpenid)
     sender.score = safeAdd(getScore(sender), -amount)
     receiver.score = safeAdd(getScore(receiver), amount)
-    messages.push(buildMessage({ sender, content: `转给 ${receiver.nickname || '玩家'} ${amount} 分`, messageType: 'transfer', toPlayer: receiver, operationId }))
+    messages.push(buildMessage({ sender, content: `转给 ${receiver.nickname || '玩家'} ${amount} 分`, messageType: 'transfer', toPlayer: receiver, operationId, amount }))
   } else if (action === 'BATCH_TRANSFER') {
     assert(room.mode === 'normal', '批量转账只能在普通模式使用')
     assert(Array.isArray(payload.transferList) && payload.transferList.length > 0, '请至少选择一位接收玩家')
@@ -89,7 +91,7 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
       const receiver = findActivePlayer(item.openid)
       receiver.score = safeAdd(getScore(receiver), amount)
       totalAmount = safeAdd(totalAmount, amount)
-      messages.push(buildMessage({ sender, content: `转给 ${receiver.nickname || '玩家'} ${amount} 分`, messageType: 'transfer', toPlayer: receiver, operationId }))
+      messages.push(buildMessage({ sender, content: `转给 ${receiver.nickname || '玩家'} ${amount} 分`, messageType: 'transfer', toPlayer: receiver, operationId, amount }))
     }
     sender.score = safeAdd(getScore(sender), -totalAmount)
   } else if (action === 'BET' || action === 'ALLIN') {
@@ -106,14 +108,14 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
     sender.lastDepositAmount = amount
     sender.lastDepositTime = new Date().toISOString()
     updates.pot = safeAdd(pot, amount)
-    messages.push(buildMessage({ sender, content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${amount} 分`, messageType: action === 'ALLIN' ? 'allin' : 'bet', operationId }))
+    messages.push(buildMessage({ sender, content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${amount} 分`, messageType: action === 'ALLIN' ? 'allin' : 'bet', operationId, amount, potAfter: updates.pot }))
   } else if (action === 'CLAIM') {
     assert(room.mode === 'bet', '领取奖池只能在下注模式使用')
     const pot = room.pot === undefined ? 0 : room.pot
     assert(Number.isSafeInteger(pot) && pot > 0, '奖池为空或数据异常')
     sender.score = safeAdd(getScore(sender), pot)
     updates.pot = 0
-    messages.push(buildMessage({ sender, content: `收走了奖池 ${pot} 分`, messageType: 'claim', toPlayer: sender, operationId }))
+    messages.push(buildMessage({ sender, content: `收走了奖池 ${pot} 分`, messageType: 'claim', toPlayer: sender, operationId, amount: pot, potAfter: 0 }))
   } else if (action === 'PASS') {
     assert(room.mode === 'bet', '跳过回合只能在下注模式使用')
     messages.push(buildMessage({ sender, content: `${sender.nickname || '玩家'} 跳过了这回合`, messageType: 'pass', operationId }))
