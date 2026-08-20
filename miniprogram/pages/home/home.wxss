@@ -84,6 +84,13 @@
 .theme-dark .modal-content { background: var(--surface-secondary); box-shadow: 0 -24rpx 70rpx var(--shadow); }
 .theme-dark .modal-mask { background: var(--mask); }
 
+/* 输入框已有 maxlength，布局层仍为历史值和系统自动填充提供防溢出兜底。 */
+.welcome-section,.input-section,.button-group,.active-room-tip,.mode-option,.mode-copy,.appearance-option__copy { min-width: 0; box-sizing: border-box; }
+.welcome-title,.app-name,.welcome-subtitle,.footer-text { max-width: 100%; overflow-wrap: anywhere; }
+.active-room-tip__content,.mode-copy,.appearance-option__copy { min-width: 0; flex: 1; }
+.active-room-tip__title,.active-room-tip__action,.mode-text,.mode-description,.appearance-option__title,.appearance-option__desc { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-name-input,.nickname-input { min-width: 0; }
+
 /* 首屏只编排必要元素；加载完成后再开始，避免动画在遮罩下提前播完。 */
 .motion-full.motion-visible .welcome-section,
 .motion-full.motion-visible .logo-section,

@@ -24,7 +24,7 @@
             <text class="capsule-name">{{item.name}}</text>
             
             <!-- 分数胶囊 (0分隐藏) -->
-            <view class="score-capsule {{item.score > 0 ? 'positive' : 'negative'}}" wx:if="{{item.score !== 0}}">
+            <view class="score-capsule {{item.score > 0 ? 'positive' : 'negative'}} {{item.scoreScroll ? 'compact-number' : ''}}" wx:if="{{item.score !== 0}}">
               <text class="score-capsule-text">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
             </view>
             <view class="claim-reward-badge" wx:if="{{showReceiveAnimation && receiveAnimationPhase === 'reward' && item.openid === receiveTargetOpenid}}">+{{receiveAmount}}</view>
@@ -49,9 +49,9 @@
             <text class="prize-bag-icon">💰</text>
           </view>
           <!-- 积分数字 -->
-          <view class="prize-amount-wrap {{animateAmount ? 'animate' : ''}}">
+          <scroll-view class="prize-amount-wrap prize-amount-scroll {{animateAmount ? 'animate' : ''}}" scroll-x enhanced show-scrollbar="{{false}}">
             <text class="prize-amount-number">{{room.prizePool.total}}</text>
-          </view>
+          </scroll-view>
           <!-- 提示文字 -->
           <text class="prize-pool-hint">点击转入积分</text>
         </view>
@@ -165,7 +165,7 @@
           <text class="fab-sub-label">设置</text>
         </view>
         <!-- 结算按钮 -->
-        <view class="fab-sub-btn settle {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleSettleBtn" hover-class="fab-sub-pressed">
+        <view class="fab-sub-btn settle {{room.status !== 'playing' || settleSubmitting ? 'disabled' : ''}}" bindtap="handleSettleBtn" hover-class="fab-sub-pressed">
           <text class="fab-sub-label">结算</text>
         </view>
         <!-- 解散按钮（仅房主可见） -->
@@ -213,13 +213,13 @@
       </view>
     </view>
     <view class="expense-list">
-      <view class="expense-item" wx:for="{{room.members}}" wx:key="name" wx:if="{{item.openid !== myOpenid}}">
+      <view class="expense-item" wx:for="{{room.members}}" wx:key="openid" wx:if="{{item.openid !== myOpenid}}">
         <view class="player-info">
           <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
           <text class="player-name">{{item.name}}</text>
         </view>
         <view class="input-section">
-          <input class="score-input" type="digit" placeholder="0" value="{{expenseAmounts[item.name] || ''}}" data-name="{{item.name}}" bindinput="onExpenseAmountInput" />
+          <input class="score-input" type="digit" maxlength="16" placeholder="0" value="{{expenseAmounts[item.openid] || ''}}" data-openid="{{item.openid}}" bindinput="onExpenseAmountInput" />
           <text class="score-unit">积分</text>
         </view>
       </view>
@@ -230,7 +230,7 @@
     </view>
     <view class="modal-actions">
       <view class="action-btn cancel" bindtap="closeExpenseModal">取消</view>
-      <view class="action-btn confirm" bindtap="confirmExpense">确认支出</view>
+      <view class="action-btn confirm {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="confirmExpense">{{gameOperationSubmitting ? '支出中…' : '确认支出'}}</view>
     </view>
   </view>
 </view>
@@ -240,7 +240,7 @@
   <view class="modal-header"><text class="modal-title">选择接收玩家</text><text class="modal-close" bindtap="closeTransferPicker">✕</text></view>
   <scroll-view class="transfer-player-list" scroll-y>
     <view class="transfer-player-row" wx:for="{{room.members}}" wx:key="openid" wx:if="{{item.openid !== myOpenid && !item.isExited}}" data-openid="{{item.openid}}" bindtap="selectTransferTarget" hover-class="transfer-player-row--pressed">
-      <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image><text class="player-name">{{item.name}}</text><text class="player-current-score">{{item.score > 0 ? '+' : ''}}{{item.score}}</text><text class="history-arrow">›</text>
+      <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image><text class="player-name">{{item.name}}</text><text class="player-current-score {{item.scoreScroll ? 'compact-number' : ''}}">{{item.score > 0 ? '+' : ''}}{{item.score}}</text><text class="history-arrow">›</text>
     </view>
   </scroll-view>
 </view>
@@ -262,7 +262,7 @@
       </view>
     </view>
     <view class="input-section">
-      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" placeholder="请输入积分（正整数）" value="{{transferAmount}}" bindinput="onTransferAmountInput" />
+      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" maxlength="16" placeholder="请输入积分（正整数）" value="{{transferAmount}}" bindinput="onTransferAmountInput" />
       <text class="error-tip" wx:if="{{showInputError}}">仅支持正整数积分</text>
     </view>
     <view class="modal-actions">
@@ -286,7 +286,7 @@
       <text class="info-value">{{currentUser}}</text>
     </view>
     <view class="input-section">
-      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" placeholder="请输入积分（正整数）" value="{{prizeAmount}}" bindinput="onPrizeAmountInput" />
+      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" maxlength="16" placeholder="请输入积分（正整数）" value="{{prizeAmount}}" bindinput="onPrizeAmountInput" />
       <text class="error-tip" wx:if="{{showInputError}}">仅支持正整数积分</text>
     </view>
     <view class="modal-actions">
@@ -327,120 +327,21 @@
   </view>
   <view class="modal-body">
     <view class="confirm-text">确认结束本局并生成战绩？</view>
-    <view class="confirm-sub">结算后所有积分将重置为0</view>
+    <view class="confirm-sub">结算后将不能继续记分</view>
     <view class="modal-actions">
-      <view class="action-btn cancel" bindtap="closeSettleConfirm">取消</view>
-      <view class="action-btn confirm" bindtap="confirmSettle">确认结算</view>
+      <view class="action-btn cancel {{settleSubmitting ? 'disabled' : ''}}" bindtap="closeSettleConfirm">取消</view>
+      <view class="action-btn confirm {{settleSubmitting ? 'disabled' : ''}}" bindtap="confirmSettle">{{settleSubmitting ? '结算中…' : '确认结算'}}</view>
     </view>
   </view>
 </view>
 
-<view class="modal-mask {{showResultModal ? 'show' : ''}}" wx:if="{{showResultModal}}" bindtap="closeResultModal"></view>
-<view class="result-modal {{showResultModal ? 'show' : ''}}" wx:if="{{showResultModal}}">
-  <view class="modal-header">
-    <text class="result-room-name">{{resultData.roomName}}</text>
-    <text class="modal-close" bindtap="closeResultModal">✕</text>
-  </view>
-  <scroll-view class="result-scroll-view" scroll-y="true" scroll-with-animation>
-    <view class="modal-body result-body">
-      <!-- 结算信息区域（置顶） -->
-      <view class="settlement-info-section">
-        <view class="info-header">
-          <text class="info-title">结算信息</text>
-        </view>
-        <view class="info-content" wx:if="{{resultData}}">
-          <view class="info-row">
-            <text class="info-label">房间名</text>
-            <text class="info-value bold-text">{{resultData.roomName}}</text>
-          </view>
-          <view class="info-row">
-            <text class="info-label">结算时间</text>
-            <text class="info-value">{{resultData.settlementTime}}</text>
-          </view>
-          <view class="info-row">
-            <text class="info-label">房间模式</text>
-            <text class="info-value mode-badge result-mode-badge {{resultData.roomMode === '下注模式' ? 'bet-mode' : 'normal-mode'}}">{{resultData.roomMode}}</text>
-          </view>
-          <view class="info-row" wx:if="{{resultData.creator}}">
-            <text class="info-label">结算触发人</text>
-            <text class="info-value">{{resultData.creator}}</text>
-          </view>
-          <block wx:if="{{resultData.roomMode === '下注模式' && resultData.prizePoolInfo}}">
-            <view class="info-row">
-              <text class="info-label">奖池总额</text>
-              <text class="info-value prize-amount">{{resultData.prizePoolInfo.totalPrizePool}} 积分</text>
-            </view>
-            <view class="info-row" wx:if="{{resultData.prizePoolInfo.receiver}}">
-              <text class="info-label">收取人</text>
-              <text class="info-value">{{resultData.prizePoolInfo.receiver}}</text>
-            </view>
-          </block>
-        </view>
-        <view class="no-info-tip" wx:elif="{{!resultData}}">
-          <text class="tip-text">暂无结算事件信息</text>
-        </view>
-      </view>
-
-      <!-- 分隔线 -->
-      <view class="section-divider"></view>
-
-      <!-- 赢家板块 -->
-      <view class="result-section" wx:if="{{resultData.winners.length > 0}}">
-        <view class="section-title">
-          <view class="title-icon win-icon"></view>
-          <text class="title-text">赢家</text>
-        </view>
-        <view class="bar-chart-container-vertical">
-          <view class="chart-item-horizontal" wx:for="{{resultData.winners}}" wx:key="playerName">
-            <image class="player-avatar-mini" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
-            <text class="player-name-mini">{{item.playerName}}</text>
-            <view class="bar-container">
-              <view class="bar win-bar-horizontal" style="width: {{item.barHeight}}px;"></view>
-            </view>
-            <text class="score-label win-score">{{item.displayScore}}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 输家板块 -->
-      <view class="result-section" wx:if="{{resultData.losers.length > 0}}">
-        <view class="section-title">
-          <view class="title-icon lose-icon"></view>
-          <text class="title-text">输家</text>
-        </view>
-        <view class="bar-chart-container-vertical">
-          <view class="chart-item-horizontal" wx:for="{{resultData.losers}}" wx:key="playerName">
-            <image class="player-avatar-mini" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
-            <text class="player-name-mini">{{item.playerName}}</text>
-            <view class="bar-container">
-              <view class="bar lose-bar-horizontal" style="width: {{item.barHeight}}px;"></view>
-            </view>
-            <text class="score-label lose-score">{{item.displayScore}}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 无输赢提示 -->
-      <view class="no-result-tip" wx:if="{{resultData.winners.length === 0 && resultData.losers.length === 0}}">
-        <text class="tip-text">本局无输赢</text>
-      </view>
-      <view class="no-winners-tip" wx:elif="{{resultData.winners.length === 0 && resultData.losers.length > 0}}">
-        <text class="tip-text">本局无赢家</text>
-      </view>
-      <view class="no-losers-tip" wx:elif="{{resultData.winners.length > 0 && resultData.losers.length === 0}}">
-        <text class="tip-text">本局无输家</text>
-      </view>
-    </view>
-  </scroll-view>
-
-  <!-- 底部按钮区域（固定，不滚动） -->
-  <view class="result-actions">
-    <view class="action-btn share-btn" bindtap="shareResult"><text>分享</text></view>
-    <view class="action-btn save-btn" bindtap="saveResultToAlbum"><text>保存到相册</text></view>
-  </view>
-</view>
-
-<canvas type="2d" id="resultCanvas" class="result-canvas-hidden" wx:if="{{showResultModal}}"></canvas>
+<history-detail
+  visible="{{showResultModal}}"
+  theme="{{appearanceTheme}}"
+  detail="{{resultData}}"
+  players="{{resultPlayers}}"
+  bind:close="closeResultModal"
+/>
 
 <view class="all-in-tip {{showAllInTip ? 'show' : ''}}" wx:if="{{showAllInTip}}">
   <text class="tip-content-text">请先设置all in值</text>
@@ -456,8 +357,8 @@
     <view class="confirm-text">确认退出本房间？</view>
     <view class="confirm-sub">退出后需要重新扫码才能加入</view>
     <view class="modal-actions">
-      <view class="action-btn cancel" bindtap="closeExitConfirm">取消</view>
-      <view class="action-btn confirm" bindtap="confirmExit">确认退出</view>
+      <view class="action-btn cancel {{exitSubmitting ? 'disabled' : ''}}" bindtap="closeExitConfirm">取消</view>
+      <view class="action-btn confirm {{exitSubmitting ? 'disabled' : ''}}" bindtap="confirmExit">{{exitSubmitting ? '退出中…' : '确认退出'}}</view>
     </view>
   </view>
 </view>
@@ -472,8 +373,8 @@
     <view class="confirm-text">确认解散本房间？</view>
     <view class="confirm-sub">房间将直接删除，不结算、也不生成战绩</view>
     <view class="modal-actions">
-      <view class="action-btn cancel" bindtap="closeDismissConfirm">取消</view>
-      <view class="action-btn confirm dismiss-confirm-btn" bindtap="confirmDismiss">确认解散</view>
+      <view class="action-btn cancel {{dismissSubmitting ? 'disabled' : ''}}" bindtap="closeDismissConfirm">取消</view>
+      <view class="action-btn confirm dismiss-confirm-btn {{dismissSubmitting ? 'disabled' : ''}}" bindtap="confirmDismiss">{{dismissSubmitting ? '解散中…' : '确认解散'}}</view>
     </view>
   </view>
 </view>
@@ -489,13 +390,13 @@
       <view class="setting-label">All In值设置</view>
       <view class="setting-description">设置全局all in最大值（仅房主可设置）</view>
       <view class="setting-input-wrapper">
-        <input class="setting-input" type="digit" placeholder="请输入正整数" value="{{allInInput}}" bindinput="onAllInInput" />
+        <input class="setting-input" type="digit" maxlength="16" placeholder="请输入正整数" value="{{allInInput}}" bindinput="onAllInInput" />
         <text class="setting-unit">分</text>
       </view>
     </view>
     <view class="modal-actions">
-      <view class="action-btn cancel" bindtap="closeSettingsModal">取消</view>
-      <view class="action-btn confirm" bindtap="saveSettings">确认保存</view>
+      <view class="action-btn cancel {{settingsSubmitting ? 'disabled' : ''}}" bindtap="closeSettingsModal">取消</view>
+      <view class="action-btn confirm {{settingsSubmitting ? 'disabled' : ''}}" bindtap="saveSettings">{{settingsSubmitting ? '保存中…' : '确认保存'}}</view>
     </view>
   </view>
 </view>
@@ -536,7 +437,7 @@
     <text class="qrcode-tip" wx:if="{{!qrCodeError}}">微信扫码即可加入房间</text>
     
     <view class="qrcode-actions">
-      <view class="action-btn confirm {{!qrCodeFileID || qrCodeError ? 'disabled' : ''}}" bindtap="{{qrCodeFileID && !qrCodeError ? 'saveQrcode' : ''}}"><text>保存图片</text></view>
+      <view class="action-btn confirm {{!qrCodeFileID || qrCodeError || qrCodeSaving ? 'disabled' : ''}}" bindtap="{{qrCodeFileID && !qrCodeError && !qrCodeSaving ? 'saveQrcode' : ''}}"><text>{{qrCodeSaving ? '保存中…' : '保存图片'}}</text></view>
       <button class="action-btn secondary share-btn" open-type="share"><text>分享给好友</text></button>
     </view>
   </view>
@@ -568,6 +469,7 @@
       <input 
         class="nickname-input" 
         type="nickname" 
+        maxlength="10"
         placeholder="请输入昵称" 
         value="{{editProfile.nickname}}"
         bindinput="onNicknameInput"

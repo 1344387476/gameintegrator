@@ -7,6 +7,7 @@
  */
 const theme = require('../../utils/theme')
 const motion = require('../../utils/motion')
+const { limitDisplayText, safeInteger } = require('../../utils/display')
 
 Page({
   /**
@@ -50,6 +51,12 @@ showTransferModal: false, // 转账弹窗
     prizeAmount: '', // 奖池转入金额
     showInputError: false, // 输入错误提示
     gameOperationSubmitting: false,
+    transferSubmitting: false,
+    settleSubmitting: false,
+    dismissSubmitting: false,
+    exitSubmitting: false,
+    settingsSubmitting: false,
+    qrCodeSaving: false,
     animateAmount: false, // 金额动画
     tipText: '', // 提示文字
     // 支出相关数据
@@ -71,6 +78,7 @@ showTransferModal: false, // 转账弹窗
       prizePoolInfo: null, // 奖池信息
       isUploaded: false // 是否已上传
     },
+    resultPlayers: [],
     scrollIntoView: '', // 聊天记录滚动位置
     // 动画相关数据（转入奖池飘动动画）
     showFloatAnimation: false, // 是否显示飘动动画
@@ -723,7 +731,8 @@ showTransferModal: false, // 转账弹窗
     const currentUserOpenid = wx.getStorageSync('openid') || '';
     
     return messages.map((msg, messageIndex) => {
-      const description = msg.content;
+      const senderName = limitDisplayText(msg.fromNickname, 10, '玩家');
+      const description = limitDisplayText(msg.content, 200, '');
       const time = this.formatMessageTime(msg.timestamp);
       const cachedMember = (this.data.room.members || []).find(member => member.openid === msg.fromOpenid);
       const operatorAvatar = this._avatarUrls?.[msg.fromAvatarFileID] ||
@@ -731,13 +740,13 @@ showTransferModal: false, // 转账弹窗
                              msg.fromAvatar ||
                              '/images/avatar.png';
       // 使用昵称或 openid 判断是否为本人消息
-      const isMe = msg.fromNickname === currentUserNickname || 
+      const isMe = senderName === limitDisplayText(currentUserNickname, 10, '') ||
                    msg.fromOpenid === currentUserOpenid;
       
       // 简化的 detail 对象
       const detail = {
         type: msg.messageType || 'other',
-        operator: msg.fromNickname,
+        operator: senderName,
         operatorAvatar,
         operatorAvatarFileID: msg.fromAvatarFileID || ''
       };
@@ -747,8 +756,8 @@ showTransferModal: false, // 转账弹窗
       let segments = null;
       
       // 系统消息本人视角：移除开头的昵称（如"张三 退出了房间" -> "退出了房间"）
-      if (isMe && ['create', 'join', 'leave'].includes(msg.messageType) && description.startsWith(msg.fromNickname)) {
-        processedDescription = description.substring(msg.fromNickname.length).trim();
+      if (isMe && ['create', 'join', 'leave'].includes(msg.messageType) && description.startsWith(senderName)) {
+        processedDescription = description.substring(senderName.length).trim();
       }
       
       // 为包含金额的消息生成分段（用于橙色高亮显示）
@@ -889,10 +898,11 @@ loadRoom(roomId) {
    * @param {Object} room - 房间数据
    */
   processRoomData(room) {
+    const displayRoomName = limitDisplayText(room.roomName, 20, '牌局');
     // 设置导航栏标题
-    if (room.roomName) {
+    if (displayRoomName) {
       wx.setNavigationBarTitle({
-        title: room.roomName
+        title: displayRoomName
       });
     }
 
@@ -904,10 +914,10 @@ loadRoom(roomId) {
     // 先使用原始的avatar（临时URL）作为初始值，后续会更新为新的临时URL
     let members = room.players.map(player => ({
       openid: player.openid,
-      name: player.nickname,
+      name: limitDisplayText(player.nickname, 10, '玩家'),
       avatarUrl: player.avatar || '',  // 先使用数据库中的临时URL
       avatarFileID: player.avatarFileID || '',  // 保留fileID用于刷新
-      score: player.score || 0,
+      score: safeInteger(player.score),
       isExited: player.isExited || false
     }));
 
@@ -923,7 +933,7 @@ loadRoom(roomId) {
 
     const processedRoom = {
       _id: room._id,
-      roomName: room.roomName,
+      roomName: displayRoomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
       members: members,
       records: [],
@@ -931,11 +941,11 @@ loadRoom(roomId) {
       // 状态映射：云函数 'active'/'settled' -> 前端 'playing'/'ended'
       status: room.status === 'active' ? 'playing' : (room.status === 'settled' ? 'ended' : room.status),
       prizePool: {
-        total: room.pot || 0,
+        total: safeInteger(room.pot),
         receiver: '',
         receivedTime: ''
       },
-      allInValue: room.allInVal || 0
+      allInValue: safeInteger(room.allInVal)
     };
 
     // 下注模式：初始化跟注相关数据
@@ -1246,29 +1256,31 @@ loadRoom(roomId) {
    * @returns {Object} 处理后的房间数据
    */
   processRoomDataForRefresh(room) {
+    const displayRoomName = limitDisplayText(room.roomName, 20, '牌局');
     // 设置导航栏标题
-    if (room.roomName) {
+    if (displayRoomName) {
       wx.setNavigationBarTitle({
-        title: room.roomName
+        title: displayRoomName
       });
     }
 
     // 数据字段映射：云数据库字段 -> 页面显示字段
     const processedRoom = {
       _id: room._id,
-      roomName: room.roomName,
+      roomName: displayRoomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
       members: room.players.map(player => {
         // 检查积分是否需要滚动（超过7位数字）
-        const scoreText = player.score > 0 ? `+${player.score}` : `${player.score}`;
+        const score = safeInteger(player.score);
+        const scoreText = score > 0 ? `+${score}` : `${score}`;
         const scoreScroll = scoreText.length > 7;
         
         return {
           openid: player.openid,
-          name: player.nickname,
+          name: limitDisplayText(player.nickname, 10, '玩家'),
           avatarUrl: player.avatar,  // 使用数据库中的临时URL，refreshAllData会保留现有的
           avatarFileID: player.avatarFileID || '',  // 保留fileID用于后续刷新
-          score: player.score || 0,
+          score,
           isExited: player.isExited || false,
           scoreScroll
         };
@@ -1277,11 +1289,11 @@ loadRoom(roomId) {
       creator: room.owner,
       status: room.status === 'active' ? 'playing' : (room.status === 'settled' ? 'ended' : room.status),
       prizePool: {
-        total: room.pot || 0,
-        receiver: room.prizePoolReceiver || '',
+        total: safeInteger(room.pot),
+        receiver: limitDisplayText(room.prizePoolReceiver, 10, ''),
         receivedTime: room.prizePoolReceivedTime || ''
       },
-      allInValue: room.allInVal || 0
+      allInValue: safeInteger(room.allInVal)
     };
 
     // 判断当前用户是否为房主
@@ -1454,10 +1466,11 @@ loadRoom(roomId) {
    * 保存用户资料
    */
   saveProfile() {
+    if (this.data.isSavingProfile) return;
     const { editProfile, roomId, myOpenid } = this.data;
     
     // 验证昵称
-    const nickname = editProfile.nickname?.trim();
+    const nickname = editProfile.nickname?.trim().replace(/\s+/g, ' ');
     if (!nickname) {
       wx.showToast({
         title: '请输入昵称',
@@ -1566,6 +1579,7 @@ loadRoom(roomId) {
    *   3. 重新加载房间数据
    */
 confirmTransfer() {
+    if (this.data.transferSubmitting || this.data.room.status !== 'playing') return;
     const amount = parseInt(this.data.transferAmount);
 
     // 验证输入
@@ -1580,9 +1594,16 @@ confirmTransfer() {
 
     // 找到接收方
     const receiver = room.members[targetIndex];
+    if (!receiver || receiver.openid === this.data.myOpenid || receiver.isExited) {
+      this.showTip('接收玩家不可用，请重新选择');
+      return;
+    }
+    if ([...nickname].length > 10) {
+      wx.showToast({ title: '昵称最多10个字符', icon: 'none' });
+      return;
+    }
 
-    // 立即关闭弹窗
-    this.closeTransferModal();
+    this.setData({ transferSubmitting: true });
 
     // 调用云函数执行转账
     wx.cloud.callFunction({
@@ -1600,6 +1621,7 @@ confirmTransfer() {
       },
 success: (res) => {
         if (res.result.success) {
+          this.setData({ showTransferModal: false });
           this.scheduleRealtimeFallback();
         } else {
           wx.showToast({
@@ -1614,7 +1636,8 @@ success: (res) => {
           title: '转账失败，请重试',
           icon: 'none'
         });
-      }
+      },
+      complete: () => this.setData({ transferSubmitting: false })
     });
   },
 
@@ -1622,7 +1645,7 @@ success: (res) => {
    * 关闭转账弹窗
    */
   closeTransferModal() {
-    this.setData({ showTransferModal: false });
+    if (!this.data.transferSubmitting) this.setData({ showTransferModal: false });
   },
 
   /**
@@ -2053,7 +2076,7 @@ success: (res) => {
    * 关闭支出弹窗
    */
   closeExpenseModal() {
-    this.setData({ showExpenseModal: false });
+    if (!this.data.gameOperationSubmitting) this.setData({ showExpenseModal: false });
   },
 
   /**
@@ -2061,12 +2084,12 @@ success: (res) => {
    * @param {Object} e - 事件对象，包含成员名称和输入的金额
    */
   onExpenseAmountInput(e) {
-    const memberName = e.currentTarget.dataset.name;
+    const memberOpenid = e.currentTarget.dataset.openid;
     const value = e.detail.value;
 
     // 更新支出金额
     const expenseAmounts = { ...this.data.expenseAmounts };
-    expenseAmounts[memberName] = value;
+    expenseAmounts[memberOpenid] = value;
 
     // 计算总计
     let total = 0;
@@ -2085,6 +2108,7 @@ success: (res) => {
    * 批量向多个玩家转账积分
    */
   confirmExpense() {
+    if (this.data.gameOperationSubmitting || this.data.room.status !== 'playing') return;
     const room = this.data.room;
     const currentUser = this.data.currentUser;
     const expenseAmounts = this.data.expenseAmounts;
@@ -2104,10 +2128,10 @@ success: (res) => {
     const transferList = [];
     let totalAmount = 0;
 
-    for (const memberName in expenseAmounts) {
-      const amount = parseInt(expenseAmounts[memberName]) || 0;
+    for (const memberOpenid in expenseAmounts) {
+      const amount = parseInt(expenseAmounts[memberOpenid]) || 0;
       if (amount > 0) {
-        const receiver = room.members.find(m => m.name === memberName);
+        const receiver = room.members.find(m => m.openid === memberOpenid);
         if (!receiver) {
           this.showTip('找不到接收玩家');
           return;
@@ -2133,6 +2157,12 @@ success: (res) => {
       }
     }
 
+    if (transferList.length === 0) {
+      this.showTip('请选择其他玩家并输入支出金额');
+      return;
+    }
+
+    this.setData({ gameOperationSubmitting: true });
     // 调用云函数执行批量转账
     wx.cloud.callFunction({
       name: 'gameLogic',
@@ -2154,11 +2184,11 @@ success: (res) => {
               receiver: item.nickname,
               amount: item.amount,
               senderAvatar: room.members.find(m => m.name === currentUser)?.avatarUrl || '/images/avatar.png',
-              receiverAvatar: room.members.find(m => m.name === item.nickname)?.avatarUrl || '/images/avatar.png'
+              receiverAvatar: room.members.find(m => m.openid === item.openid)?.avatarUrl || '/images/avatar.png'
             });
           });
 
-          this.closeExpenseModal();
+          this.setData({ showExpenseModal: false });
           this.scheduleRealtimeFallback();
         } else {
           wx.showToast({
@@ -2173,7 +2203,8 @@ success: (res) => {
           title: '支出失败，请重试',
           icon: 'none'
         });
-      }
+      },
+      complete: () => this.setData({ gameOperationSubmitting: false })
     });
   },
 
@@ -2186,6 +2217,12 @@ success: (res) => {
     const room = this.data.room;
     const myOpenid = wx.getStorageSync('openid');
     this.setData({ fabExpanded: false });
+
+    if (this.data.settleSubmitting) return;
+    if (room.status !== 'playing') {
+      wx.showToast({ title: '本局已经结算', icon: 'none' });
+      return;
+    }
     
     // 房主判断逻辑 room.creator == myOpenid
     if (room.creator !== myOpenid) {
@@ -2196,7 +2233,6 @@ success: (res) => {
       return;
     }
     
-    // 结算确认弹窗
     this.setData({ showSettleConfirm: true });
   },
 
@@ -2204,7 +2240,7 @@ success: (res) => {
    * 关闭结算确认弹窗
    */
   closeSettleConfirm() {
-    this.setData({ showSettleConfirm: false });
+    if (!this.data.settleSubmitting) this.setData({ showSettleConfirm: false });
   },
 
   /**
@@ -2213,6 +2249,12 @@ success: (res) => {
    * 参数标准化：仅传递 roomId
    */
   confirmSettle() {
+    if (this.data.settleSubmitting) return;
+    if (this.data.room.status !== 'playing') {
+      this.closeSettleConfirm();
+      wx.showToast({ title: '本局已经结算', icon: 'none' });
+      return;
+    }
     const roomId = this.data.roomId;
 
     // 下注模式：检查奖池是否还有积分
@@ -2226,6 +2268,7 @@ success: (res) => {
       return;
     }
 
+    this.setData({ settleSubmitting: true });
     // 参数标准化：云函数期望 { roomId }
     wx.cloud.callFunction({
       name: 'roomFunctions',
@@ -2237,7 +2280,10 @@ success: (res) => {
       },
 success: (res) => {
         if (res.result.success) {
-          this.closeSettleConfirm();
+          this.setData({ showSettleConfirm: false });
+          // 成功后立即展示战绩；转账方案由战绩组件根据最终积分生成。
+          this.showResultModal();
+          this.setData({ 'room.status': 'ended', settleSubmitting: false });
           this.scheduleRealtimeFallback();
         } else {
           // 失败：获取 msg，保留原有错误提示逻辑
@@ -2245,6 +2291,7 @@ success: (res) => {
             title: res.result.msg || '结算失败',
             icon: 'none'
           });
+          this.setData({ settleSubmitting: false });
         }
       },
       fail: (err) => {
@@ -2253,6 +2300,7 @@ success: (res) => {
           title: '结算失败',
           icon: 'none'
         });
+        this.setData({ settleSubmitting: false });
       }
     });
   },
@@ -2264,71 +2312,32 @@ success: (res) => {
   showResultModal() {
     const room = this.data.room;
     const settlementTime = this.getCurrentTime();
-
-    // 最大柱状条高度（rpx）
-    const MAX_BAR_HEIGHT = 150;
-    const MIN_BAR_HEIGHT = 3;
-
-    // 赢家：score > 0
-    const winnerMembers = room.members.filter(m => m.score > 0);
-    const maxWinnerScore = winnerMembers.length > 0 
-      ? Math.max(...winnerMembers.map(m => m.score)) 
-      : 0;
-    
-    const winners = winnerMembers
-      .map(m => ({
-        playerName: m.name,
-        avatarUrl: m.avatarUrl,
-        score: m.score,
-        displayScore: `+${m.score}`,
-        // 相对比例计算：当前分数 / 最高分数 * 最大高度
-        barHeight: maxWinnerScore > 0 
-          ? Math.max(MIN_BAR_HEIGHT, Math.round((m.score / maxWinnerScore) * MAX_BAR_HEIGHT))
-          : MIN_BAR_HEIGHT
-      }))
-      .sort((a, b) => b.score - a.score); // 按积分降序排列
-
-    // 输家：score < 0
-    const loserMembers = room.members.filter(m => m.score < 0);
-    const maxLoserScore = loserMembers.length > 0 
-      ? Math.max(...loserMembers.map(m => Math.abs(m.score))) 
-      : 0;
-    
-    const losers = loserMembers
-      .map(m => ({
-        playerName: m.name,
-        avatarUrl: m.avatarUrl,
-        score: m.score,
-        displayScore: `${m.score}`,
-        // 相对比例计算：当前分数绝对值 / 最高分数绝对值 * 最大高度
-        barHeight: maxLoserScore > 0 
-          ? Math.max(MIN_BAR_HEIGHT, Math.round((Math.abs(m.score) / maxLoserScore) * MAX_BAR_HEIGHT))
-          : MIN_BAR_HEIGHT
-      }))
-      .sort((a, b) => a.score - b.score); // 按积分升序排列
-
-    // 房间模式
-    const roomMode = room.gameMode === 'bet' ? '下注模式' : '普通模式';
-
-    // 奖池信息（仅下注模式）
-    let prizePoolInfo = null;
-    if (room.gameMode === 'bet' && room.prizePool.total > 0) {
-      prizePoolInfo = {
-        totalPrizePool: room.prizePool.total,
-        receiver: room.prizePool.receiver || ''
+    const myOpenid = wx.getStorageSync('openid');
+    const players = (room.members || []).map(member => {
+      const score = safeInteger(member.score);
+      return {
+        openid: member.openid,
+        nickname: limitDisplayText(member.name || member.nickname, 10, '玩家'),
+        avatarUrl: member.avatarUrl || '/images/avatar.png',
+        score,
+        displayScore: score > 0 ? `+${score}` : `${score}`,
+        scoreCompact: `${score}`.length > 9,
+        scoreClass: score > 0 ? 'positive' : (score < 0 ? 'negative' : 'zero'),
+        isMe: member.openid === myOpenid
       };
-    }
-
+    }).sort((a, b) => b.score - a.score);
+    const me = players.find(player => player.isMe);
     this.setData({
       resultData: {
-        roomName: room.roomName,
-        roomMode,
-        settlementTime,
-        winners,
-        losers,
-        prizePoolInfo,
-        isUploaded: false
+        roomName: limitDisplayText(room.roomName, 20, '牌局'),
+        mode: room.gameMode,
+        modeText: room.gameMode === 'bet' ? '下注模式' : '普通模式',
+        displayTime: settlementTime,
+        myResultText: me ? (me.score > 0 ? '本局获胜' : (me.score < 0 ? '本局负分' : '本局持平')) : '',
+        myDisplayScore: me ? me.displayScore : '',
+        myScoreClass: me ? me.scoreClass : 'zero'
       },
+      resultPlayers: players,
       showResultModal: true
     });
   },
@@ -2958,6 +2967,7 @@ success: (res) => {
   closeResultModal() {
     this.setData({ 
       showResultModal: false,
+      resultPlayers: [],
       savingImage: false // 重置保存状态
     });
   },
@@ -3085,7 +3095,7 @@ success: (res) => {
    * @param {string} text - 提示文字
    */
   showTip(text) {
-    this.setData({ tipText: text, showTipModal: true });
+    this.setData({ tipText: limitDisplayText(text, 80, '操作失败'), showTipModal: true });
     setTimeout(() => {
       this.setData({ showTipModal: false });
     }, 1500);
@@ -3410,6 +3420,7 @@ success: (res) => {
    * 打开退出确认弹窗
    */
   openExitConfirm() {
+    if (this.data.exitSubmitting) return;
     this.setData({ showExitConfirm: true, fabExpanded: false });
   },
 
@@ -3417,7 +3428,7 @@ success: (res) => {
    * 关闭退出确认弹窗
    */
   closeExitConfirm() {
-    this.setData({ showExitConfirm: false });
+    if (!this.data.exitSubmitting) this.setData({ showExitConfirm: false });
   },
 
   openTransferPicker() {
@@ -3438,6 +3449,7 @@ success: (res) => {
   },
 
   openDismissConfirm() {
+    if (this.data.dismissSubmitting) return;
     if (!this.data.isCreator) {
       wx.showToast({ title: '只有房主可以解散房间', icon: 'none' });
       return;
@@ -3446,12 +3458,19 @@ success: (res) => {
   },
 
   closeDismissConfirm() {
-    this.setData({ showDismissConfirm: false });
+    if (!this.data.dismissSubmitting) this.setData({ showDismissConfirm: false });
   },
 
   confirmDismiss() {
+    if (this.data.dismissSubmitting) return;
+    if (this.data.room.status !== 'playing') {
+      this.closeDismissConfirm();
+      wx.showToast({ title: '本局已经结束', icon: 'none' });
+      return;
+    }
     const roomId = this.data.roomId;
     this.closeDismissConfirm();
+    this.setData({ dismissSubmitting: true });
     this._isDismissing = true;
     wx.showLoading({ title: '正在解散...' });
 
@@ -3462,6 +3481,7 @@ success: (res) => {
         wx.hideLoading();
         if (!cloudRes.result || !cloudRes.result.success) {
           this._isDismissing = false;
+          this.setData({ dismissSubmitting: false });
           wx.showToast({ title: (cloudRes.result && cloudRes.result.msg) || '解散失败', icon: 'none' });
           return;
         }
@@ -3474,6 +3494,7 @@ success: (res) => {
       },
       fail: (err) => {
         this._isDismissing = false;
+        this.setData({ dismissSubmitting: false });
         wx.hideLoading();
         console.error('解散房间失败:', err);
         wx.showToast({ title: '解散失败，请重试', icon: 'none' });
@@ -3487,10 +3508,12 @@ success: (res) => {
    * 参数标准化：{ roomId }
    */
   confirmExit() {
+    if (this.data.exitSubmitting) return;
     const roomId = this.data.roomId;
 
     // 关闭退出确认弹窗
     this.closeExitConfirm();
+    this.setData({ exitSubmitting: true });
 
     // 参数标准化：云函数期望 { roomId }
     wx.cloud.callFunction({
@@ -3540,6 +3563,7 @@ success: (res) => {
         }
       },
       fail: (err) => {
+        this.setData({ exitSubmitting: false });
         console.error('退出房间失败:', err);
         wx.showToast({
           title: '退出失败',
@@ -3574,14 +3598,19 @@ success: (res) => {
    * 关闭设置弹窗
    */
   closeSettingsModal() {
-    this.setData({ showSettingsModal: false });
+    if (!this.data.settingsSubmitting) this.setData({ showSettingsModal: false });
   },
 
   /**
    * 保存设置
    */
   async saveSettings() {
+    if (this.data.settingsSubmitting) return;
     const room = this.data.room;
+    if (room.status !== 'playing') {
+      this.showTip('房间已结束，无法修改设置');
+      return;
+    }
 
     // 如果是下注模式，保存all in值
     if (room.gameMode === 'bet') {
@@ -3592,6 +3621,7 @@ success: (res) => {
           return;
         }
 
+        this.setData({ settingsSubmitting: true });
         // 调用云函数保存 allInVal 到数据库
         try {
           const res = await wx.cloud.callFunction({
@@ -3619,6 +3649,8 @@ success: (res) => {
           console.error('保存 All In 值失败:', err);
           this.showTip('保存失败，请重试');
           return;
+        } finally {
+          this.setData({ settingsSubmitting: false });
         }
       }
     }
@@ -3649,6 +3681,7 @@ success: (res) => {
    * 直接下载图片并保存到相册
    */
   saveQrcode() {
+    if (this.data.qrCodeSaving) return;
     const { qrCodeTempUrl } = this.data;
     
     if (!qrCodeTempUrl) {
@@ -3656,6 +3689,7 @@ success: (res) => {
       return;
     }
 
+    this.setData({ qrCodeSaving: true });
     wx.showLoading({ title: '保存中...' });
 
     // 先下载图片到本地
@@ -3668,10 +3702,12 @@ success: (res) => {
             filePath: res.tempFilePath,
             success: () => {
               wx.hideLoading();
+              this.setData({ qrCodeSaving: false });
               this.showTip('保存成功');
             },
             fail: (err) => {
               wx.hideLoading();
+              this.setData({ qrCodeSaving: false });
               console.error('保存到相册失败:', err);
               if (err.errMsg && err.errMsg.includes('auth')) {
                 // 权限问题，引导用户开启权限
@@ -3691,11 +3727,13 @@ success: (res) => {
           });
         } else {
           wx.hideLoading();
+          this.setData({ qrCodeSaving: false });
           this.showTip('下载图片失败');
         }
       },
       fail: (err) => {
         wx.hideLoading();
+        this.setData({ qrCodeSaving: false });
         console.error('下载图片失败:', err);
         this.showTip('下载失败，请重试');
       }
@@ -3707,6 +3745,7 @@ success: (res) => {
    * 调用云函数生成二维码并获取临时URL
    */
   getRoomQRCode() {
+    if (this.data.isGeneratingQR) return;
     const { roomId } = this.data;
     
     if (!roomId) {
@@ -3770,6 +3809,12 @@ success: (res) => {
    * @returns {Object} 分享信息对象
    */
   onShareAppMessage() {
+    if (this.data.showResultModal && this.data.resultData && this.data.resultData.roomName) {
+      return {
+        title: `${this.data.resultData.roomName} · 牌局战绩`,
+        path: '/pages/record/record'
+      };
+    }
     return {
       title: `邀请你加入打牌记账房间：${this.data.room.roomName}`,
       // 修改为跳转到home页面，携带roomId参数

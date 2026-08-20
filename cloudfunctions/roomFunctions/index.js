@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
-const { buildBetSummary, historyPlayer } = require('./historyUtils')
+const { historyPlayer, normalizeDisplayText, normalizeIdentifier, assertSettleAllowed } = require('./historyUtils')
 //体验trial  //开发板develop
 const qrVersion = 'trial'
 
@@ -12,6 +12,9 @@ exports.main = async (event, context) => {
   const { action, payload } = event
 
   try {
+    // 所有带房间 ID 的入口先做统一长度和控制字符检查，避免异常长参数流入查询。
+    if (payload && payload.roomId !== undefined) payload.roomId = normalizeIdentifier(payload.roomId, '房间ID', 64)
+    if (payload && payload.historyId !== undefined) payload.historyId = normalizeIdentifier(payload.historyId, '战绩ID', 128)
     // 为房间成员换取头像临时链接。
     // 由云函数统一换取，避免客户端受“只能读取自己上传文件”的存储权限影响。
     if (action === 'getAvatarUrls') {
@@ -105,12 +108,16 @@ exports.main = async (event, context) => {
           if (fileID && file.tempFileURL) avatarUrls[fileID] = file.tempFileURL
         })
       }
-      return { success: true, detail: { ...history, historyId: history._id, avatarUrls } }
+      // 旧记录可能带有下注摘要；详情接口不再返回，所有模式只展示最终积分。
+      const { betSummary, ...historyDetail } = history
+      return { success: true, detail: { ...historyDetail, historyId: history._id, avatarUrls } }
     }
 
     // 动作 A：加入房间
     if (action === 'join') {
-      const { roomId, nickname, avatar, avatarFileID } = payload
+      const roomId = normalizeIdentifier(payload.roomId, '房间ID', 64)
+      const nickname = normalizeDisplayText(payload.nickname, '昵称', 10)
+      const avatarFileID = payload.avatarFileID ? normalizeIdentifier(payload.avatarFileID, '头像文件', 512) : ''
 
       const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
 
@@ -154,6 +161,7 @@ exports.main = async (event, context) => {
           // 重新加入已退出的房间
           const idx = newPlayers.findIndex(p => p.openid === OPENID)
           newPlayers[idx].isExited = false
+          newPlayers[idx].nickname = nickname
           // 更新头像信息
           newPlayers[idx].avatar = avatarTempUrl
           newPlayers[idx].avatarFileID = avatarFileID
@@ -202,6 +210,10 @@ exports.main = async (event, context) => {
 
     // 动作 B：创建房间
     if (action === 'create') {
+      const roomName = normalizeDisplayText(payload.roomName, '房间名称', 20)
+      const nickname = normalizeDisplayText(payload.nickname, '昵称', 10)
+      const avatarFileID = payload.avatarFileID ? normalizeIdentifier(payload.avatarFileID, '头像文件', 512) : ''
+      if (!['normal', 'bet'].includes(payload.mode)) throw new Error('房间模式无效')
       // 检查用户是否在其他活跃房间中
       const userRes = await db.collection('users').doc(OPENID).get().catch(() => ({ data: null }))
       if (userRes.data && userRes.data.currentRoomId) {
@@ -224,7 +236,7 @@ exports.main = async (event, context) => {
         await transaction.collection('rooms').doc(roomId).set({
           data: {
             owner: OPENID,
-            roomName: payload.roomName,
+            roomName,
             mode: payload.mode,
             status: 'active',
             pot: 0,
@@ -233,9 +245,9 @@ exports.main = async (event, context) => {
             createTime: db.serverDate(),
             players: [{
               openid: OPENID,
-              nickname: payload.nickname,
+              nickname,
               avatar: avatarTempUrl,           // 临时 URL（2小时内有效）
-              avatarFileID: payload.avatarFileID,  // fileID（永久，用于重新获取URL）
+              avatarFileID,  // fileID（永久，用于重新获取URL）
               score: 0,
               isExited: false
             }]
@@ -259,9 +271,9 @@ exports.main = async (event, context) => {
           data: {
             messages: _.push({
               fromOpenid: OPENID,
-              fromNickname: payload.nickname,
-              fromAvatarFileID: payload.avatarFileID || '',
-              content: `${payload.nickname} 创建了房间`,
+              fromNickname: nickname,
+              fromAvatarFileID: avatarFileID,
+              content: `${nickname} 创建了房间`,
               messageType: 'create',
               timestamp: db.serverDate()
             })
@@ -417,12 +429,8 @@ exports.main = async (event, context) => {
         const roomRes = await transaction.collection('rooms').doc(roomId).get()
         const room = roomRes.data
         
-        if (!room) {
-          throw new Error('房间不存在')
-        }
+        assertSettleAllowed(room, OPENID)
 
-        const messageRes = await transaction.collection('messages').doc(roomId).get().catch(() => null)
-        const messages = messageRes && messageRes.data ? (messageRes.data.messages || []) : []
         const players = (room.players || []).map(historyPlayer)
         const owner = players.find(player => player.openid === room.owner)
 
@@ -438,8 +446,7 @@ exports.main = async (event, context) => {
             ownerOpenid: room.owner,
             ownerNickname: owner ? owner.nickname : '',
             settledBy: OPENID,
-            mode: room.mode,
-            betSummary: room.mode === 'bet' ? buildBetSummary(messages) : null
+            mode: room.mode
           }
         })
 
@@ -611,7 +618,9 @@ exports.main = async (event, context) => {
 
     // === 动作 I：更新用户资料 ===
     if (action === 'updateProfile') {
-      const { roomId, nickname, avatarUrl, avatarFileID } = payload
+      const roomId = normalizeIdentifier(payload.roomId, '房间ID', 64)
+      const nickname = normalizeDisplayText(payload.nickname, '昵称', 10)
+      const avatarFileID = payload.avatarFileID ? normalizeIdentifier(payload.avatarFileID, '头像文件', 512) : ''
       
       // 获取房间信息
       const roomRes = await db.collection('rooms').doc(roomId).get()
@@ -620,6 +629,7 @@ exports.main = async (event, context) => {
       }
       
       const room = roomRes.data
+      if (room.status !== 'active') throw new Error('房间已结束，无法修改资料')
       
       // 查找当前玩家
       const playerIndex = room.players.findIndex(p => p.openid === OPENID)
@@ -684,6 +694,9 @@ exports.main = async (event, context) => {
       if (roomRes.data.owner !== OPENID) {
         throw new Error('权限不足，只有房主可以设置')
       }
+      if (roomRes.data.status !== 'active') throw new Error('房间已结束，无法修改设置')
+      if (roomRes.data.mode !== 'bet') throw new Error('只有下注模式可以设置 All In')
+      if (!Number.isSafeInteger(allInValue) || allInValue <= 0) throw new Error('All In 值必须是正整数')
       
       // 更新 allInVal
       await db.collection('rooms').doc(roomId).update({

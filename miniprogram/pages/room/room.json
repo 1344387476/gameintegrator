@@ -1,5 +1,7 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "history-detail": "/components/history-detail/history-detail"
+  },
   "disableScroll": true,
   "navigationBarBackgroundColor": "#F2F2F7",
   "navigationBarTextStyle": "black"

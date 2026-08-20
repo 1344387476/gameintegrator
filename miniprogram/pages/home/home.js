@@ -442,12 +442,16 @@ Page({
    */
   openCreateRoomModal() {
     // 验证昵称
-    const nickname = this.data.nickname.trim();
+    const nickname = this.data.nickname.trim().replace(/\s+/g, ' ');
     if (!nickname) {
       wx.showToast({
         title: '请输入昵称',
         icon: 'none'
       });
+      return;
+    }
+    if ([...nickname].length > 10) {
+      wx.showToast({ title: '昵称最多10个字符', icon: 'none' });
       return;
     }
 
@@ -496,7 +500,7 @@ Page({
    * 上传成功后创建房间
    */
   submitCreateRoom() {
-    const roomName = this.data.roomName.trim();
+    const roomName = this.data.roomName.trim().replace(/\s+/g, ' ');
     if (!roomName) {
       wx.showToast({
         title: '请输入房间名称',
@@ -504,14 +508,22 @@ Page({
       });
       return;
     }
+    if ([...roomName].length > 20) {
+      wx.showToast({ title: '房间名称最多20个字符', icon: 'none' });
+      return;
+    }
 
     // 验证昵称
-    const nickname = this.data.nickname.trim();
+    const nickname = this.data.nickname.trim().replace(/\s+/g, ' ');
     if (!nickname) {
       wx.showToast({
         title: '请输入昵称',
         icon: 'none'
       });
+      return;
+    }
+    if ([...nickname].length > 10) {
+      wx.showToast({ title: '昵称最多10个字符', icon: 'none' });
       return;
     }
 
@@ -597,9 +609,13 @@ Page({
    * 扫码成功后才显示 loading 并执行上传和加入
    */
   joinRoom() {
-    const nickname = this.data.nickname.trim();
+    const nickname = this.data.nickname.trim().replace(/\s+/g, ' ');
     if (!nickname) {
       wx.showToast({ title: '请输入昵称', icon: 'none' });
+      return;
+    }
+    if ([...nickname].length > 10) {
+      wx.showToast({ title: '昵称最多10个字符', icon: 'none' });
       return;
     }
 

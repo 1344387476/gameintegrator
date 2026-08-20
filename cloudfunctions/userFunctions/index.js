@@ -19,6 +19,21 @@ function getDefaultAvatar() {
   return ''
 }
 
+function normalizeDisplayText(value, fieldName, maxLength) {
+  if (typeof value !== 'string') throw new Error(`${fieldName}格式不正确`)
+  const normalized = value.trim().replace(/\s+/g, ' ')
+  if (!normalized) throw new Error(`${fieldName}不能为空`)
+  if ([...normalized].length > maxLength) throw new Error(`${fieldName}不能超过${maxLength}个字符`)
+  return normalized
+}
+
+function normalizeOptionalText(value, fieldName, maxLength) {
+  if (typeof value !== 'string' || value.length > maxLength || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error(`${fieldName}无效`)
+  }
+  return value
+}
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext()
   const { action, userData } = event
@@ -93,17 +108,17 @@ exports.main = async (event, context) => {
 
       // 昵称：如果提供了就更新
       if (userData.nickname !== undefined) {
-        updateData.nickname = userData.nickname
+        updateData.nickname = normalizeDisplayText(userData.nickname, '昵称', 10)
       }
 
       // 头像URL：如果提供了就更新
       if (userData.avatar !== undefined) {
-        updateData.avatar = userData.avatar
+        updateData.avatar = normalizeOptionalText(userData.avatar, '头像地址', 2048)
       }
 
       // 头像FileID：如果提供了就更新（包括空字符串）
       if (userData.avatarFileID !== undefined) {
-        updateData.avatarFileID = userData.avatarFileID
+        updateData.avatarFileID = normalizeOptionalText(userData.avatarFileID, '头像文件', 512)
       }
 
       // 如果没有要更新的字段

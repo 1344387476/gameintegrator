@@ -13,34 +13,19 @@
     <view class="history-card motion-card" wx:for="{{items}}" wx:key="historyId" data-id="{{item.historyId}}" bindtap="openDetail" hover-class="history-card--pressed" style="animation-delay: {{item.motionDelay}}ms;">
       <view class="history-card__top"><text class="history-card__name">{{item.roomName}}</text><text class="result-pill {{item.resultClass}}">{{item.resultText}}</text></view>
       <view class="history-card__meta"><text>{{item.displayTime}}</text><text>·</text><text>{{item.modeText}}</text><text>·</text><text>{{item.participantCount}} 人</text></view>
-      <view class="history-card__bottom"><text class="history-card__label">我的积分</text><text class="history-score {{item.resultClass}}">{{item.displayScore}}</text><text class="history-arrow">›</text></view>
+      <view class="history-card__bottom"><text class="history-card__label">我的积分</text><text class="history-score {{item.resultClass}} {{item.scoreCompact ? 'compact-number' : ''}}">{{item.displayScore}}</text><text class="history-arrow">›</text></view>
     </view>
     <view class="load-more" wx:if="{{loadingMore}}"><view class="weui-loading"></view><text>加载更多</text></view>
     <view class="load-more" wx:elif="{{!hasMore}}">已显示全部战绩</view>
     <view class="load-more retry" wx:elif="{{errorText}}" bindtap="retryLoad">加载失败，点击重试</view>
   </view>
 
-  <view class="detail-mask {{showDetail ? 'show' : ''}}" wx:if="{{showDetail}}" bindtap="closeDetail"></view>
-  <view class="detail-sheet {{showDetail ? 'show' : ''}}" wx:if="{{showDetail}}">
-    <view class="sheet-handle"></view>
-    <view class="detail-header"><view><text class="detail-title">{{detail ? detail.roomName : '战绩详情'}}</text><text class="detail-meta" wx:if="{{detail}}">{{detail.modeText}} · {{detail.displayTime}}</text></view><text class="detail-close" bindtap="closeDetail">✕</text></view>
-    <view class="state-card" wx:if="{{detailLoading}}"><view class="weui-loading"></view><text>正在读取详情</text></view>
-    <scroll-view class="detail-scroll" scroll-y wx:elif="{{detail}}">
-      <view class="ranking-card">
-        <text class="section-label">最终排名</text>
-        <view class="player-row motion-row {{item.isMe ? 'is-me' : ''}}" wx:for="{{detailPlayers}}" wx:key="openid" style="animation-delay: {{item.motionDelay}}ms;">
-          <text class="rank-number">{{index + 1}}</text><image class="player-avatar" src="{{item.avatarUrl}}" mode="aspectFill"></image><text class="player-name">{{item.nickname}}{{item.isMe ? '（我）' : ''}}</text><text class="player-score {{item.scoreClass}}">{{item.displayScore}}</text>
-        </view>
-      </view>
-      <view class="ranking-card" wx:if="{{detail.mode === 'bet' && detail.betSummary}}">
-        <text class="section-label">奖池摘要</text>
-        <view class="summary-row"><text>累计下注</text><text>{{detail.betSummary.totalBet}} 分</text></view>
-        <view class="summary-row"><text>累计领取</text><text>{{detail.betSummary.totalClaimed}} 分</text></view>
-        <view class="claim-row" wx:for="{{detail.betSummary.claimEvents}}" wx:key="operationId"><text>{{item.nickname}} 收取奖池</text><text>+{{item.amount}}</text></view>
-      </view>
-      <view class="detail-spacer"></view>
-    </scroll-view>
-    <view class="detail-actions" wx:if="{{detail}}"><button class="detail-button secondary" open-type="share" hover-class="control-pressed"><text>分享</text></button><button class="detail-button primary" bindtap="savePoster" hover-class="control-pressed"><text>{{savingPoster ? '生成中…' : '保存海报'}}</text></button></view>
-  </view>
-  <canvas type="2d" id="historyPoster" class="history-poster"></canvas>
+  <history-detail
+    visible="{{showDetail}}"
+    loading="{{detailLoading}}"
+    theme="{{appearanceTheme}}"
+    detail="{{detail}}"
+    players="{{detailPlayers}}"
+    bind:close="closeDetail"
+  />
 </view>

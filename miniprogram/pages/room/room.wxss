@@ -2634,7 +2634,12 @@ page {
 
 .room-page .chat-section { background: var(--page-bg); }
 .room-page .record-filter-bar { margin: 0 20rpx; padding: 16rpx 0 12rpx; border-bottom: 0; background: transparent; }
-.room-page .record-filter-title { color: var(--text-primary); font-weight: 700; }
+.room-page .record-filter-title {
+  padding-left: 14rpx;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
 .room-page .record-filter { padding: 0; border-radius: 18rpx; background: transparent; }
 .room-page .record-filter-item { min-width: 86rpx; border-radius: 14rpx; color: var(--text-tertiary); }
 .room-page .record-filter-item.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 3rpx 10rpx var(--shadow); }
@@ -2789,33 +2794,75 @@ page {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  box-shadow: 0 6rpx 16rpx rgba(0,0,0,.07);
-  backdrop-filter: blur(18rpx);
-  -webkit-backdrop-filter: blur(18rpx);
+  background: #343936;
+  box-shadow: 0 6rpx 16rpx rgba(0,0,0,.12);
   transition-property: transform,opacity;
   transition-duration: var(--motion-base),var(--motion-fast);
   transition-timing-function: var(--motion-ease-out),ease;
 }
-.room-page .fab-sub-btn.settings { background: rgba(110,110,115,.14); transition-delay: 30ms; }
-.room-page .fab-sub-btn.settle { background: rgba(52,199,89,.14); transition-delay: 60ms; }
-.room-page .fab-sub-btn.dismiss { background: rgba(255,59,48,.13); transition-delay: 90ms; }
-.room-page .fab-sub-btn.exit { background: rgba(201,132,24,.14); transition-delay: 120ms; }
-.room-page .fab-sub-label { color: #636366; font-size: 21rpx; font-weight: 650; }
-.room-page .fab-sub-btn.settle .fab-sub-label { color: #2d8e4c; }
-.room-page .fab-sub-btn.dismiss .fab-sub-label { color: #bc4b44; }
-.room-page .fab-sub-btn.exit .fab-sub-label { color: #9b6b20; }
+.room-page .fab-sub-btn.settings { background: #343936; transition-delay: 30ms; }
+.room-page .fab-sub-btn.settle { background: #343936; transition-delay: 60ms; }
+.room-page .fab-sub-btn.dismiss { background: #343936; transition-delay: 90ms; }
+.room-page .fab-sub-btn.exit { background: #343936; transition-delay: 120ms; }
+.room-page .fab-sub-label,
+.room-page .fab-sub-btn.settle .fab-sub-label,
+.room-page .fab-sub-btn.dismiss .fab-sub-label,
+.room-page .fab-sub-btn.exit .fab-sub-label {
+  color: #fff;
+  font-size: 21rpx;
+  font-weight: 650;
+}
 .room-page .fab-sub-pressed { opacity: .7 !important; transform: scale(.95) !important; }
 .room-page .fab-sub-btn.disabled { opacity: .38; }
 .theme-dark .fab-main { background: rgba(242,245,243,.92); }
 .theme-dark .fab-main-icon { color: #171a18; }
-.theme-dark .fab-sub-btn.settings { background: rgba(174,174,178,.15); }
-.theme-dark .fab-sub-btn.settle { background: rgba(72,209,123,.16); }
-.theme-dark .fab-sub-btn.dismiss { background: rgba(255,105,97,.15); }
-.theme-dark .fab-sub-btn.exit { background: rgba(225,161,63,.16); }
-.theme-dark .fab-sub-label { color: #c1c5c2; }
-.theme-dark .fab-sub-btn.settle .fab-sub-label { color: #70d695; }
-.theme-dark .fab-sub-btn.dismiss .fab-sub-label { color: #ef8983; }
-.theme-dark .fab-sub-btn.exit .fab-sub-label { color: #ddb36d; }
+.theme-dark .fab-sub-btn.settings,
+.theme-dark .fab-sub-btn.settle,
+.theme-dark .fab-sub-btn.dismiss,
+.theme-dark .fab-sub-btn.exit { background: #343936; }
+.theme-dark .fab-sub-label,
+.theme-dark .fab-sub-btn.settle .fab-sub-label,
+.theme-dark .fab-sub-btn.dismiss .fab-sub-label,
+.theme-dark .fab-sub-btn.exit .fab-sub-label { color: #fff; }
+
+/* 动态字段防溢出：兼容历史脏数据、超长 ID 和安全整数上限。 */
+.room-page .capsule-card,
+.room-page .message-component,
+.room-page .bubble-time-container,
+.room-page .player-info,
+.room-page .info-row { min-width: 0; box-sizing: border-box; }
+.room-page .capsule-name,
+.room-page .capsule-label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .score-capsule { max-width: 100%; overflow: hidden; box-sizing: border-box; }
+.room-page .score-capsule-text { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .compact-number .score-capsule-text,
+.room-page .player-current-score.compact-number { font-size: 16rpx; letter-spacing: -1rpx; }
+.room-page .prize-amount-scroll { width: 100%; max-width: 100%; white-space: nowrap; }
+.room-page .prize-amount-scroll .prize-amount-number { display: inline-block; min-width: 100%; box-sizing: border-box; padding: 0 12rpx; text-align: center; white-space: nowrap; }
+.room-page .prize-receiver-tip { max-width: 88%; overflow: hidden; box-sizing: border-box; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .avatar-name-container { width: 92rpx; min-width: 0; }
+.room-page .message-username { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .bubble { min-width: 0; max-width: 100%; overflow: hidden; box-sizing: border-box; }
+.room-page .message-content { max-width: 100%; overflow-wrap: anywhere; word-break: break-all; }
+.room-page .info-row { gap: 20rpx; }
+.room-page .info-label { flex-shrink: 0; }
+.room-page .info-value { min-width: 0; flex: 1; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .transfer-player-row .player-name,
+.room-page .expense-item .player-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .expense-item .player-info { max-width: 52%; }
+.room-page .player-current-score { max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .expense-total { gap: 16rpx; min-width: 0; }
+.room-page .total-label { flex-shrink: 0; }
+.room-page .total-value { min-width: 0; overflow: hidden; font-size: 24rpx; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .confirm-text,
+.room-page .tip-text,
+.room-page .tip-content-text { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.room-page .room-info-card { min-width: 0; overflow: hidden; }
+.room-page .info-name,
+.room-page .info-id { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .reward-token { width: 82vw; max-width: 560rpx; box-sizing: border-box; }
+.room-page .reward-token__name { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-page .setting-input { min-width: 0; }
 
 /* 普通模式底部操作锚定在右侧栏底部，不受消息数量影响。 */
 .room-page .chat-section { position: relative; box-sizing: border-box; }

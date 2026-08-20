@@ -1,5 +1,6 @@
 const theme = require('../../utils/theme')
 const motion = require('../../utils/motion')
+const { limitDisplayText, safeInteger } = require('../../utils/display')
 
 Page({
   data: {
@@ -47,11 +48,13 @@ Page({
   },
 
   decorateItem(item, index = 0) {
-    const score = Number(item.myScore) || 0
+    const score = safeInteger(item.myScore)
     return {
       ...item,
+      roomName: limitDisplayText(item.roomName, 20, '牌局'),
       displayTime: this.formatTime(item.endTime),
       displayScore: score > 0 ? `+${score}` : `${score}`,
+      scoreCompact: `${score}`.length > 9,
       resultText: score > 0 ? '胜' : (score < 0 ? '负' : '平'),
       resultClass: score > 0 ? 'win' : (score < 0 ? 'lose' : 'draw'),
       modeText: item.mode === 'bet' ? '下注模式' : '普通模式',
@@ -99,14 +102,26 @@ Page({
       const avatarUrls = detail.avatarUrls || {}
       const players = (detail.players || []).map((player, index) => ({
         ...player,
+        nickname: limitDisplayText(player.nickname, 10, '玩家'),
+        score: safeInteger(player.score),
         avatarUrl: avatarUrls[player.avatarFileID] || '/images/avatar.png',
-        displayScore: player.score > 0 ? `+${player.score}` : `${player.score}`,
-        scoreClass: player.score > 0 ? 'positive' : (player.score < 0 ? 'negative' : 'zero'),
+        displayScore: safeInteger(player.score) > 0 ? `+${safeInteger(player.score)}` : `${safeInteger(player.score)}`,
+        scoreCompact: `${safeInteger(player.score)}`.length > 9,
+        scoreClass: safeInteger(player.score) > 0 ? 'positive' : (safeInteger(player.score) < 0 ? 'negative' : 'zero'),
         isMe: player.openid === wx.getStorageSync('openid'),
         motionDelay: motion.getStaggerDelay(index, 35, 210)
       })).sort((a, b) => b.score - a.score)
+      const me = players.find(player => player.isMe)
       this.setData({
-        detail: { ...detail, displayTime: this.formatTime(detail.endTime), modeText: detail.mode === 'bet' ? '下注模式' : '普通模式' },
+        detail: {
+          ...detail,
+          roomName: limitDisplayText(detail.roomName, 20, '牌局'),
+          displayTime: this.formatTime(detail.endTime),
+          modeText: detail.mode === 'bet' ? '下注模式' : '普通模式',
+          myResultText: me ? (me.score > 0 ? '本局获胜' : (me.score < 0 ? '本局负分' : '本局持平')) : '',
+          myDisplayScore: me ? me.displayScore : '',
+          myScoreClass: me ? me.scoreClass : 'zero'
+        },
         detailPlayers: players,
         detailLoading: false
       })
@@ -117,58 +132,6 @@ Page({
   },
 
   closeDetail() { this.setData({ showDetail: false, detail: null, detailPlayers: [] }) },
-
-  drawPoster() {
-    return new Promise((resolve, reject) => {
-      const query = wx.createSelectorQuery().in(this)
-      query.select('#historyPoster').fields({ node: true, size: true }).exec(result => {
-        const item = result && result[0]
-        if (!item || !item.node) return reject(new Error('海报画布初始化失败'))
-        const canvas = item.node
-        const ctx = canvas.getContext('2d')
-        const width = 750
-        const rowHeight = 76
-        const height = 410 + this.data.detailPlayers.length * rowHeight
-        const ratio = wx.getWindowInfo ? wx.getWindowInfo().pixelRatio : 2
-        canvas.width = width * ratio
-        canvas.height = height * ratio
-        ctx.scale(ratio, ratio)
-        ctx.fillStyle = '#F2F2F7'; ctx.fillRect(0, 0, width, height)
-        ctx.fillStyle = '#FFFFFF'
-        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(36, 36, width - 72, height - 72, 28); ctx.fill() }
-        else ctx.fillRect(36, 36, width - 72, height - 72)
-        ctx.fillStyle = '#1C1C1E'; ctx.font = '700 42px sans-serif'; ctx.fillText(this.data.detail.roomName || '牌局战绩', 72, 108)
-        ctx.fillStyle = '#8E8E93'; ctx.font = '24px sans-serif'; ctx.fillText(`${this.data.detail.modeText} · ${this.data.detail.displayTime}`, 72, 152)
-        ctx.fillStyle = '#28A860'; ctx.font = '700 25px sans-serif'; ctx.fillText('最终排名', 72, 220)
-        let y = 276
-        this.data.detailPlayers.forEach((player, index) => {
-          if (player.isMe) { ctx.fillStyle = '#EEF9F2'; ctx.fillRect(62, y - 42, width - 124, 62) }
-          ctx.fillStyle = '#8E8E93'; ctx.font = '24px sans-serif'; ctx.fillText(`${index + 1}`, 78, y)
-          ctx.fillStyle = '#1C1C1E'; ctx.font = `${player.isMe ? '700' : '500'} 27px sans-serif`; ctx.fillText(player.nickname, 130, y)
-          ctx.fillStyle = player.score > 0 ? '#248D52' : (player.score < 0 ? '#D64545' : '#8E8E93')
-          ctx.textAlign = 'right'; ctx.font = '700 28px sans-serif'; ctx.fillText(player.displayScore, width - 80, y); ctx.textAlign = 'left'
-          y += rowHeight
-        })
-        ctx.fillStyle = '#AEAEB2'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('牌局计分 · 输赢清清楚楚', width / 2, height - 62); ctx.textAlign = 'left'
-        resolve({ canvas, width, height })
-      })
-    })
-  },
-
-  savePoster() {
-    if (!this.data.detail || this.data.savingPoster) return
-    this.setData({ savingPoster: true })
-    this.drawPoster().then(({ canvas, width, height }) => new Promise((resolve, reject) => {
-      wx.canvasToTempFilePath({ canvas, x: 0, y: 0, width, height, destWidth: width * 2, destHeight: height * 2, fileType: 'png', success: res => resolve(res.tempFilePath), fail: reject })
-    })).then(filePath => new Promise((resolve, reject) => {
-      wx.saveImageToPhotosAlbum({ filePath, success: resolve, fail: reject })
-    })).then(() => wx.showToast({ title: '已保存到相册', icon: 'success' }))
-      .catch(err => {
-        const denied = String(err && err.errMsg).includes('auth deny')
-        if (denied) wx.showModal({ title: '需要相册权限', content: '请在设置中允许保存图片到相册。', confirmText: '去设置', success: res => { if (res.confirm) wx.openSetting() } })
-        else wx.showToast({ title: '保存失败，请重试', icon: 'none' })
-      }).finally(() => this.setData({ savingPoster: false }))
-  },
 
   onShareAppMessage() {
     const detail = this.data.detail

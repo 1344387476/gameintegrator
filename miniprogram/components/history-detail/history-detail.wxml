@@ -1,0 +1,73 @@
+<view class="history-detail theme-{{theme}}" wx:if="{{visible}}">
+  <view class="detail-mask" bindtap="handleClose"></view>
+  <view class="detail-sheet">
+    <view class="sheet-handle"></view>
+    <view class="detail-header">
+      <view class="detail-heading">
+        <text class="detail-title">{{detail ? detail.roomName : '战绩详情'}}</text>
+        <text class="detail-meta" wx:if="{{detail}}">{{detail.modeText}} · {{detail.displayTime}}</text>
+      </view>
+      <text class="detail-close" bindtap="handleClose">✕</text>
+    </view>
+
+    <view class="detail-state" wx:if="{{loading}}">
+      <view class="loading-spinner"></view>
+      <text>正在读取详情</text>
+    </view>
+
+    <scroll-view class="detail-scroll" scroll-y wx:elif="{{detail}}">
+      <view class="result-overview" wx:if="{{detail.myResultText}}">
+        <view>
+          <text class="overview-label">我的结果</text>
+          <text class="overview-result">{{detail.myResultText}}</text>
+        </view>
+        <text class="overview-score {{detail.myScoreClass}}">{{detail.myDisplayScore}}</text>
+      </view>
+
+      <view class="settlement-card">
+        <view class="settlement-header">
+          <text class="section-label">结算转账</text>
+          <text class="settlement-hint">按箭头完成线下转账</text>
+        </view>
+        <view class="settlement-empty" wx:if="{{!settlementPlan.hasTransfers && settlementPlan.isBalanced}}">本局积分持平，无需转账</view>
+        <view class="settlement-warning" wx:if="{{!settlementPlan.isBalanced}}">输赢合计相差 {{settlementPlan.difference}} 分，请检查积分</view>
+        <view class="settlement-list" wx:if="{{settlementPlan.hasTransfers}}">
+          <view class="settlement-flow" wx:for="{{settlementPlan.groups}}" wx:key="key" wx:for-item="group">
+            <view class="settlement-person payer">
+              <image class="settlement-avatar" src="{{group.payer.avatarUrl}}" mode="aspectFill"></image>
+              <text class="settlement-name">{{group.payer.nickname}}</text>
+            </view>
+            <view class="settlement-targets">
+              <view class="settlement-target" wx:for="{{group.transfers}}" wx:key="key" wx:for-item="transfer">
+                <view class="settlement-arrow"><text class="settlement-amount">{{transfer.amount}}</text><text>→</text></view>
+                <view class="settlement-person receiver">
+                  <image class="settlement-avatar" src="{{transfer.receiver.avatarUrl}}" mode="aspectFill"></image>
+                  <text class="settlement-name">{{transfer.receiver.nickname}}</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="ranking-card">
+        <text class="section-label">最终排名</text>
+        <view class="empty-ranking" wx:if="{{players.length === 0}}">暂无玩家数据</view>
+        <view class="player-row {{item.isMe ? 'is-me' : ''}}" wx:for="{{players}}" wx:key="openid">
+          <text class="rank-number">{{index + 1}}</text>
+          <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image>
+          <text class="player-name">{{item.nickname}}{{item.isMe ? '（我）' : ''}}</text>
+          <text class="player-score {{item.scoreClass}} {{item.scoreCompact ? 'compact-number' : ''}}">{{item.displayScore}}</text>
+        </view>
+      </view>
+
+      <view class="detail-spacer"></view>
+    </scroll-view>
+
+    <view class="detail-actions" wx:if="{{detail}}">
+      <button class="detail-button secondary" open-type="share" hover-class="button-pressed">分享</button>
+      <button class="detail-button primary {{saving ? 'disabled' : ''}}" bindtap="savePoster" loading="{{saving}}" disabled="{{saving}}" hover-class="button-pressed">{{saving ? '生成中…' : '保存到相册'}}</button>
+    </view>
+  </view>
+  <canvas type="2d" id="historyPoster" class="history-poster"></canvas>
+</view>

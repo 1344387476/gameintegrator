@@ -47,3 +47,12 @@
 .detail-actions { border-top-color: var(--separator); background: var(--glass); }
 .detail-button { border: 0; box-shadow: none; }
 .detail-button.secondary { background: var(--surface-secondary); }
+
+/* 历史数据可能来自旧版本，所有动态字段都必须能在窄屏安全收缩。 */
+.history-card__top,.history-card__bottom,.history-card__meta { min-width: 0; }
+.history-card__name { min-width: 0; flex: 1; margin-right: 16rpx; }
+.result-pill,.history-arrow,.history-card__label { flex-shrink: 0; }
+.history-card__meta { flex-wrap: wrap; overflow-wrap: anywhere; }
+.history-score { min-width: 0; max-width: 58%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-score.compact-number { font-size: 23rpx; letter-spacing: -1rpx; }
+.state-card { padding: 28rpx; box-sizing: border-box; text-align: center; overflow-wrap: anywhere; }

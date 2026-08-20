@@ -63,7 +63,7 @@
           </view>
         </block>
         <block wx:else>
-          <view class="weui-btn weui-btn_primary" hover-class="button-pressed" bindtap="openCreateRoomModal">
+          <view class="weui-btn weui-btn_primary" hover-class="button-pressed" bindtap="openCreateRoomModal" style="position: relative; left: 0rpx; top: 23rpx">
             <text class="button-label">创建新房间</text>
           </view>
           <view class="weui-btn weui-btn_default" hover-class="button-pressed" bindtap="joinRoom">
