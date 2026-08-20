@@ -73,3 +73,13 @@ test('八人结算最多生成七笔转账且金额守恒', () => {
   assert.ok(transfers.length <= 7)
   assert.equal(transfers.reduce((sum, item) => sum + item.amount, 0), 10)
 })
+
+test('全员零积分时返回明确的无需转账状态', () => {
+  const plan = buildSettlementPlan([
+    { openid: 'a', name: 'A', score: 0 },
+    { openid: 'b', name: 'B', score: 0 }
+  ])
+  assert.equal(plan.isBalanced, true)
+  assert.equal(plan.hasTransfers, false)
+  assert.deepEqual(plan.groups, [])
+})

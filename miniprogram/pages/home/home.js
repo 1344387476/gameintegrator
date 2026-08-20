@@ -7,6 +7,7 @@
 const app = getApp();
 const theme = require('../../utils/theme');
 const motion = require('../../utils/motion');
+const { parseScannedRoomId } = require('../../utils/room-entry');
 
 Page({
   /**
@@ -625,18 +626,7 @@ Page({
       success: (res) => {
         console.log('扫码结果:', res.result);
         console.log('扫码结果:', res);
-        let roomId = '';
-        if (res.path.includes('roomId=')) {
-          const match = res.path.match(/roomId=([^&]+)/);
-          if (match && match[1]) {
-            roomId = match[1];
-          }
-        } else if (res.path.includes('room/')) {
-          const parts = res.path.split('/');
-          roomId = parts[parts.length - 1];
-        } else {
-          roomId = res.path;
-        }
+        const roomId = parseScannedRoomId(res);
 
         if (roomId) {
           // 扫码成功，显示 loading

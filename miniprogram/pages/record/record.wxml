@@ -2,7 +2,7 @@
   <view class="record-intro">
     <text class="record-kicker">GAME HISTORY</text>
     <text class="record-title">每一局，都有迹可循</text>
-    <text class="record-subtitle">仅展示新版结算后你参与的牌局</text>
+    <text class="record-subtitle">仅展示结算后你参与的对局</text>
   </view>
 
   <view class="state-card" wx:if="{{loading}}"><view class="weui-loading"></view><text>正在加载战绩</text></view>

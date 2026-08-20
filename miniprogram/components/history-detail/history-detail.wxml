@@ -27,11 +27,10 @@
       <view class="settlement-card">
         <view class="settlement-header">
           <text class="section-label">结算转账</text>
-          <text class="settlement-hint">按箭头完成线下转账</text>
         </view>
-        <view class="settlement-empty" wx:if="{{!settlementPlan.hasTransfers && settlementPlan.isBalanced}}">本局积分持平，无需转账</view>
+        <view class="settlement-empty" wx:if="{{settlementEmpty}}">本局积分均为 0，无需转账</view>
         <view class="settlement-warning" wx:if="{{!settlementPlan.isBalanced}}">输赢合计相差 {{settlementPlan.difference}} 分，请检查积分</view>
-        <view class="settlement-list" wx:if="{{settlementPlan.hasTransfers}}">
+        <view class="settlement-list" wx:if="{{!settlementEmpty && settlementPlan.groups.length > 0}}">
           <view class="settlement-flow" wx:for="{{settlementPlan.groups}}" wx:key="key" wx:for-item="group">
             <view class="settlement-person payer">
               <image class="settlement-avatar" src="{{group.payer.avatarUrl}}" mode="aspectFill"></image>

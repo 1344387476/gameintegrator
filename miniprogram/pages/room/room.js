@@ -341,7 +341,11 @@ showTransferModal: false, // 转账弹窗
     theme.applyNativeChrome('room', appearanceTheme);
     // watcher 正常时无需刷新；从后台恢复且超过 30 秒未收到快照时再定向同步。
     const lastSync = Math.max(this._lastRoomSnapshotAt || 0, this._lastMessageSnapshotAt || 0);
-    if (this.data.roomId && this.data.room._id && Date.now() - lastSync > 30000) this.refreshAllData();
+    if (this.data.roomId && this.data.room._id) {
+      // 从后台恢复时立即确认房间是否已被解散或结算，避免依赖旧的监听时间戳。
+      this.checkRoomStatusOnce(this.data.roomId);
+      if (Date.now() - lastSync > 30000) this.refreshAllData();
+    }
   },
 
   /**
@@ -379,7 +383,10 @@ showTransferModal: false, // 转账弹窗
       const watcher = wx.cloud.database().collection('rooms').doc(roomId).watch({
         onChange: (snapshot) => {
           const docs = snapshot.docs || [];
-          if (docs.length === 0 && !this._isDismissing) {
+          const wasRemoved = (snapshot.docChanges || []).some(change =>
+            change && (change.dataType === 'remove' || change.queueType === 'dequeue')
+          );
+          if ((docs.length === 0 || wasRemoved) && !this._isDismissing) {
             this.handleRoomDismissed();
           } else if (docs[0]) {
             this.applyRoomSnapshot(docs[0]);
@@ -387,6 +394,7 @@ showTransferModal: false, // 转账弹窗
         },
         onError: (err) => {
           console.error('房间状态监听失败，切换为轮询:', err);
+          this.checkRoomStatusOnce(roomId);
           this.startRoomStatusPolling(roomId);
         }
       });
@@ -398,20 +406,98 @@ showTransferModal: false, // 转账弹窗
   },
 
   startRoomStatusPolling(roomId) {
-    if (this.data.roomStatusPollingTimer) return;
-
-    const timer = setInterval(() => {
+    const poll = () => {
       wx.cloud.database().collection('rooms').doc(roomId).get({
         success: (res) => { if (res.data) this.applyRoomSnapshot(res.data); },
         fail: (err) => {
-          const message = (err && err.errMsg) || '';
-          if (err.errCode === -502001 || message.includes('not exist') || message.includes('不存在')) {
-            this.handleRoomDismissed();
-          }
+          if (this.isRoomMissingError(err)) this.handleRoomDismissed();
         }
       });
-    }, 3000);
+    };
+    poll();
+    if (this.data.roomStatusPollingTimer) return;
+
+    const timer = setInterval(poll, 3000);
     this.setData({ roomStatusPollingTimer: timer });
+  },
+
+  isRoomMissingError(err) {
+    const message = String((err && (err.errMsg || err.message)) || '');
+    return Boolean(err && err.errCode === -502001) || /not\s*exist|不存在|已删除/i.test(message);
+  },
+
+  checkRoomStatusOnce(roomId) {
+    if (!roomId || this._roomDismissHandled) return;
+    wx.cloud.database().collection('rooms').doc(roomId).get({
+      success: (res) => {
+        if (res && res.data) this.applyRoomSnapshot(res.data);
+        else this.handleRoomDismissed();
+      },
+      fail: (err) => {
+        if (this.isRoomMissingError(err)) this.handleRoomDismissed();
+        else console.error('核验房间状态失败:', err);
+      }
+    });
+  },
+
+  closeRoomOperationOverlays() {
+    this.setData({
+      fabExpanded: false,
+      showTransferPicker: false,
+      showTransferModal: false,
+      showExpenseModal: false,
+      showPrizeModal: false,
+      showReceiveModal: false,
+      showSettingsModal: false,
+      showEditProfileModal: false,
+      showExitConfirm: false,
+      showSettleConfirm: false,
+      showDismissConfirm: false,
+      transferSubmitting: false,
+      gameOperationSubmitting: false,
+      settingsSubmitting: false,
+      settleSubmitting: false,
+      dismissSubmitting: false,
+      exitSubmitting: false,
+      isSavingProfile: false
+    });
+  },
+
+  handleRoomSettled() {
+    if (this._roomSettledHandled) return;
+    this._roomSettledHandled = true;
+    const settlementInitiatedByMe = this.data.isCreator || this.data.settleSubmitting;
+    this.closeRoomOperationOverlays();
+    wx.removeStorageSync('currentRoomId');
+    getApp().globalData.currentRoomId = null;
+
+    // 房主已有结算确认流程；其他玩家需要先明确获知房间已停止操作。
+    if (settlementInitiatedByMe) {
+      this.showResultModal();
+      return;
+    }
+
+    wx.hideLoading();
+    wx.showModal({
+      title: '本局已结算',
+      content: '房主已完成结算，本局不能再进行转账或下注。点击下方按钮查看战绩。',
+      showCancel: false,
+      confirmText: '查看战绩',
+      complete: () => this.showResultModal()
+    });
+  },
+
+  handleRoomOperationFailure(message) {
+    const text = String(message || '');
+    if (this.isRoomMissingError({ message: text }) || /房间.*(?:不存在|已删除)/.test(text)) {
+      this.handleRoomDismissed();
+      return true;
+    }
+    if (/房间已结束|本局已经结算|不能继续操作/.test(text)) {
+      this.checkRoomStatusOnce(this.data.roomId);
+      return true;
+    }
+    return false;
   },
 
   handleRoomDismissed() {
@@ -423,10 +509,8 @@ showTransferModal: false, // 转账弹窗
     if (this.data.pollingTimer) clearInterval(this.data.pollingTimer);
     if (this.data.roomStatusPollingTimer) clearInterval(this.data.roomStatusPollingTimer);
 
-    this.setData({
-      fabExpanded: false,
-      'room.status': 'ended'
-    });
+    this.closeRoomOperationOverlays();
+    this.setData({ 'room.status': 'ended' });
     wx.removeStorageSync('currentRoomId');
     getApp().globalData.currentRoomId = null;
 
@@ -1124,7 +1208,7 @@ loadRoom(roomId) {
       isCreator: processedRoom.isCreator
     });
     this.checkAndRefreshAvatars(room, mergedMembers);
-    if (oldStatus === 'playing' && processedRoom.status === 'ended') this.showResultModal();
+    if (oldStatus === 'playing' && processedRoom.status === 'ended') this.handleRoomSettled();
   },
 
   scheduleRealtimeFallback() {
@@ -1231,7 +1315,7 @@ loadRoom(roomId) {
 
       // 如果房间刚结算，显示结算弹窗
       if (shouldShowResult) {
-        this.showResultModal();
+        this.handleRoomSettled();
       }
       
       } catch (err) {
@@ -1541,6 +1625,7 @@ loadRoom(roomId) {
             icon: 'success'
           });
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '保存失败',
             icon: 'none'
@@ -1598,10 +1683,6 @@ confirmTransfer() {
       this.showTip('接收玩家不可用，请重新选择');
       return;
     }
-    if ([...nickname].length > 10) {
-      wx.showToast({ title: '昵称最多10个字符', icon: 'none' });
-      return;
-    }
 
     this.setData({ transferSubmitting: true });
 
@@ -1624,6 +1705,7 @@ success: (res) => {
           this.setData({ showTransferModal: false });
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '转账失败',
             icon: 'none'
@@ -1726,6 +1808,7 @@ success: (res) => {
           
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '转入失败',
             icon: 'none'
@@ -2030,6 +2113,7 @@ success: (res) => {
           // 动画由带 operationId 的实时 claim 消息统一触发，避免重复播放。
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '收取失败',
             icon: 'none'
@@ -2144,7 +2228,7 @@ success: (res) => {
 
         // 验证是否为正整数
         if (!this.validatePositiveInteger(amount)) {
-          this.showTip(`请输入正整数积分（玩家：${receiver.name}）`);
+          this.showTip(`请输入积分（玩家：${receiver.name}）`);
           return;
         }
 
@@ -2191,6 +2275,7 @@ success: (res) => {
           this.setData({ showExpenseModal: false });
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '支出失败',
             icon: 'none'
@@ -3231,6 +3316,7 @@ success: (res) => {
           
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '跟注失败',
             icon: 'none'
@@ -3276,6 +3362,7 @@ success: (res) => {
         if (res.result.success) {
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || '操作失败',
             icon: 'none'
@@ -3357,6 +3444,7 @@ success: (res) => {
           
           this.scheduleRealtimeFallback();
         } else {
+          if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
             title: res.result.msg || 'All-in失败',
             icon: 'none'
@@ -3642,6 +3730,7 @@ success: (res) => {
             });
             this.showTip('All In 值已保存');
           } else {
+            if (this.handleRoomOperationFailure(res.result.msg)) return;
             this.showTip(res.result.msg || '保存失败');
             return;
           }

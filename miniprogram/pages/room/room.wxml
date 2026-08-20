@@ -262,7 +262,7 @@
       </view>
     </view>
     <view class="input-section">
-      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" maxlength="16" placeholder="请输入积分（正整数）" value="{{transferAmount}}" bindinput="onTransferAmountInput" />
+      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" maxlength="16" placeholder="请输入积分" value="{{transferAmount}}" bindinput="onTransferAmountInput" />
       <text class="error-tip" wx:if="{{showInputError}}">仅支持正整数积分</text>
     </view>
     <view class="modal-actions">
@@ -286,7 +286,7 @@
       <text class="info-value">{{currentUser}}</text>
     </view>
     <view class="input-section">
-      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" maxlength="16" placeholder="请输入积分（正整数）" value="{{prizeAmount}}" bindinput="onPrizeAmountInput" />
+      <input class="score-input {{showInputError ? 'error' : ''}}" type="digit" maxlength="16" placeholder="请输入积分" value="{{prizeAmount}}" bindinput="onPrizeAmountInput" />
       <text class="error-tip" wx:if="{{showInputError}}">仅支持正整数积分</text>
     </view>
     <view class="modal-actions">

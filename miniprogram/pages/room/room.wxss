@@ -2911,6 +2911,7 @@ page {
 .room-page .edit-profile-close { display: flex; width: 52rpx; height: 52rpx; align-items: center; justify-content: center; padding: 0; border-radius: 50%; background: var(--surface-secondary); color: var(--text-tertiary); font-size: 23rpx; line-height: 1; }
 .room-page .modal-body { padding: 26rpx 28rpx 30rpx; }
 .room-page .confirm-modal .modal-body { padding: 30rpx 28rpx 26rpx; }
+.room-page .confirm-text { border: 1rpx solid var(--separator); background: var(--surface-raised); color: var(--text-primary); }
 .room-page .transfer-info,
 .room-page .prize-input-info,
 .room-page .expense-info,
@@ -2938,3 +2939,13 @@ page {
 .room-page .all-in-tip { border: 1rpx solid var(--separator); border-radius: 999rpx; background: var(--glass); color: var(--text-primary); box-shadow: 0 10rpx 30rpx rgba(0,0,0,.12); backdrop-filter: blur(24rpx); -webkit-backdrop-filter: blur(24rpx); }
 .room-page .tip-content-text,
 .room-page .tip-modal text { color: var(--text-primary); text-shadow: none; }
+
+/* 深色主题显式覆盖旧版白色弹窗规则，避免白字落在浅色标题背景上。 */
+.room-page.theme-dark .modal-header,
+.room-page.theme-dark .qrcode-header,
+.room-page.theme-dark .edit-profile-header { border-color: var(--separator); background: #202421; }
+.room-page.theme-dark .modal-title,
+.room-page.theme-dark .qrcode-title,
+.room-page.theme-dark .edit-profile-title,
+.room-page.theme-dark .setting-label { color: #f4f5f4; }
+.room-page.theme-dark .confirm-text { border-color: var(--separator); background: #252a27; color: #f4f5f4; }

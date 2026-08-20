@@ -15,6 +15,7 @@ Component({
 
   data: {
     saving: false,
+    settlementEmpty: true,
     settlementPlan: {
       groups: [],
       isBalanced: true,
@@ -24,8 +25,22 @@ Component({
   },
 
   observers: {
-    players(players) {
-      this.setData({ settlementPlan: buildSettlementPlan(players || []) })
+    'players.**': function(players) {
+      const settlementPlan = buildSettlementPlan(players || [])
+      this.setData({
+        settlementPlan,
+        settlementEmpty: settlementPlan.isBalanced && !settlementPlan.hasTransfers
+      })
+    }
+  },
+
+  lifetimes: {
+    attached() {
+      const settlementPlan = buildSettlementPlan(this.data.players || [])
+      this.setData({
+        settlementPlan,
+        settlementEmpty: settlementPlan.isBalanced && !settlementPlan.hasTransfers
+      })
     }
   },
 

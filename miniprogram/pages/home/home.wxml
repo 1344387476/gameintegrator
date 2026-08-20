@@ -76,8 +76,9 @@
     <!-- 下部分：底部文字（占2/5） -->
     <view class="bottom-section">
       <view class="footer">
-        <text class="footer-text">所有积分以房间内的实时记录为准</text>
+        <text class="footer-text">计分工具，仅供娱乐</text>
       </view>
+      <text class="footer-text">For entertainment only</text>
     </view>
 
   </view>
