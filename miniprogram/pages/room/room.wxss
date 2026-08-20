@@ -2640,6 +2640,15 @@ page {
   font-weight: 700;
 }
 
+.share-card-canvas {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  width: 500px;
+  height: 400px;
+  pointer-events: none;
+}
+
 .room-page .record-filter { padding: 0; border-radius: 18rpx; background: transparent; }
 .room-page .record-filter-item { min-width: 86rpx; border-radius: 14rpx; color: var(--text-tertiary); }
 .room-page .record-filter-item.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 3rpx 10rpx var(--shadow); }

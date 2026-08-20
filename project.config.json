@@ -1,5 +1,5 @@
 {
-  "description": "打牌记账小程序",
+  "description": "计分小程序",
   "miniprogramRoot": "miniprogram/",
   "cloudfunctionRoot": "cloudfunctions/",
   "setting": {

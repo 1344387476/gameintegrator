@@ -4,7 +4,7 @@ const db = cloud.database()
 const _ = db.command
 const { historyPlayer, normalizeDisplayText, normalizeIdentifier, assertSettleAllowed } = require('./historyUtils')
 //体验trial  //开发板develop
-const qrVersion = 'trial'
+const qrVersion = 'release'
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext()

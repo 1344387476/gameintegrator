@@ -121,7 +121,7 @@
             data-mode="bet"
             hover-class="card-pressed"
           >
-            <view class="mode-copy"><text class="mode-text">下注模式</text><text class="mode-description">下注、跟注与奖池</text></view>
+            <view class="mode-copy"><text class="mode-text">奖池模式</text><text class="mode-description">投入、跟随与奖池</text></view>
             <view class="mode-check" wx:if="{{gameMode === 'bet'}}">✓</view>
           </view>
         </view>

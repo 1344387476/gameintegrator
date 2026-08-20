@@ -1,5 +1,5 @@
 /**
- * 房间页面 - 打牌记账小程序
+ * 房间页面 - 计分小程序
  * 功能：玩家管理、积分转账、奖池操作、游戏结算、战绩生成
  * 支持两种模式：普通模式（玩家间转账）、下注模式（奖池机制）
  * 作者：Craft
@@ -127,6 +127,7 @@ showTransferModal: false, // 转账弹窗
     qrCodeError: false,
     isGeneratingQR: false,
     showQrcode: false,
+    shareImageUrl: '',
     // 悬浮按钮相关数据
     fabExpanded: false, // 是否展开
     fabOnLeft: true, // 位于屏幕左侧时，子菜单向右展开
@@ -185,6 +186,10 @@ showTransferModal: false, // 转账弹窗
       this.initRoomWatch(roomId);
       this.initMessagesWatch(roomId);
     });
+  },
+
+  onReady() {
+    this.generateShareImage();
   },
 
   /**
@@ -480,7 +485,7 @@ showTransferModal: false, // 转账弹窗
     wx.hideLoading();
     wx.showModal({
       title: '本局已结算',
-      content: '房主已完成结算，本局不能再进行转账或下注。点击下方按钮查看战绩。',
+      content: '房主已完成结算，本局不能再进行转分或投入。点击下方按钮查看战绩。',
       showCancel: false,
       confirmText: '查看战绩',
       complete: () => this.showResultModal()
@@ -1043,7 +1048,7 @@ loadRoom(roomId) {
       lastDepositOperator,
       canFollow,
       isCreator
-    });
+    }, () => this.generateShareImage());
     this._lastRoomSnapshotAt = Date.now();
   },
 
@@ -1707,15 +1712,15 @@ success: (res) => {
         } else {
           if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
-            title: res.result.msg || '转账失败',
+            title: res.result.msg || '转分失败',
             icon: 'none'
           });
         }
       },
       fail: (err) => {
-        console.error('转账失败:', err);
+        console.error('转分失败:', err);
         wx.showToast({
-          title: '转账失败，请重试',
+          title: '转分失败，请重试',
           icon: 'none'
         });
       },
@@ -3905,12 +3910,101 @@ success: (res) => {
       };
     }
     return {
-      title: `邀请你加入打牌记账房间：${this.data.room.roomName}`,
+      title: `邀请你加入计分：${this.data.room.roomName}`,
       // 修改为跳转到home页面，携带roomId参数
       // app.js会拦截并处理，让home页面执行完整的加入房间流程
       path: `/pages/home/home?roomId=${this.data.roomId}&from=share`,
-      imageUrl: '/images/share-default.jpg'
+      ...(this.data.shareImageUrl ? { imageUrl: this.data.shareImageUrl } : {})
     };
+  },
+
+  /**
+   * 使用 Canvas 生成分享卡片封面，避免依赖静态分享图片。
+   * onShareAppMessage 必须同步返回，因此在房间数据加载后提前生成临时文件。
+   */
+  generateShareImage() {
+    const roomName = limitDisplayText(this.data.room.roomName, 16, '牌局');
+    const roomId = this.data.roomId || this.data.room._id || '';
+    if (!roomId || !roomName) return;
+
+    const signature = `${roomId}|${roomName}|${this.data.room.gameMode}`;
+    if (this._shareImageSignature === signature || this._shareImageGenerating === signature) return;
+    this._shareImageGenerating = signature;
+
+    wx.nextTick(() => {
+      this.createSelectorQuery().select('#shareCardCanvas').fields({ node: true, size: true }).exec(result => {
+        const canvas = result && result[0] && result[0].node;
+        if (!canvas) {
+          this._shareImageGenerating = '';
+          return;
+        }
+
+        const width = 500;
+        const height = 400;
+        const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 1, 3);
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#173C2B');
+        gradient.addColorStop(1, '#248D52');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(438, 62, 116, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(55, 382, 142, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = '#DDF2E5';
+        ctx.font = '600 18px sans-serif';
+        ctx.fillText('牌局记分', 42, 58);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '700 42px sans-serif';
+        ctx.fillText(roomName, 42, 137, 416);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.78)';
+        ctx.font = '22px sans-serif';
+        ctx.fillText(this.data.room.gameMode === 'bet' ? '奖池计分模式' : '普通计分模式', 42, 187);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.14)';
+        ctx.fillRect(42, 231, 416, 102);
+        ctx.fillStyle = '#DDF2E5';
+        ctx.font = '16px sans-serif';
+        ctx.fillText('房间号', 64, 265);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '700 34px monospace';
+        ctx.fillText(roomId, 64, 309);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('点击卡片加入房间', 458, 371);
+        ctx.textAlign = 'left';
+
+        wx.canvasToTempFilePath({
+          canvas,
+          fileType: 'png',
+          destWidth: width * dpr,
+          destHeight: height * dpr,
+          success: res => {
+            if (this._shareImageGenerating !== signature) return;
+            this._shareImageSignature = signature;
+            this._shareImageGenerating = '';
+            this.setData({ shareImageUrl: res.tempFilePath });
+          },
+          fail: () => { this._shareImageGenerating = ''; }
+        });
+      });
+    });
   },
 
   // ==================== 动画系统 ====================

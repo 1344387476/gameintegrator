@@ -68,23 +68,23 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
   }
 
   if (action === 'TRANSFER') {
-    assert(room.mode === 'normal', '普通转账只能在普通模式使用')
+    assert(room.mode === 'normal', '普通转分只能在普通模式使用')
     const amount = assertPositiveInteger(payload.amount)
     assert(typeof payload.toOpenid === 'string' && payload.toOpenid, '请选择接收玩家')
-    assert(payload.toOpenid !== openid, '不能给自己转账')
+    assert(payload.toOpenid !== openid, '不能给自己转分')
     const receiver = findActivePlayer(payload.toOpenid)
     sender.score = safeAdd(getScore(sender), -amount)
     receiver.score = safeAdd(getScore(receiver), amount)
     messages.push(buildMessage({ sender, content: `转给 ${receiver.nickname || '玩家'} ${amount} 分`, messageType: 'transfer', toPlayer: receiver, operationId, amount }))
   } else if (action === 'BATCH_TRANSFER') {
-    assert(room.mode === 'normal', '批量转账只能在普通模式使用')
+    assert(room.mode === 'normal', '批量转分只能在普通模式使用')
     assert(Array.isArray(payload.transferList) && payload.transferList.length > 0, '请至少选择一位接收玩家')
     assert(payload.transferList.length <= 7, '接收玩家数量过多')
     const recipientIds = new Set()
     let totalAmount = 0
     for (const item of payload.transferList) {
       assert(item && typeof item.openid === 'string' && item.openid, '接收玩家无效')
-      assert(item.openid !== openid, '不能给自己转账')
+      assert(item.openid !== openid, '不能给自己转分')
       assert(!recipientIds.has(item.openid), '接收玩家不能重复')
       recipientIds.add(item.openid)
       const amount = assertPositiveInteger(item.amount)

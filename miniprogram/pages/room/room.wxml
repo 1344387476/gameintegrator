@@ -247,7 +247,7 @@
 <view class="modal-mask {{showTransferModal ? 'show' : ''}}" wx:if="{{showTransferModal}}" bindtap="closeTransferModal"></view>
 <view class="transfer-modal {{showTransferModal ? 'show' : ''}}" wx:if="{{showTransferModal}}">
   <view class="modal-header">
-    <text class="modal-title">转账</text>
+    <text class="modal-title">转分</text>
     <text class="modal-close" bindtap="closeTransferModal">✕</text>
   </view>
   <view class="modal-body">
@@ -268,7 +268,7 @@
     <view class="modal-actions">
 <view class="action-btn cancel {{transferSubmitting ? 'disabled' : ''}}" bindtap="{{transferSubmitting ? '' : 'closeTransferModal'}}">取消</view>
       <view class="action-btn confirm {{transferSubmitting ? 'disabled' : ''}}" bindtap="{{transferSubmitting ? '' : 'confirmTransfer'}}">
-        {{transferSubmitting ? '转账中...' : '确认转账'}}
+        {{transferSubmitting ? '中...' : '确认转入'}}
       </view>
     </view>
   </view>
@@ -486,3 +486,6 @@
   </view>
 </view>
 </view><!-- /room-page -->
+
+<!-- 分享回调必须同步返回图片，因此在房间载入后用屏幕外 Canvas 预生成封面。 -->
+<canvas type="2d" id="shareCardCanvas" class="share-card-canvas"></canvas>
