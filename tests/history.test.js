@@ -1,6 +1,14 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { historyPlayer, normalizeDisplayText, normalizeIdentifier, assertSettleAllowed } = require('../cloudfunctions/roomFunctions/historyUtils')
+const {
+  historyPlayer,
+  normalizeDisplayText,
+  normalizeIdentifier,
+  assertSettleAllowed,
+  buildSettledRoomState,
+  assertQRCodeAllowed,
+  buildLeaveState
+} = require('../cloudfunctions/roomFunctions/historyUtils')
 const { buildSettlementPlan } = require('../miniprogram/utils/settlement')
 const { limitDisplayText, safeInteger } = require('../miniprogram/utils/display')
 
@@ -27,6 +35,68 @@ test('云端拒绝对已结算房间再次生成战绩', () => {
     () => assertSettleAllowed({ owner: 'u1', status: 'settled', mode: 'normal', pot: 0 }, 'u1'),
     /已经结算/
   )
+})
+
+test('结算状态会清空二维码引用并返回待删除的云文件 ID', () => {
+  const state = buildSettledRoomState({ qrCode: 'cloud://env/room-qrcodes/ABC123.png' })
+
+  assert.deepEqual(state.roomUpdate, { status: 'settled', qrCode: null })
+  assert.equal(state.qrCodeFileID, 'cloud://env/room-qrcodes/ABC123.png')
+})
+
+test('只有活跃房间中的在线成员可以按需生成二维码', () => {
+  const activeRoom = { status: 'active', players: [{ openid: 'u1', isExited: false }] }
+
+  assert.doesNotThrow(() => assertQRCodeAllowed(activeRoom, 'u1'))
+  assert.throws(() => assertQRCodeAllowed(activeRoom, 'u2'), /不在该房间/)
+  assert.throws(() => assertQRCodeAllowed({ ...activeRoom, status: 'settled' }, 'u1'), /已经结束/)
+})
+
+test('玩家退出后保留积分账本并标记离线', () => {
+  const room = {
+    owner: 'u1',
+    status: 'active',
+    players: [
+      { openid: 'u1', nickname: 'A', score: 12, isExited: false },
+      { openid: 'u2', nickname: 'B', score: -12, isExited: false }
+    ]
+  }
+  const result = buildLeaveState(room, 'u2')
+  assert.equal(result.roomDeleted, false)
+  assert.equal(result.owner, 'u1')
+  assert.deepEqual(result.players.map(player => ({ openid: player.openid, score: player.score, isExited: player.isExited })), [
+    { openid: 'u1', score: 12, isExited: false },
+    { openid: 'u2', score: -12, isExited: true }
+  ])
+  assert.deepEqual(result.players.map(historyPlayer).map(player => player.score), [12, -12])
+})
+
+test('房主退出后转交给首位在线玩家，离线玩家仍留在房间', () => {
+  const result = buildLeaveState({
+    owner: 'owner',
+    status: 'active',
+    players: [
+      { openid: 'owner', score: 5, isExited: false },
+      { openid: 'old', score: -2, isExited: true },
+      { openid: 'next', score: -3, isExited: false }
+    ]
+  }, 'owner')
+  assert.equal(result.roomDeleted, false)
+  assert.equal(result.owner, 'next')
+  assert.equal(result.players.length, 3)
+  assert.equal(result.players[0].isExited, true)
+})
+
+test('最后一位在线玩家退出时房间按原规则销毁', () => {
+  const result = buildLeaveState({
+    owner: 'u1',
+    status: 'active',
+    players: [
+      { openid: 'u1', score: 3, isExited: false },
+      { openid: 'u2', score: -3, isExited: true }
+    ]
+  }, 'u1')
+  assert.equal(result.roomDeleted, true)
 })
 
 test('结算方案优先匹配同额输赢并按小额收款人排列', () => {

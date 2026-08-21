@@ -55,7 +55,7 @@
         <view class="player-row {{item.isMe ? 'is-me' : ''}}" wx:for="{{players}}" wx:key="openid">
           <text class="rank-number">{{index + 1}}</text>
           <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill"></image>
-          <text class="player-name">{{item.nickname}}{{item.isMe ? '（我）' : ''}}</text>
+          <text class="player-name">{{item.nickname}}{{item.isMe ? '（我）' : ''}}{{item.isExited ? ' · 已退出' : ''}}</text>
           <text class="player-score {{item.scoreClass}} {{item.scoreCompact ? 'compact-number' : ''}}">{{item.displayScore}}</text>
         </view>
       </view>

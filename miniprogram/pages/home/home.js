@@ -129,6 +129,12 @@ Page({
       currentRoomId,
       hasActiveRoom: false
     });
+    this._lastSavedProfile = {
+      nickname: this.normalizeNickname(userInfo.nickname || ''),
+      avatarFileID: userInfo.avatarFileID || '',
+      syncedRoomId: currentRoomId
+    };
+    this._profileDraftVersion = 0;
 
     // 外部扫码/分享进入的待加入房间优先于旧房间返回入口。
     if (app.globalData.pendingRoomId) {
@@ -161,6 +167,13 @@ Page({
     }
   },
 
+  onHide() {
+    if (!this._lastSavedProfile) return;
+    this.ensureProfileSaved().then((success) => {
+      if (!success) wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
+    });
+  },
+
   /**
    * 自动加入房间（从外部进入的场景）
    * @param {string} roomId - 房间ID
@@ -191,11 +204,11 @@ Page({
     // 显示加载状态
     this.setData({ isCreatingOrJoining: true });
 
-    // 上传用户信息后执行加入房间
-    this.uploadUserInfo((uploadSuccess) => {
+    // 保存屏障完成后再加入，确保房间快照使用最新资料。
+    this.ensureProfileSaved().then((uploadSuccess) => {
       if (!uploadSuccess) {
         this.setData({ isCreatingOrJoining: false });
-        wx.showToast({ title: '保存用户信息失败', icon: 'none' });
+        wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
         // 失败时不清除pendingRoomId，允许用户重试
         return;
       }
@@ -258,7 +271,13 @@ Page({
     if (!roomId) return;
 
     this.setData({ isCreatingOrJoining: true });
-    wx.cloud.callFunction({
+    this.ensureProfileSaved().then((profileSaved) => {
+      if (!profileSaved) {
+        this.setData({ isCreatingOrJoining: false });
+        wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
+        return;
+      }
+      wx.cloud.callFunction({
       name: 'roomFunctions',
       data: { action: 'checkUserStatus' },
       success: (res) => {
@@ -282,6 +301,7 @@ Page({
         this.setData({ isCreatingOrJoining: false });
         wx.showToast({ title: '房间状态检查失败，请重试', icon: 'none' });
       }
+      });
     });
   },
 
@@ -298,10 +318,17 @@ Page({
     
     // 立即上传到云存储获取fileID
     // 因为home页面使用avatarFileID显示头像（永不过期）
-    wx.cloud.uploadFile({
-      cloudPath: 'avatars/' + Date.now() + '.jpg',
-      filePath: avatarUrl,
-      success: (uploadRes) => {
+    const uploadPromise = new Promise((resolve, reject) => {
+      wx.cloud.uploadFile({
+        cloudPath: 'avatars/' + Date.now() + '.jpg',
+        filePath: avatarUrl,
+        success: resolve,
+        fail: reject
+      });
+    });
+    this._avatarUploadPromise = uploadPromise;
+
+    uploadPromise.then((uploadRes) => {
         console.log('头像上传成功，fileID:', uploadRes.fileID);
         
         // 更新本地数据，使用fileID显示头像
@@ -309,16 +336,19 @@ Page({
           avatarUrl: '',  // 清空临时URL
           avatarFileID: uploadRes.fileID  // 使用fileID显示（永不过期）
         });
-        
-        // 同步更新globalData
-        const app = getApp();
-        app.globalData.userInfo.avatarFileID = uploadRes.fileID;
-        
+        this._profileDraftVersion = (this._profileDraftVersion || 0) + 1;
+        this._avatarUploadPromise = null;
+        return this.ensureProfileSaved();
+      }).then((saved) => {
         wx.hideLoading();
-        wx.showToast({ title: '头像上传成功', icon: 'success' });
-      },
-      fail: (err) => {
+        if (saved) {
+          wx.showToast({ title: '头像保存成功', icon: 'success' });
+        } else {
+          wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
+        }
+      }).catch((err) => {
         console.error('上传头像失败:', err);
+        this._avatarUploadPromise = null;
         wx.hideLoading();
         wx.showToast({ title: '上传失败，请重试', icon: 'none' });
         
@@ -326,8 +356,7 @@ Page({
         this.setData({
           avatarUrl: ''
         });
-      }
-    });
+      });
   },
 
   /**
@@ -335,7 +364,123 @@ Page({
    * @param {Object} e - 事件对象，包含输入的昵称
    */
   onNicknameInput(e) {
-    this.setData({ nickname: e.detail.value });
+    const value = e.detail.value;
+    if (value !== this.data.nickname) {
+      this._profileDraftVersion = (this._profileDraftVersion || 0) + 1;
+    }
+    this.setData({ nickname: value });
+  },
+
+  onNicknameBlur(e) {
+    const nickname = this.normalizeNickname(e.detail.value);
+    if (!nickname) {
+      wx.showToast({ title: '请输入昵称', icon: 'none' });
+      return;
+    }
+    if ([...nickname].length > 10) {
+      wx.showToast({ title: '昵称最多10个字符', icon: 'none' });
+      return;
+    }
+    if (nickname !== this.data.nickname) {
+      this._profileDraftVersion = (this._profileDraftVersion || 0) + 1;
+      this.setData({ nickname });
+    }
+    this.ensureProfileSaved().then((success) => {
+      if (!success) wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
+    });
+  },
+
+  normalizeNickname(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ');
+  },
+
+  getProfileDraft() {
+    return {
+      nickname: this.normalizeNickname(this.data.nickname),
+      avatarFileID: this.data.avatarFileID || ''
+    };
+  },
+
+  getActiveProfileRoomId() {
+    return this.data.hasActiveRoom
+      ? (this.data.currentRoomId || getApp().globalData.currentRoomId || '')
+      : '';
+  },
+
+  saveProfileSnapshot(profile, activeRoomId) {
+    const request = activeRoomId
+      ? {
+          name: 'roomFunctions',
+          data: {
+            action: 'updateProfile',
+            payload: { roomId: activeRoomId, nickname: profile.nickname, avatarFileID: profile.avatarFileID }
+          }
+        }
+      : {
+          name: 'userFunctions',
+          data: {
+            action: 'updateUserInfo',
+            userData: { nickname: profile.nickname, avatar: '', avatarFileID: profile.avatarFileID }
+          }
+        };
+
+    return new Promise((resolve) => {
+      wx.cloud.callFunction({
+        ...request,
+        success: (res) => resolve(Boolean(res.result && res.result.success)),
+        fail: (err) => {
+          console.error('保存用户资料失败:', err);
+          resolve(false);
+        }
+      });
+    });
+  },
+
+  async runProfileSaveLoop() {
+    while (true) {
+      const profile = this.getProfileDraft();
+      if (!profile.nickname || [...profile.nickname].length > 10) return false;
+      const activeRoomId = this.getActiveProfileRoomId();
+      const saved = this._lastSavedProfile || { nickname: '', avatarFileID: '', syncedRoomId: '' };
+      if (profile.nickname === saved.nickname &&
+          profile.avatarFileID === saved.avatarFileID &&
+          activeRoomId === (saved.syncedRoomId || '')) return true;
+
+      const version = this._profileDraftVersion || 0;
+      const success = await this.saveProfileSnapshot(profile, activeRoomId);
+      if (!success) return false;
+
+      this._lastSavedProfile = { ...profile, syncedRoomId: activeRoomId };
+      const userInfo = getApp().globalData.userInfo || {};
+      getApp().globalData.userInfo = {
+        ...userInfo,
+        nickname: profile.nickname,
+        avatarUrl: '',
+        avatarFileID: profile.avatarFileID
+      };
+      if ((this._profileDraftVersion || 0) === version && this.data.nickname !== profile.nickname) {
+        this.setData({ nickname: profile.nickname });
+      }
+      // 保存期间产生了新修改时继续循环，直到最新版本真正落库。
+      if ((this._profileDraftVersion || 0) === version && this.getActiveProfileRoomId() === activeRoomId) return true;
+    }
+  },
+
+  async ensureProfileSaved() {
+    if (this._avatarUploadPromise) {
+      try {
+        await this._avatarUploadPromise;
+      } catch (error) {
+        return false;
+      }
+    }
+    if (this._profileSavePromise) return this._profileSavePromise;
+    this._profileSavePromise = this.runProfileSaveLoop();
+    try {
+      return await this._profileSavePromise;
+    } finally {
+      this._profileSavePromise = null;
+    }
   },
 
   /**
@@ -344,97 +489,7 @@ Page({
    * @param {Function} callback - 回调函数，参数为 boolean 表示是否成功
    */
   uploadUserInfo(callback) {
-    // 不要在函数开头解构，每次使用都直接从this.data获取最新值
-    // const { nickname, avatarUrl, avatarFileID } = this.data;
-
-    // 检查是否是临时文件，需要上传到云存储
-    if (this.data.avatarUrl && (this.data.avatarUrl.startsWith('wxfile://') || this.data.avatarUrl.startsWith('http://tmp'))) {
-      console.log('检测到临时头像，先上传到云存储，当前昵称:', this.data.nickname);
-
-      wx.cloud.uploadFile({
-        cloudPath: 'avatars/' + Date.now() + '.jpg',
-        filePath: this.data.avatarUrl,
-        success: (uploadRes) => {
-          // 获取永久 URL
-          wx.cloud.getTempFileURL({
-            fileList: [uploadRes.fileID],
-            success: (urlRes) => {
-              const permanentUrl = urlRes.fileList[0].tempFileURL;
-              console.log('头像已转换为永久URL:', permanentUrl, 'fileID:', uploadRes.fileID);
-
-               // 关键：更新本地 avatarUrl 和 avatarFileID
-               this.setData({
-                 avatarUrl: permanentUrl,
-                 avatarFileID: uploadRes.fileID
-               });
-
-               // 同步更新 globalData，确保返回首页后数据一致
-               const app = getApp();
-               app.globalData.userInfo.avatarUrl = permanentUrl;
-               app.globalData.userInfo.avatarFileID = uploadRes.fileID;
-
-               // 用临时URL和fileID上传到数据库 - 使用最新的nickname
-               console.log('上传用户信息到数据库，昵称:', this.data.nickname, 'fileID:', uploadRes.fileID);
-               this.doUploadUserInfo(this.data.nickname, permanentUrl, uploadRes.fileID, callback);
-            },
-            fail: (err) => {
-              console.error('获取临时URL失败:', err);
-              callback && callback(false);
-            }
-          });
-        },
-        fail: (err) => {
-          console.error('上传头像到云存储失败:', err);
-          callback && callback(false);
-        }
-      });
-    } else {
-      // 已经是URL或为空，直接上传（使用已有的avatarFileID）
-      // 同步更新 globalData 的 avatarUrl 和 avatarFileID
-      const app = getApp();
-      if (this.data.avatarUrl) {
-        app.globalData.userInfo.avatarUrl = this.data.avatarUrl;
-      }
-      if (this.data.avatarFileID) {
-        app.globalData.userInfo.avatarFileID = this.data.avatarFileID;
-      }
-      console.log('使用已有头像上传，昵称:', this.data.nickname, 'avatarFileID:', this.data.avatarFileID);
-      this.doUploadUserInfo(this.data.nickname, this.data.avatarUrl, this.data.avatarFileID || '', callback);
-    }
-  },
-
-  /**
-   * 执行用户资料上传（内部方法）
-   * @param {string} nickname - 昵称
-   * @param {string} avatarUrl - 头像URL（临时）
-   * @param {string} avatarFileID - 头像fileID（永久）
-   * @param {Function} callback - 回调函数
-   */
-  doUploadUserInfo(nickname, avatarUrl, avatarFileID, callback) {
-    wx.cloud.callFunction({
-      name: 'userFunctions',
-      data: {
-        action: 'updateUserInfo',
-        userData: {
-          nickname: nickname,
-          avatar: avatarUrl,        // 临时 URL
-          avatarFileID: avatarFileID   // fileID（永久）
-        }
-      },
-      success: (res) => {
-        if (res.result.success) {
-          console.log('用户资料更新成功，更新字段:', res.result.updatedFields);
-          callback && callback(true);
-        } else {
-          console.error('用户资料更新失败:', res.result.error);
-          callback && callback(false);
-        }
-      },
-      fail: (err) => {
-        console.error('调用 userFunctions.updateUserInfo 失败:', err);
-        callback && callback(false);
-      }
-    });
+    this.ensureProfileSaved().then(success => callback && callback(success));
   },
 
   /**
@@ -531,12 +586,12 @@ Page({
     // 显示处理中 loading
     this.setData({ isCreatingOrJoining: true });
 
-    // 上传用户资料到云端并处理创建房间
+    // 保存屏障完成后才创建房间。
     this.uploadUserInfo((success) => {
       if (!success) {
         this.setData({ isCreatingOrJoining: false });
         wx.showToast({
-          title: '保存用户信息失败',
+          title: '资料保存失败，请重试',
           icon: 'none'
         });
         return;
@@ -632,11 +687,11 @@ Page({
           // 扫码成功，显示 loading
           this.setData({ isCreatingOrJoining: true });
 
-          // 上传用户信息
+          // 保存屏障完成后才加入房间。
           this.uploadUserInfo((uploadSuccess) => {
             if (!uploadSuccess) {
               this.setData({ isCreatingOrJoining: false });
-              wx.showToast({ title: '保存用户信息失败', icon: 'none' });
+              wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
               return;
             }
 

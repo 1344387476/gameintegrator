@@ -64,7 +64,7 @@ test('非房主收到结算状态后先提示，再展示战绩', () => {
   page.handleRoomSettled()
 
   assert.equal(modalOptions.title, '本局已结算')
-  assert.match(modalOptions.content, /不能再进行转账或下注/)
+  assert.match(modalOptions.content, /不能再进行转分或投入/)
   assert.equal(page.data.showResultModal, true)
   assert.equal(app.globalData.currentRoomId, null)
 })
@@ -99,4 +99,33 @@ test('房间监听收到删除事件后立即锁定操作并提示', () => {
   assert.equal(modalOptions.title, '房间已解散')
   assert.equal(page.data.room.status, 'ended')
   assert.equal(page.data.showTransferModal, false)
+})
+
+test('点击离线玩家只提示状态，不打开转分弹窗', () => {
+  let toastOptions
+  const { page } = loadRoomPage({
+    showToast(options) { toastOptions = options }
+  })
+  page.data.room.status = 'playing'
+  page.data.room.members[0].isExited = true
+
+  page.handleMemberTap({ currentTarget: { dataset: { index: 0 } } })
+
+  assert.equal(toastOptions.title, '该玩家已离线')
+  assert.equal(page.data.showTransferModal, false)
+})
+
+test('首次打开邀请二维码时才触发生成，已有二维码时直接复用', () => {
+  const { page } = loadRoomPage()
+  let generateCount = 0
+  page.getRoomQRCode = () => { generateCount += 1 }
+
+  page.data.qrCodeFileID = ''
+  page.showQrcode()
+  assert.equal(generateCount, 1)
+  assert.equal(page.data.showQrcode, true)
+
+  page.data.qrCodeFileID = 'cloud://env/room-qrcodes/ABC123.png'
+  page.showQrcode()
+  assert.equal(generateCount, 1)
 })

@@ -2640,6 +2640,31 @@ page {
   font-weight: 700;
 }
 
+/* 退出玩家保留在账本中，用离线态与仍可操作的玩家区分。 */
+.capsule-card.is-exited {
+  opacity: 0.64;
+  filter: grayscale(0.72);
+}
+
+.capsule-card.is-exited:active {
+  transform: none;
+}
+
+.offline-badge {
+  position: absolute;
+  top: 82rpx;
+  right: 8rpx;
+  z-index: 11;
+  padding: 2rpx 8rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 10rpx;
+  background: #7a7f87;
+  color: #fff;
+  font-size: 18rpx;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .share-card-canvas {
   position: fixed;
   left: -10000px;

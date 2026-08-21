@@ -12,13 +12,14 @@
           </view>
           
           <!-- 玩家胶囊卡片 -->
-          <view class="capsule-card {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}} {{item.openid === receiveTargetOpenid ? 'claim-target claim-target-' + receiveAnimationPhase : ''}}"
+          <view class="capsule-card {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}} {{item.isExited ? 'is-exited' : ''}} {{item.openid === receiveTargetOpenid ? 'claim-target claim-target-' + receiveAnimationPhase : ''}}"
                 wx:for="{{room.members}}" wx:key="openid" bindtap="handleMemberTap" data-index="{{index}}" hover-class="card-pressed">
             <!-- 房主皇冠 - 右上角 -->
             <view class="crown-badge" wx:if="{{item.openid === room.creator}}">👑</view>
             
             <!-- 头像 -->
             <image class="capsule-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" data-file-id="{{item.avatarFileID}}" binderror="handleAvatarError"></image>
+            <view class="offline-badge" wx:if="{{item.isExited}}">离线</view>
             
             <!-- 昵称 -->
             <text class="capsule-name">{{item.name}}</text>
@@ -213,7 +214,7 @@
       </view>
     </view>
     <view class="expense-list">
-      <view class="expense-item" wx:for="{{room.members}}" wx:key="openid" wx:if="{{item.openid !== myOpenid}}">
+      <view class="expense-item" wx:for="{{room.members}}" wx:key="openid" wx:if="{{item.openid !== myOpenid && !item.isExited}}">
         <view class="player-info">
           <image class="player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
           <text class="player-name">{{item.name}}</text>
@@ -355,7 +356,7 @@
   </view>
   <view class="modal-body">
     <view class="confirm-text">确认退出本房间？</view>
-    <view class="confirm-sub">退出后需要重新扫码才能加入</view>
+    <view class="confirm-sub">退出后将显示为离线，当前积分会保留并参与结算；重新扫码可回到房间</view>
     <view class="modal-actions">
       <view class="action-btn cancel {{exitSubmitting ? 'disabled' : ''}}" bindtap="closeExitConfirm">取消</view>
       <view class="action-btn confirm {{exitSubmitting ? 'disabled' : ''}}" bindtap="confirmExit">{{exitSubmitting ? '退出中…' : '确认退出'}}</view>
@@ -390,7 +391,7 @@
       <view class="setting-label">All In值设置</view>
       <view class="setting-description">设置全局all in最大值（仅房主可设置）</view>
       <view class="setting-input-wrapper">
-        <input class="setting-input" type="digit" maxlength="16" placeholder="请输入正整数" value="{{allInInput}}" bindinput="onAllInInput" />
+        <input class="setting-input" type="digit" maxlength="16" placeholder="请输入" value="{{allInInput}}" bindinput="onAllInInput" />
         <text class="setting-unit">分</text>
       </view>
     </view>

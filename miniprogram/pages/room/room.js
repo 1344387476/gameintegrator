@@ -1431,6 +1431,11 @@ loadRoom(roomId) {
     const index = e.currentTarget.dataset.index;
     const member = this.data.room.members[index];
 
+    if (member.isExited) {
+      wx.showToast({ title: '该玩家已离线', icon: 'none' });
+      return;
+    }
+
     // 点击自己：显示编辑资料弹窗
     if (member.openid === this.data.myOpenid) {
       this.showEditProfile();

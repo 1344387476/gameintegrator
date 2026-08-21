@@ -2,7 +2,15 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
-const { historyPlayer, normalizeDisplayText, normalizeIdentifier, assertSettleAllowed } = require('./historyUtils')
+const {
+  historyPlayer,
+  normalizeDisplayText,
+  normalizeIdentifier,
+  assertSettleAllowed,
+  buildSettledRoomState,
+  assertQRCodeAllowed,
+  buildLeaveState
+} = require('./historyUtils')
 //体验trial  //开发板develop
 const qrVersion = 'release'
 
@@ -131,14 +139,15 @@ exports.main = async (event, context) => {
         throw new Error('房间已结束')
       }
 
-      if (room.players.length >= 8) {
-        throw new Error('房间人数已满')
-      }
-
       const existingPlayer = room.players.find(p => p.openid === OPENID)
 
       if (existingPlayer && !existingPlayer.isExited) {
         throw new Error('您已在该房间中')
+      }
+
+      // 离线玩家重新加入时复用原账本和积分，不额外占用一个名额。
+      if (!existingPlayer && room.players.length >= 8) {
+        throw new Error('房间人数已满')
       }
 
       // 检查用户是否在其他活跃房间
@@ -230,7 +239,6 @@ exports.main = async (event, context) => {
 
       // 启动事务
       const transaction = await db.startTransaction()
-      let qrCodeFileID = null
       
       try {
         await transaction.collection('rooms').doc(roomId).set({
@@ -280,139 +288,83 @@ exports.main = async (event, context) => {
           }
         })
 
-        // 异步生成小程序码（不阻塞返回）
-        try {
-          const qrResult = await cloud.openapi.wxacode.getUnlimited({
-            scene: `roomId=${roomId}`,
-            page: 'pages/home/home',
-            width: 400,
-            envVersion: qrVersion,
-            checkPath: false
-          })
-
-          const uploadRes = await cloud.uploadFile({
-            cloudPath: `room-qrcodes/${roomId}.png`,
-            fileContent: qrResult.buffer
-          })
-
-          qrCodeFileID = uploadRes.fileID
-
-          // 更新房间的 qrCode
-          await db.collection('rooms').doc(roomId).update({
-            data: { qrCode: qrCodeFileID }
-          })
-        } catch (qrError) {
-          console.error('生成小程序码失败:', qrError)
-          // 失败不阻断，qrCode 保持 null
-        }
-
-        return { success: true, roomId, qrCode: qrCodeFileID }
+        // 二维码按需生成：只有玩家首次打开邀请二维码时才调用 generateQRCode。
+        return { success: true, roomId }
       } catch (error) {
         await transaction.rollback()
         throw error
       }
     }
     if (action === 'leave') {
-      const { roomId } = payload
+      const { roomId } = payload || {}
 
       // 先检查房间是否存在（非事务查询）
       const roomExists = await db.collection('rooms').doc(roomId).get().catch(() => null)
 
-      let isLastUser = false
+      if (!roomExists || !roomExists.data) throw new Error('房间不存在')
 
-      if (roomExists && roomExists.data) {
-        // 保存二维码文件ID（在事务外获取，用于后续删除）
-        const qrCodeFileID = roomExists.data.qrCode
+      let roomDeleted = false
+      let qrCodeFileID = ''
 
-        // 房间存在，启动事务处理房间相关操作
-        const transaction = await db.startTransaction()
-        try {
-          const roomRes = await transaction.collection('rooms').doc(roomId).get()
-          const room = roomRes.data
+      const transaction = await db.startTransaction()
+      try {
+        const roomRes = await transaction.collection('rooms').doc(roomId).get()
+        const room = roomRes.data
+        const leaveState = buildLeaveState(room, OPENID)
+        roomDeleted = leaveState.roomDeleted
+        qrCodeFileID = room.qrCode || ''
 
-          if (room) {
-            let players = room.players
-            const idx = players.findIndex(p => p.openid === OPENID)
-
-            if (idx > -1) {
-              // 检查是否为最后一个玩家（不管是否活跃）
-              const playersAfterRemove = [...players]
-              playersAfterRemove.splice(idx, 1)
-
-              if (playersAfterRemove.length === 0) {
-                // 如果是最后一个玩家，删除房间
-                await transaction.collection('rooms').doc(roomId).remove()
-
-                // 删除消息（非事务，不阻塞）
-                try {
-                  await db.collection('messages').doc(roomId).remove()
-                } catch (e) {
-                  console.log('消息文档删除失败:', e.message)
-                }
-
-                // 清空当前用户房间ID
-                await db.collection('users').doc(OPENID).update({
-                  data: { currentRoomId: null }
-                })
-              } else {
-                // 如果不是最后一个玩家，正常标记退出
-                let newOwner = room.owner
-                if (newOwner === OPENID) {
-                  // 房主退出，转移给第一个活跃玩家
-                  newOwner = playersAfterRemove.find(p => p.openid !== OPENID && !p.isExited)?.openid || OPENID
-                }
-                await transaction.collection('rooms').doc(roomId).update({
-                  data: { players: playersAfterRemove, owner: newOwner }
-                })
-
-                // 写入退出消息（在事务内）
-                await transaction.collection('messages').doc(roomId).update({
-                  data: {
-                    messages: db.command.push({
-                      fromOpenid: OPENID,
-                      fromNickname: players[idx].nickname,
-                      fromAvatarFileID: players[idx].avatarFileID || '',
-                      content: `${players[idx].nickname} 退出了房间`,
-                      messageType: 'leave',
-                      timestamp: db.serverDate()
-                    })
-                  }
-                })
-              }
-            }
-          }
-
-          await transaction.commit()
-
-          // 判断是否是最后一个用户（在事务提交后）
-          isLastUser = roomExists && roomExists.data && roomExists.data.players && roomExists.data.players.length <= 1
-
-          // 如果是最后一个用户离开，删除云存储中的二维码图片
-          if (isLastUser && qrCodeFileID) {
-            try {
-              await cloud.deleteFile({
-                fileList: [qrCodeFileID]
+        if (roomDeleted) {
+          // 最后一位在线玩家退出时沿用原规则：销毁无人可继续操作的房间。
+          await transaction.collection('rooms').doc(roomId).remove()
+        } else {
+          // 保留完整玩家账本和积分，仅将当前玩家标为离线。
+          await transaction.collection('rooms').doc(roomId).update({
+            data: { players: leaveState.players, owner: leaveState.owner, lastActiveTime: db.serverDate() }
+          })
+          await transaction.collection('messages').doc(roomId).update({
+            data: {
+              messages: db.command.push({
+                fromOpenid: OPENID,
+                fromNickname: leaveState.leavingPlayer.nickname,
+                fromAvatarFileID: leaveState.leavingPlayer.avatarFileID || '',
+                content: `${leaveState.leavingPlayer.nickname} 退出了房间`,
+                messageType: 'leave',
+                timestamp: db.serverDate()
               })
-              console.log('最后一个用户离开，二维码文件删除成功:', qrCodeFileID)
-            } catch (e) {
-              console.log('二维码文件删除失败（可能已被手动删除）:', e.message)
             }
-          }
-        } catch (error) {
-          await transaction.rollback()
-          throw error
+          })
+        }
+
+        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: null } })
+        await transaction.commit()
+      } catch (error) {
+        await transaction.rollback()
+        throw error
+      }
+
+      if (roomDeleted && qrCodeFileID) {
+        try {
+          await cloud.deleteFile({ fileList: [qrCodeFileID] })
+        } catch (e) {
+          console.log('二维码文件删除失败（可能已被手动删除）:', e.message)
+        }
+      }
+      if (roomDeleted) {
+        try {
+          await db.collection('messages').doc(roomId).remove()
+        } catch (e) {
+          console.log('消息文档删除失败:', e.message)
         }
       }
 
-      // 清理用户的 currentRoomId（非事务操作，移到最后执行）
-      await db.collection('users').doc(OPENID).update({ data: { currentRoomId: null } })
-
-      return { success: true, isLastUser }
+      return { success: true, roomDeleted }
     }
 
     // === 动作 D：结算 (更新状态 + 存历史 + 标记删除时间) ===
     if (action === 'settle') {
       const { roomId } = payload
+      let qrCodeFileID = ''
       
       // 先检查房间是否存在（非事务查询）
       const roomCheck = await db.collection('rooms').doc(roomId).get().catch(() => null)
@@ -430,6 +382,8 @@ exports.main = async (event, context) => {
         const room = roomRes.data
         
         assertSettleAllowed(room, OPENID)
+        const settledRoomState = buildSettledRoomState(room)
+        qrCodeFileID = settledRoomState.qrCodeFileID
 
         const players = (room.players || []).map(historyPlayer)
         const owner = players.find(player => player.openid === room.owner)
@@ -450,9 +404,9 @@ exports.main = async (event, context) => {
           }
         })
 
-        // 2. 标记为 settled（保留房间数据供查看，包括原始分数）
+        // 2. 标记为 settled，并立即移除已失效的邀请二维码引用。
         await transaction.collection('rooms').doc(roomId).update({
-          data: { status: 'settled' }
+          data: settledRoomState.roomUpdate
         })
 
         // 3. 清空所有玩家的 currentRoomId
@@ -463,6 +417,23 @@ exports.main = async (event, context) => {
         }
 
         await transaction.commit()
+
+        // 云存储不参与数据库事务。结算已经成功后尽力删除文件；失败时保留待清理 fileID，
+        // 方便后续巡检重试，同时不再把它作为可用二维码暴露给页面。
+        if (qrCodeFileID) {
+          try {
+            await cloud.deleteFile({ fileList: [qrCodeFileID] })
+          } catch (qrError) {
+            console.log('结算成功，但二维码文件删除失败:', qrError.message)
+            try {
+              await db.collection('rooms').doc(roomId).update({
+                data: { qrCleanupPending: qrCodeFileID }
+              })
+            } catch (markError) {
+              console.log('记录二维码待清理状态失败:', markError.message)
+            }
+          }
+        }
 
         // 写入结算系统消息
         await db.collection('messages').doc(roomId).update({
@@ -554,9 +525,11 @@ exports.main = async (event, context) => {
     if (action === 'generateQRCode') {
       const { roomId } = payload
       
-      // 1. 检查是否已存在
+      // 1. 仅允许活跃房间中的在线成员获取或生成邀请二维码。
       const room = await db.collection('rooms').doc(roomId).get()
-      if (room.data && room.data.qrCode) {
+      assertQRCodeAllowed(room.data, OPENID)
+
+      if (room.data.qrCode) {
         return { success: true, fileID: room.data.qrCode }
       }
       
@@ -575,12 +548,32 @@ exports.main = async (event, context) => {
         fileContent: result.buffer
       })
       
-      // 4. 保存到 rooms 集合
-      await db.collection('rooms').doc(roomId).update({
-        data: {
-          qrCode: uploadResult.fileID
+      // 4. 在事务中复核最新房间状态，避免生成过程中房间已经结算或解散。
+      const qrTransaction = await db.startTransaction()
+      try {
+        const latestRoomRes = await qrTransaction.collection('rooms').doc(roomId).get()
+        const latestRoom = latestRoomRes.data
+        assertQRCodeAllowed(latestRoom, OPENID)
+
+        if (latestRoom.qrCode) {
+          await qrTransaction.commit()
+          return { success: true, fileID: latestRoom.qrCode }
         }
-      })
+
+        await qrTransaction.collection('rooms').doc(roomId).update({
+          data: { qrCode: uploadResult.fileID }
+        })
+        await qrTransaction.commit()
+      } catch (error) {
+        await qrTransaction.rollback()
+        // 上传成功但房间已结束时，及时回收这次生成的文件。
+        try {
+          await cloud.deleteFile({ fileList: [uploadResult.fileID] })
+        } catch (cleanupError) {
+          console.log('回收未绑定的二维码文件失败:', cleanupError.message)
+        }
+        throw error
+      }
       
       return { success: true, fileID: uploadResult.fileID }
     }
@@ -621,62 +614,57 @@ exports.main = async (event, context) => {
       const roomId = normalizeIdentifier(payload.roomId, '房间ID', 64)
       const nickname = normalizeDisplayText(payload.nickname, '昵称', 10)
       const avatarFileID = payload.avatarFileID ? normalizeIdentifier(payload.avatarFileID, '头像文件', 512) : ''
-      
-      // 获取房间信息
-      const roomRes = await db.collection('rooms').doc(roomId).get()
-      if (!roomRes || !roomRes.data) {
-        throw new Error('房间不存在')
-      }
-      
-      const room = roomRes.data
-      if (room.status !== 'active') throw new Error('房间已结束，无法修改资料')
-      
-      // 查找当前玩家
-      const playerIndex = room.players.findIndex(p => p.openid === OPENID)
-      if (playerIndex === -1) {
-        throw new Error('您不在该房间中')
-      }
-      
-      // 更新玩家信息
-      const updatedPlayers = [...room.players]
-      updatedPlayers[playerIndex] = {
-        ...updatedPlayers[playerIndex],
-        nickname: nickname,
-        avatar: '',
-        avatarFileID: avatarFileID || updatedPlayers[playerIndex].avatarFileID
-      }
-      
-      // 更新房间数据
-      await db.collection('rooms').doc(roomId).update({
-        data: { players: updatedPlayers }
-      })
-      
-      // 更新用户集合中的昵称和头像
-      await db.collection('users').doc(OPENID).update({
-        data: { 
-          nickname: nickname,
-          avatar: '',
-          avatarFileID: avatarFileID || updatedPlayers[playerIndex].avatarFileID
-        }
-      })
-      
-      // 添加系统消息通知其他玩家
-      const oldNickname = room.players[playerIndex].nickname
-      if (oldNickname !== nickname) {
-        await db.collection('messages').doc(roomId).update({
-          data: {
-            messages: _.push({
-              fromOpenid: OPENID,
-              fromNickname: nickname,
-              fromAvatarFileID: updatedPlayers[playerIndex].avatarFileID || '',
-              content: `${oldNickname} 修改昵称为 ${nickname}`,
-              messageType: 'system',
-              timestamp: db.serverDate()
-            })
-          }
+      const transaction = await db.startTransaction()
+      let oldNickname = ''
+      let savedAvatarFileID = ''
+
+      try {
+        // 必须读取事务中的最新玩家数组，避免资料保存覆盖同时发生的计分结果。
+        const roomRes = await transaction.collection('rooms').doc(roomId).get()
+        const room = roomRes.data
+        if (!room) throw new Error('房间不存在')
+        if (room.status !== 'active') throw new Error('房间已结束，无法修改资料')
+
+        const playerIndex = (room.players || []).findIndex(p => p.openid === OPENID && !p.isExited)
+        if (playerIndex === -1) throw new Error('您不在该房间中或已退出')
+
+        oldNickname = room.players[playerIndex].nickname || '玩家'
+        savedAvatarFileID = avatarFileID || room.players[playerIndex].avatarFileID || ''
+        const updatedPlayers = room.players.map((player, index) => index === playerIndex
+          ? { ...player, nickname, avatar: '', avatarFileID: savedAvatarFileID }
+          : player)
+
+        await transaction.collection('rooms').doc(roomId).update({
+          data: { players: updatedPlayers }
         })
+        await transaction.collection('users').doc(OPENID).update({
+          data: { nickname, avatar: '', avatarFileID: savedAvatarFileID, updateTime: db.serverDate() }
+        })
+        await transaction.commit()
+      } catch (error) {
+        await transaction.rollback()
+        throw error
       }
-      
+
+      // 昵称提示是附属流水，失败不回滚已经安全提交的资料。
+      if (oldNickname !== nickname) {
+        try {
+          await db.collection('messages').doc(roomId).update({
+            data: {
+              messages: _.push({
+                fromOpenid: OPENID,
+                fromNickname: nickname,
+                fromAvatarFileID: savedAvatarFileID,
+                content: `${oldNickname} 修改昵称为 ${nickname}`,
+                messageType: 'system',
+                timestamp: db.serverDate()
+              })
+            }
+          })
+        } catch (messageError) {
+          console.log('资料已更新，但昵称消息写入失败:', messageError.message)
+        }
+      }
       return { success: true, msg: '资料更新成功' }
     }
 
