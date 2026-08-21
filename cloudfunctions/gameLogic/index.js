@@ -3,7 +3,7 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
 const db = cloud.database()
-const _ = db.command
+const { retainRecentMessages } = require('./messageUtils')
 const SUPPORTED_ACTIONS = new Set(['TRANSFER', 'BATCH_TRANSFER', 'BET', 'ALLIN', 'CLAIM', 'PASS'])
 const MAX_TRANSACTION_RETRIES = 3
 const MAX_RECENT_OPERATION_IDS = 50
@@ -149,23 +149,27 @@ async function executeOperation({ action, payload, openid, operationId }) {
 
       const { updates, messages } = prepareOperation({ action, payload, room, openid, operationId })
       const existingOperationIds = Array.isArray(room.recentOperationIds) ? room.recentOperationIds : []
+      let existingMessages = Array.isArray(room.recentMessages) ? room.recentMessages : null
+      // 兼容优化前仍在进行的房间：首次计分时把旧 messages 文档迁入房间聚合状态。
+      if (existingMessages === null) {
+        const legacyMessageRes = await transaction.collection('messages').doc(payload.roomId).get().catch(() => null)
+        existingMessages = legacyMessageRes?.data?.messages || []
+      }
+      const previousVersion = Number.isSafeInteger(room.stateVersion) ? room.stateVersion : 0
       updates.lastActiveTime = db.serverDate()
       updates.recentOperationIds = [...existingOperationIds, operationId].slice(-MAX_RECENT_OPERATION_IDS)
+      updates.recentMessages = retainRecentMessages(existingMessages, messages)
+      updates.stateVersion = safeAdd(previousVersion, 1)
 
-      if (messages.length > 0) {
-        const messageRef = transaction.collection('messages').doc(payload.roomId)
-        const messageRes = await messageRef.get().catch(() => null)
-        await transaction.collection('rooms').doc(payload.roomId).update({ data: updates })
-        if (messageRes && messageRes.data) {
-          await messageRef.update({ data: { messages: _.push(...messages) } })
-        } else {
-          await messageRef.set({ data: { messages, createdAt: db.serverDate() } })
-        }
-      } else {
-        await transaction.collection('rooms').doc(payload.roomId).update({ data: updates })
-      }
+      await transaction.collection('rooms').doc(payload.roomId).update({ data: updates })
       await transaction.commit()
-      return { success: true }
+      return {
+        success: true,
+        stateVersion: updates.stateVersion,
+        players: updates.players,
+        pot: updates.pot === undefined ? (room.pot || 0) : updates.pot,
+        latestMessages: messages
+      }
     } catch (error) {
       lastError = error
       if (transaction) {

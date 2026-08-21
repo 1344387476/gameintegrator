@@ -101,6 +101,17 @@ test('房间监听收到删除事件后立即锁定操作并提示', () => {
   assert.equal(page.data.showTransferModal, false)
 })
 
+test('房间页隐藏时释放唯一实时监听', () => {
+  let closed = 0
+  const { page } = loadRoomPage()
+  page.data.roomWatcher = { close() { closed += 1 } }
+
+  page.onHide()
+
+  assert.equal(closed, 1)
+  assert.equal(page.data.roomWatcher, null)
+})
+
 test('点击离线玩家只提示状态，不打开转分弹窗', () => {
   let toastOptions
   const { page } = loadRoomPage({

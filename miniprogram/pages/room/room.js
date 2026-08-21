@@ -184,7 +184,6 @@ showTransferModal: false, // 转账弹窗
         }
       });
       this.initRoomWatch(roomId);
-      this.initMessagesWatch(roomId);
     });
   },
 
@@ -344,13 +343,14 @@ showTransferModal: false, // 转账弹窗
     const appearanceTheme = theme.getTheme();
     if (appearanceTheme !== this.data.appearanceTheme) this.setData({ appearanceTheme });
     theme.applyNativeChrome('room', appearanceTheme);
-    // watcher 正常时无需刷新；从后台恢复且超过 30 秒未收到快照时再定向同步。
-    const lastSync = Math.max(this._lastRoomSnapshotAt || 0, this._lastMessageSnapshotAt || 0);
     if (this.data.roomId && this.data.room._id) {
-      // 从后台恢复时立即确认房间是否已被解散或结算，避免依赖旧的监听时间戳。
-      this.checkRoomStatusOnce(this.data.roomId);
-      if (Date.now() - lastSync > 30000) this.refreshAllData();
+      // 后台期间监听已释放；回来先校正完整快照，再恢复唯一一条房间监听。
+      this.refreshAllData().finally(() => this.initRoomWatch(this.data.roomId));
     }
+  },
+
+  onHide() {
+    this.stopRealtimeSync();
   },
 
   /**
@@ -358,24 +358,25 @@ showTransferModal: false, // 转账弹窗
    * 关闭 watch 监听器和轮询定时器
    */
   onUnload() {
-    // 关闭 watch 监听器
-    if (this.data.messagesWatcher) {
-      this.data.messagesWatcher.close();
-    }
-    if (this.data.roomWatcher) {
-      this.data.roomWatcher.close();
-    }
-    // 关闭轮询定时器
-    if (this.data.pollingTimer) {
-      clearInterval(this.data.pollingTimer);
-    }
-    if (this.data.roomStatusPollingTimer) {
-      clearInterval(this.data.roomStatusPollingTimer);
-    }
+    this.stopRealtimeSync();
     clearTimeout(this._realtimeFallbackTimer);
     clearTimeout(this._floatAnimationTimer);
     this.clearReceiveAnimationTimeline();
 
+  },
+
+  stopRealtimeSync() {
+    if (this.data.messagesWatcher) this.data.messagesWatcher.close();
+    if (this.data.roomWatcher) this.data.roomWatcher.close();
+    if (this.data.pollingTimer) clearInterval(this.data.pollingTimer);
+    if (this.data.roomStatusPollingTimer) clearTimeout(this.data.roomStatusPollingTimer);
+    clearTimeout(this._roomWatchRetryTimer);
+    this.setData({
+      messagesWatcher: null,
+      roomWatcher: null,
+      pollingTimer: null,
+      roomStatusPollingTimer: null
+    });
   },
 
   /**
@@ -394,13 +395,16 @@ showTransferModal: false, // 转账弹窗
           if ((docs.length === 0 || wasRemoved) && !this._isDismissing) {
             this.handleRoomDismissed();
           } else if (docs[0]) {
+            this._roomPollingAttempt = 0;
             this.applyRoomSnapshot(docs[0]);
           }
         },
         onError: (err) => {
           console.error('房间状态监听失败，切换为轮询:', err);
-          this.checkRoomStatusOnce(roomId);
+          this.setData({ roomWatcher: null });
           this.startRoomStatusPolling(roomId);
+          clearTimeout(this._roomWatchRetryTimer);
+          this._roomWatchRetryTimer = setTimeout(() => this.initRoomWatch(roomId), 20000);
         }
       });
       this.setData({ roomWatcher: watcher });
@@ -411,19 +415,30 @@ showTransferModal: false, // 转账弹窗
   },
 
   startRoomStatusPolling(roomId) {
+    if (this.data.roomStatusPollingTimer) return;
     const poll = () => {
+      if (!this.data.roomId || this.data.roomId !== roomId || this.data.roomWatcher) {
+        this.setData({ roomStatusPollingTimer: null });
+        return;
+      }
       wx.cloud.database().collection('rooms').doc(roomId).get({
-        success: (res) => { if (res.data) this.applyRoomSnapshot(res.data); },
+        success: (res) => {
+          if (res.data) this.applyRoomSnapshot(res.data);
+          this._roomPollingAttempt = (this._roomPollingAttempt || 0) + 1;
+          const delay = this._roomPollingAttempt <= 6 ? 5000 : (this._roomPollingAttempt <= 18 ? 10000 : 30000);
+          const timer = setTimeout(poll, delay);
+          this.setData({ roomStatusPollingTimer: timer });
+        },
         fail: (err) => {
           if (this.isRoomMissingError(err)) this.handleRoomDismissed();
+          else {
+            const timer = setTimeout(poll, 30000);
+            this.setData({ roomStatusPollingTimer: timer });
+          }
         }
       });
     };
     poll();
-    if (this.data.roomStatusPollingTimer) return;
-
-    const timer = setInterval(poll, 3000);
-    this.setData({ roomStatusPollingTimer: timer });
   },
 
   isRoomMissingError(err) {
@@ -539,85 +554,6 @@ showTransferModal: false, // 转账弹窗
     if (recordsLength > 0) {
       this.setData({ scrollIntoView: `record-${recordsLength - 1}` });
     }
-  },
-
-  /**
-   * 初始化消息实时监听
-   * @param {string} roomId - 房间ID
-   */
-  initMessagesWatch(roomId) {
-    const that = this;
-    const { messagesPageSize } = that.data;
-
-    try {
-      const watcher = wx.cloud.database()
-        .collection('messages')
-        .doc(roomId)
-        .watch({
-          onChange: (snapshot) => {
-            const doc = snapshot.docs && snapshot.docs[0];
-            if (doc) that.applyMessagesSnapshot(doc.messages || []);
-          },
-          onError: (err) => {
-            console.error('消息监听失败:', err);
-            
-            // 如果是文档不存在（房间已删除），停止重试
-            if (err.errCode === -502001 || err.message?.includes('not exist')) {
-              console.log('房间已删除，停止监听')
-              // 不调用 handleWatchError，避免无限重试
-              return
-            }
-            
-            that.handleWatchError(err, roomId);
-          }
-        });
-
-      that.setData({ messagesWatcher: watcher });
-    } catch (error) {
-      console.error('初始化 watch 失败:', error);
-      that.startPolling(roomId);
-    }
-  },
-
-  /**
-   * 处理 watch 错误并重试
-   * @param {Object} err - 错误对象
-   * @param {string} roomId - 房间ID
-   */
-  handleWatchError(err, roomId) {
-    const that = this;
-    const retryCount = that.data.watchRetryCount + 1;
-
-    if (retryCount <= that.data.maxWatchRetries) {
-      that.setData({ watchRetryCount: retryCount });
-      console.log(`尝试重新建立 watch 连接 (${retryCount}/${that.data.maxWatchRetries})`);
-
-      setTimeout(() => {
-        that.initMessagesWatch(roomId);
-      }, 2000 * retryCount);
-    } else {
-      console.error('Watch 连接重试次数已达上限，切换到轮询模式');
-      that.setData({ messagesWatcher: null });
-      that.startPolling(roomId);
-    }
-  },
-
-  /**
-   * 启动轮询（降级方案）
-   * @param {string} roomId - 房间ID
-   */
-  startPolling(roomId) {
-    const that = this;
-
-    if (that.data.pollingTimer) {
-      clearInterval(that.data.pollingTimer);
-    }
-
-    const pollingTimer = setInterval(() => {
-      that.loadMessages(roomId, false);
-    }, 3000);
-
-    that.setData({ pollingTimer });
   },
 
   /**
@@ -764,29 +700,14 @@ showTransferModal: false, // 转账弹窗
 
     const limit = Math.min(messagesLoaded + messagesPageSize, messagesMaxLimit);
 
-    wx.cloud.database().collection('messages').doc(roomId).get({
-      success: (res) => {
-        if (res.data) {
-          const messages = res.data?.messages || [];
-          const result = this.processMessages(messages, limit);
-
-          this.setData({
-            loadedRecords: result.records,
-            'room.records': this.filterRecords(result.records),
-            messagesLoaded: result.count,
-            hasMore: result.hasMore,
-            isLoadingMore: false,
-            loadingMoreText: result.hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
-          });
-        }
-      },
-      fail: (err) => {
-        console.error('加载更多失败:', err);
-        this.setData({
-          isLoadingMore: false,
-          loadingMoreText: '加载失败，点击重试'
-        });
-      }
+    const result = this.processMessages(this._recentMessages || [], limit);
+    this.setData({
+      loadedRecords: result.records,
+      'room.records': this.filterRecords(result.records),
+      messagesLoaded: result.count,
+      hasMore: result.hasMore,
+      isLoadingMore: false,
+      loadingMoreText: result.hasMore ? '上拉查看更多历史消息' : '已显示全部消息'
     });
   },
 
@@ -939,8 +860,9 @@ loadRoom(roomId) {
             // processRoomData处理房间数据（同步）
             // 先映射房间数据，再通过云函数为所有成员换取头像临时URL。
             this.processRoomData(room);
-            // 加载消息列表
-            this.loadMessages(roomId);
+            // 新房间的消息已聚合在 rooms；旧活跃房间仅首次进入时读取旧文档兜底。
+            if (Array.isArray(room.recentMessages)) this.applyMessagesSnapshot(room.recentMessages);
+            else this.loadMessages(roomId);
             
             // 每次进入房间都刷新头像URL，避免复用已过期链接。
             this.checkAndRefreshAvatars(room, this.data.room.members);
@@ -1157,6 +1079,7 @@ loadRoom(roomId) {
   },
 
   applyMessagesSnapshot(messages) {
+    this._recentMessages = Array.isArray(messages) ? messages : [];
     const hadBaseline = Boolean(this._seenOperationIds);
     const seen = this._seenOperationIds || new Set();
     const newClaims = hadBaseline ? (messages || []).filter(message =>
@@ -1212,6 +1135,7 @@ loadRoom(roomId) {
       canFollow: processedRoom.canFollow,
       isCreator: processedRoom.isCreator
     });
+    if (Array.isArray(room.recentMessages)) this.applyMessagesSnapshot(room.recentMessages);
     this.checkAndRefreshAvatars(room, mergedMembers);
     if (oldStatus === 'playing' && processedRoom.status === 'ended') this.handleRoomSettled();
   },
@@ -1220,17 +1144,16 @@ loadRoom(roomId) {
     const scheduledAt = Date.now();
     clearTimeout(this._realtimeFallbackTimer);
     this._realtimeFallbackTimer = setTimeout(() => {
-      // 允许监听在云函数 success 回调前先到达；只在两类快照都没有近期确认时兜底读取。
+      // 允许监听在云函数 success 回调前先到达；唯一房间快照没有近期确认时才兜底读取。
       const cutoff = scheduledAt - 300;
-      if ((this._lastRoomSnapshotAt || 0) < cutoff || (this._lastMessageSnapshotAt || 0) < cutoff) {
+      if ((this._lastRoomSnapshotAt || 0) < cutoff) {
         this.refreshAllData();
       }
     }, 1100);
   },
   
   /**
-   * 统一刷新房间和消息数据
-   * 同时获取 rooms 和 messages，一次性 setData，避免重复刷新
+   * 读取唯一房间聚合文档并一次性刷新积分与信息流水。
    */
   async refreshAllData() {
     const { roomId } = this.data;
@@ -1245,24 +1168,22 @@ loadRoom(roomId) {
     
     this._refreshAllDataPromise = (async () => {
       try {
-      // 并行获取房间数据和消息数据
-      const [roomRes, messagesRes] = await Promise.all([
-        // 获取房间数据（积分等）
-        new Promise((resolve, reject) => {
-          wx.cloud.database().collection('rooms').doc(roomId).get({
-            success: (res) => resolve(res.data),
-            fail: reject
-          });
-        }),
-        
-        // 获取消息数据
-        new Promise((resolve, reject) => {
+      const roomRes = await new Promise((resolve, reject) => {
+        wx.cloud.database().collection('rooms').doc(roomId).get({
+          success: (res) => resolve(res.data),
+          fail: reject
+        });
+      });
+      let messagesRes = Array.isArray(roomRes.recentMessages) ? roomRes.recentMessages : null;
+      // 仅兼容尚未发生任何新操作的旧房间；迁移后不再读取 messages。
+      if (messagesRes === null) {
+        messagesRes = await new Promise(resolve => {
           wx.cloud.database().collection('messages').doc(roomId).get({
             success: (res) => resolve(res.data?.messages || []),
-            fail: reject
+            fail: () => resolve([])
           });
-        })
-      ]);
+        });
+      }
       
       // 处理房间数据
       const processedRoom = this.processRoomDataForRefresh(roomRes);
@@ -1273,6 +1194,7 @@ loadRoom(roomId) {
         message.messageType === 'claim' && message.operationId && !this._seenOperationIds.has(message.operationId)
       ) : [];
       this.seedMessageOperations(messagesRes);
+      this._recentMessages = messagesRes;
       const result = this.processMessages(messagesRes);
       
       // 检查是否从 playing 变为 ended（结算状态）

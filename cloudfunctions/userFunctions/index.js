@@ -2,6 +2,7 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const { deleteReplacedAvatar } = require('./avatarCleanup')
 
 /**
  * 生成默认昵称
@@ -131,6 +132,8 @@ exports.main = async (event, context) => {
 
       // 先检查用户是否存在
       const userRes = await db.collection('users').doc(OPENID).get().catch(() => null)
+      const oldAvatarFileID = userRes?.data?.avatarFileID || ''
+      const hasActiveRoom = Boolean(userRes?.data?.currentRoomId)
 
       if (userRes && userRes.data) {
         // 用户存在，执行更新
@@ -157,6 +160,16 @@ exports.main = async (event, context) => {
         await db.collection('users').add({
           data: updateData
         })
+      }
+
+      // 活动房间资料由 roomFunctions 在用户与房间同一事务提交后清理；
+      // 非房间用户在资料更新成功后立即清理一条明确的旧头像文件。
+      if (!hasActiveRoom && updateData.avatarFileID !== undefined) {
+        try {
+          await deleteReplacedAvatar(cloud, oldAvatarFileID, updateData.avatarFileID)
+        } catch (cleanupError) {
+          console.log('资料已保存，但旧头像清理失败:', cleanupError.message)
+        }
       }
 
       console.log('用户信息更新成功:', OPENID, updateData)

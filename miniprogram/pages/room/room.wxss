@@ -525,6 +525,14 @@ page {
 }
 
 /* ==================== 右侧：聊天室样式 ==================== */
+.message-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .chat-section {
   flex: 1;
   display: flex;
@@ -592,6 +600,7 @@ page {
 
 .chat-scroll {
   flex: 1;
+  height: 0;
   min-height: 0;
   overflow-y: auto;
   padding-bottom: 30rpx;

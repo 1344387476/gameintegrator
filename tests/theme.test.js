@@ -24,3 +24,9 @@ test('房间弹窗深色模式不会出现白字白底', () => {
   assert.match(wxss, /\.room-page\.theme-dark \.modal-header[\s\S]*?background:\s*#202421/)
   assert.match(wxss, /\.room-page\.theme-dark \.confirm-text[\s\S]*?background:\s*#252a27;\s*color:\s*#f4f5f4/)
 })
+
+test('房间信息记录列表拥有可收缩的独立滚动区域', () => {
+  const wxss = fs.readFileSync(path.join(__dirname, '../miniprogram/pages/room/room.wxss'), 'utf8')
+  assert.match(wxss, /\.message-panel\s*\{[\s\S]*?display:\s*flex;[\s\S]*?flex:\s*1;[\s\S]*?min-height:\s*0;[\s\S]*?flex-direction:\s*column;[\s\S]*?overflow:\s*hidden;/)
+  assert.match(wxss, /\.chat-scroll\s*\{[\s\S]*?flex:\s*1;[\s\S]*?height:\s*0;[\s\S]*?min-height:\s*0;/)
+})

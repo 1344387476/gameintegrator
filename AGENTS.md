@@ -85,12 +85,12 @@ node --check cloudfunctions\userFunctions\index.js
 - 用户同一时间只能关联一个 `active` 房间，依赖 `users.currentRoomId` 和云端复核。
 - 房间号为 6 位大写随机 base36 字符，目前没有显式碰撞重试，是小概率已知风险。
 - 每局最多保留 8 位参与者。退出玩家不从 `players` 数组移除，而是标记 `isExited: true`；积分账本继续参与结算和战绩，重新加入时恢复原账本。
-- 创建时同时创建同 ID 的 `messages` 文档；二维码在玩家首次打开邀请二维码时按需生成，失败不影响房间本身。
+- 新建房间把最近 100 条信息保存在 `rooms.recentMessages`，不再创建独立 `messages` 文档；旧活跃房间会在首次操作时从同 ID 的旧消息文档迁移。二维码在玩家首次打开邀请二维码时按需生成，失败不影响房间本身。
 - 房主退出会把房主转交给第一位未退出玩家；最后一人退出删除房间、消息和二维码，不生成战绩。
 
 ### 实时同步
 
-- 房间页分别 watch `rooms/{roomId}` 和 `messages/{roomId}`。
+- 房间页只 watch `rooms/{roomId}` 一份聚合状态；每位前台玩家占用一条实时连接。
 - 云端 `active/settled` 映射为前端 `playing/ended`。
 - 云端 `pot` 映射为 `room.prizePool.total`，`allInVal` 映射为 `room.allInValue`。
 - watcher 收到结算或删除后立即锁定操作；非结算发起者先收到提示，再展示结果。
@@ -99,9 +99,9 @@ node --check cloudfunctions\userFunctions\index.js
 ### 结算、解散、战绩
 
 - 只有房主能结算或解散。
-- `settle` 在事务中新增 `history` v2、将房间标为 `settled`、清空全部玩家的 `currentRoomId` 和二维码引用。房间数据保留，二维码云文件在事务提交后尽力删除。
+- `settle` 在事务中新增 `history` v2、将房间标为 `settled`、清空全部玩家的 `currentRoomId` 和二维码引用，并删除仅供活跃房间展示的 `messages` 文档。房间数据保留，二维码云文件在事务提交后尽力删除。
 - 下注模式必须先清空奖池才能结算。
-- `dismiss` 仅用于进行中房间：物理删除房间且不生成战绩；消息和二维码在主事务后尽力清理。
+- `dismiss` 仅用于进行中房间：在主事务中物理删除房间和消息且不生成战绩；二维码在事务提交后尽力清理。
 - 战绩页已经完整实现，并非占位页：分页列表、参与者权限、详情、排名、结算建议和保存海报。
 - 旧战绩不迁移、不进入 v2 列表；详情也不再返回旧 `betSummary`，两种模式统一展示最终积分。
 - `utils/settlement.js` 只给出线下转账建议，不改云端数据；积分合计不为 0 时会标记不平账。
@@ -157,17 +157,19 @@ node --check cloudfunctions\userFunctions\index.js
 - `pot`：非负安全整数；`allInVal`：可能尚未设置
 - `players`：玩家账本数组
 - `qrCode`：永久云文件 ID
+- `recentMessages`：最近 100 条活跃房间信息，与积分状态由同一房间快照推送
+- `stateVersion`：每次房间业务变化递增的安全整数，用于重连和未来 Socket 校正
 - `qrCleanupPending`：仅在结算后二维码云文件删除失败时记录待巡检清理的 fileID
 - `createTime`、`lastActiveTime`
 - `recentOperationIds`：最近 50 个计分操作 ID
 
 玩家至少含 `openid`、`nickname`、`avatar`、`avatarFileID`、`score`、`isExited`；下注后可能有 `lastDepositAmount`、`lastDepositTime`。`score` 可为负但必须是安全整数。
 
-### `messages/{roomId}`
+### `messages/{roomId}`（旧数据兼容）
 
-- 文档 ID 与房间相同，所有消息放在持续增长的 `messages` 数组。
+- 新房间不再创建该文档。旧房间仍可能存在同 ID 文档，首次计分、加入、退出或改资料时迁移到 `rooms.recentMessages`；前端只在旧房间尚未迁移时读取一次，不建立监听。
 - 消息保存发送/接收者 openid、昵称、头像 fileID、内容、类型、时间；计分消息还可能含 `operationId`、`amount`、`potAfter`。
-- 类型包括 `create`、`join`、`leave`、`system`、`settle`、`transfer`、`bet`、`allin`、`claim`、`pass`。
+- 类型包括 `create`、`join`、`leave`、`system`、`transfer`、`bet`、`allin`、`claim`、`pass`。结算时直接删除消息文档，不再新增 `settle` 流水。
 
 ### `history/{autoId}`
 
@@ -201,7 +203,8 @@ node --check cloudfunctions\userFunctions\index.js
 
 - 长期只依赖 `avatarFileID`。HTTP 临时 URL 会过期，不能写入历史快照或当作可靠头像源。
 - 页面用 `roomFunctions/getAvatarUrls` 批量换临时 URL，默认头像 `/images/avatar.png`。
-- 不要删除已有 `avatarFileID`；未上传新头像时保留旧值。
+- 未上传新头像时必须保留已有 `avatarFileID`。用户明确换成新的 `avatars/...` fileID 后，先在事务/资料写入中同时更新 `users` 与活动房间玩家快照，提交成功后再单文件删除旧头像；删除失败只记录日志，不能回滚已保存的新资料。
+- 旧战绩和旧流水保存的是当时头像 fileID。旧头像被替换清理后，这些历史位置允许回退默认头像，不为保留历史头像而无限保存旧云文件。
 - 计分事务中不得换临时 URL，避免拉长事务和引入外部失败。
 - 二维码在首次打开邀请二维码时生成到 `room-qrcodes/{roomId}.png`；结算、最后一人退出或解散时尽力删除。
 - `onShareAppMessage` 必须同步返回，房间页因此提前准备分享图；调整时注意异步时机。
@@ -209,12 +212,20 @@ node --check cloudfunctions\userFunctions\index.js
 ## 一致性边界和已知风险
 
 - `gameLogic` 的账本和计分流水处于同一事务，原子性较强。
-- `roomFunctions` 不是所有附属动作都原子：创建/加入/结算后的系统消息、解散后的消息/二维码清理有些在主事务后执行。可能出现核心状态成功但消息/资源未清理，排查时先看核心文档。
-- `messages.messages` 单文档无限增长，长期会碰体积/性能限制。后续应改为一条消息一个文档并按 `roomId + timestamp` 分页/监听；这是需要迁移的数据模型改动。
+- 活跃房间的消息追加与对应业务更新处于同一事务，并统一裁剪为最近 100 条；结算、解散和最后一人退出也在主事务中删除消息文档。二维码云文件仍只能在事务提交后尽力清理。
 - 房间和玩家账本是数组整包更新。8 人上限减轻体积问题，但生命周期并发仍可能覆盖。
 - `roomFunctions` 部分旧代码安全性弱于 `gameLogic`。修改入口时要重新检查事务内二次鉴权、成员、状态、参数和并发，不能只靠事务外预检查。
 - 数据库安全规则和已部署云函数版本不在仓库内。出现本地正确、线上不对时，先核对云环境、部署版本、集合权限和索引。
-- 结算后保留 `rooms` 与 `messages`，当前没有自动归档/清理策略，长期需评估存储增长和隐私保留期。
+- 结算后只保留 `rooms` 和 `history`，不保留仅用于活跃房间展示的信息流水；仍需评估已结算房间本身的存储增长和隐私保留期。
+
+## 实时同步演进路线
+
+当前产品尚未盈利，实时通信按成本逐级演进，不能为了规避连接限制削弱 `gameLogic` 的权威事务账本：
+
+1. 当前阶段只使用微信云开发。每个前台房间页面只监听 `rooms/{roomId}` 一份聚合状态，玩家、积分、奖池、房间状态和最近 100 条信息统一由该文档快照驱动；`onHide` 关闭监听，`onShow` 先读取最新快照再重建监听。监听失败时使用有上限的自适应低频轮询，并明确显示同步状态，不能固定高频轮询。
+2. 同时在线经常超过免费/个人版 10 条实时连接后，接入 GoEasy。CloudBase 继续负责身份、事务、持久化和历史，GoEasy 只广播事务提交后的房间状态；客户端进入、重连或发现 `stateVersion` 跳跃时必须从 CloudBase 获取完整快照。
+3. 小程序产生稳定收益后再自建 Socket。推荐先用单台 2 核 2GB Linux + Node.js `ws`，通过短期签名 Token 鉴权、房间频道、心跳、指数退避重连和 HTTPS 内部广播接口工作。Socket 永远不能直接决定积分，故障时回退到 CloudBase 快照/轮询；规模增长后再升级为多实例、负载均衡和 Redis Pub/Sub。
+4. 所有实时方案都使用单调递增的 `stateVersion`。客户端只接受更新版本；版本跳跃、重连、回到前台时进行完整校正。第三方或自建推送失败只能造成短暂显示延迟，不能造成账本丢失或重复计分。
 
 ## 修改与交付检查
 
@@ -233,5 +244,5 @@ node --check cloudfunctions\userFunctions\index.js
 - 不要限制负分，除非产品重新确认。
 - 不要把领奖池改成仅房主可用，除非产品重新确认。
 - 不要让客户端决定可信身份、昵称、头像或最终积分。
-- 不要因临时头像失效而删除 `avatarFileID`。
+- 不要因临时 URL 失效而删除当前 `avatarFileID`；只有用户成功换用另一个受管 `avatars/...` fileID 后才能清理被替换的旧文件。
 - 不要把战绩页当成空页面；它已是正式功能。

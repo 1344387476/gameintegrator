@@ -2,6 +2,8 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const { retainRecentMessages } = require('./messageUtils')
+const { deleteReplacedAvatar } = require('./avatarCleanup')
 const {
   historyPlayer,
   normalizeDisplayText,
@@ -13,6 +15,18 @@ const {
 } = require('./historyUtils')
 //体验trial  //开发板develop
 const qrVersion = 'release'
+
+async function getRecentMessagesInTransaction(transaction, roomId, room) {
+  if (Array.isArray(room.recentMessages)) return room.recentMessages
+  const legacy = await transaction.collection('messages').doc(roomId).get().catch(() => null)
+  return legacy?.data?.messages || []
+}
+
+function nextStateVersion(room) {
+  const current = Number.isSafeInteger(room.stateVersion) ? room.stateVersion : 0
+  if (!Number.isSafeInteger(current + 1)) throw new Error('房间版本数据异常')
+  return current + 1
+}
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext()
@@ -43,8 +57,12 @@ exports.main = async (event, context) => {
       }
 
       // 同时包含历史消息中的头像，使已退出玩家的旧消息仍能显示头像。
-      const messagesRes = await db.collection('messages').doc(roomId).get().catch(() => ({ data: null }))
-      const messageFileIDs = (messagesRes.data?.messages || []).flatMap(message => [
+      let roomMessages = roomRes.data.recentMessages
+      if (!Array.isArray(roomMessages)) {
+        const messagesRes = await db.collection('messages').doc(roomId).get().catch(() => ({ data: null }))
+        roomMessages = messagesRes.data?.messages || []
+      }
+      const messageFileIDs = roomMessages.flatMap(message => [
         message.fromAvatarFileID,
         message.toAvatarFileID
       ])
@@ -164,9 +182,16 @@ exports.main = async (event, context) => {
 
       const transaction = await db.startTransaction()
       try {
-        let newPlayers = [...room.players]
+        // 在事务内重读，避免多人同时加入时用旧数组互相覆盖。
+        const latestRoomRes = await transaction.collection('rooms').doc(roomId).get()
+        const latestRoom = latestRoomRes.data
+        if (!latestRoom || latestRoom.status !== 'active') throw new Error('房间不存在或已结束')
+        const latestExistingPlayer = (latestRoom.players || []).find(p => p.openid === OPENID)
+        if (latestExistingPlayer && !latestExistingPlayer.isExited) throw new Error('您已在该房间中')
+        if (!latestExistingPlayer && latestRoom.players.length >= 8) throw new Error('房间人数已满')
+        const newPlayers = latestRoom.players.map(player => ({ ...player }))
 
-        if (existingPlayer) {
+        if (latestExistingPlayer) {
           // 重新加入已退出的房间
           const idx = newPlayers.findIndex(p => p.openid === OPENID)
           newPlayers[idx].isExited = false
@@ -186,29 +211,27 @@ exports.main = async (event, context) => {
           })
         }
 
-        await transaction.collection('rooms').doc(roomId).update({
-          data: { players: newPlayers }
-        })
+        const existingMessages = await getRecentMessagesInTransaction(transaction, roomId, latestRoom)
+        const joinMessage = {
+          fromOpenid: OPENID,
+          fromNickname: nickname,
+          fromAvatarFileID: avatarFileID || '',
+          content: `${nickname} 加入了房间`,
+          messageType: 'join',
+          timestamp: db.serverDate()
+        }
+        await transaction.collection('rooms').doc(roomId).update({ data: {
+          players: newPlayers,
+          recentMessages: retainRecentMessages(existingMessages, joinMessage),
+          stateVersion: nextStateVersion(latestRoom),
+          lastActiveTime: db.serverDate()
+        } })
 
         await transaction.collection('users').doc(OPENID).update({
           data: { currentRoomId: roomId }
         })
 
         await transaction.commit()
-
-        // 加入房间系统消息
-        await db.collection('messages').doc(roomId).update({
-          data: {
-            messages: _.push({
-              fromOpenid: OPENID,
-              fromNickname: nickname,
-              fromAvatarFileID: avatarFileID || '',
-              content: `${nickname} 加入了房间`,
-              messageType: 'join',
-              timestamp: db.serverDate()
-            })
-          }
-        })
 
         return { success: true }
       } catch (error) {
@@ -258,35 +281,22 @@ exports.main = async (event, context) => {
               avatarFileID,  // fileID（永久，用于重新获取URL）
               score: 0,
               isExited: false
-            }]
-          }
-        })
-
-        // 创建空消息文档
-        await transaction.collection('messages').doc(roomId).set({
-          data: {
-            messages: [],
-            createdAt: db.serverDate()
-          }
-        })
-
-        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: roomId } })
-
-        await transaction.commit()
-
-        // 创建房间系统消息
-        await db.collection('messages').doc(roomId).update({
-          data: {
-            messages: _.push({
+            }],
+            recentMessages: [{
               fromOpenid: OPENID,
               fromNickname: nickname,
               fromAvatarFileID: avatarFileID,
               content: `${nickname} 创建了房间`,
               messageType: 'create',
               timestamp: db.serverDate()
-            })
+            }],
+            stateVersion: 1
           }
         })
+
+        await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: roomId } })
+
+        await transaction.commit()
 
         // 二维码按需生成：只有玩家首次打开邀请二维码时才调用 generateQRCode。
         return { success: true, roomId }
@@ -317,23 +327,25 @@ exports.main = async (event, context) => {
         if (roomDeleted) {
           // 最后一位在线玩家退出时沿用原规则：销毁无人可继续操作的房间。
           await transaction.collection('rooms').doc(roomId).remove()
+          await transaction.collection('messages').doc(roomId).remove()
         } else {
           // 保留完整玩家账本和积分，仅将当前玩家标为离线。
-          await transaction.collection('rooms').doc(roomId).update({
-            data: { players: leaveState.players, owner: leaveState.owner, lastActiveTime: db.serverDate() }
-          })
-          await transaction.collection('messages').doc(roomId).update({
-            data: {
-              messages: db.command.push({
-                fromOpenid: OPENID,
-                fromNickname: leaveState.leavingPlayer.nickname,
-                fromAvatarFileID: leaveState.leavingPlayer.avatarFileID || '',
-                content: `${leaveState.leavingPlayer.nickname} 退出了房间`,
-                messageType: 'leave',
-                timestamp: db.serverDate()
-              })
-            }
-          })
+          const existingMessages = await getRecentMessagesInTransaction(transaction, roomId, room)
+          const leaveMessage = {
+            fromOpenid: OPENID,
+            fromNickname: leaveState.leavingPlayer.nickname,
+            fromAvatarFileID: leaveState.leavingPlayer.avatarFileID || '',
+            content: `${leaveState.leavingPlayer.nickname} 退出了房间`,
+            messageType: 'leave',
+            timestamp: db.serverDate()
+          }
+          await transaction.collection('rooms').doc(roomId).update({ data: {
+            players: leaveState.players,
+            owner: leaveState.owner,
+            recentMessages: retainRecentMessages(existingMessages, leaveMessage),
+            stateVersion: nextStateVersion(room),
+            lastActiveTime: db.serverDate()
+          } })
         }
 
         await transaction.collection('users').doc(OPENID).update({ data: { currentRoomId: null } })
@@ -350,14 +362,6 @@ exports.main = async (event, context) => {
           console.log('二维码文件删除失败（可能已被手动删除）:', e.message)
         }
       }
-      if (roomDeleted) {
-        try {
-          await db.collection('messages').doc(roomId).remove()
-        } catch (e) {
-          console.log('消息文档删除失败:', e.message)
-        }
-      }
-
       return { success: true, roomDeleted }
     }
 
@@ -406,8 +410,11 @@ exports.main = async (event, context) => {
 
         // 2. 标记为 settled，并立即移除已失效的邀请二维码引用。
         await transaction.collection('rooms').doc(roomId).update({
-          data: settledRoomState.roomUpdate
+          data: { ...settledRoomState.roomUpdate, stateVersion: nextStateVersion(room) }
         })
+
+        // 信息流水只服务于活跃房间；结算战绩已由 history 独立保存。
+        await transaction.collection('messages').doc(roomId).remove()
 
         // 3. 清空所有玩家的 currentRoomId
         for (const player of room.players) {
@@ -434,19 +441,6 @@ exports.main = async (event, context) => {
             }
           }
         }
-
-        // 写入结算系统消息
-        await db.collection('messages').doc(roomId).update({
-          data: {
-            messages: db.command.push({
-              fromOpenid: 'SYSTEM',
-              fromNickname: '系统',
-              content: '本场对局已结算，输赢保存到历史记录',
-              messageType: 'settle',
-              timestamp: db.serverDate()
-            })
-          }
-        })
 
         return { success: true, msg: '结算完成' }
       } catch (error) {
@@ -493,17 +487,11 @@ exports.main = async (event, context) => {
 
         // 2. 物理删除房间
         await transaction.collection('rooms').doc(roomId).remove()
+        await transaction.collection('messages').doc(roomId).remove()
 
         await transaction.commit()
 
-        // 3. 删除消息文档（事务提交后清理，不阻塞主流程）
-        try {
-          await db.collection('messages').doc(roomId).remove()
-        } catch (e) {
-          console.log('消息文档删除失败:', e.message)
-        }
-
-        // 4. 删除云存储中的二维码图片（非事务，不阻塞主流程）
+        // 3. 删除云存储中的二维码图片（非事务，不阻塞主流程）
         if (qrCodeFileID) {
           try {
             await cloud.deleteFile({
@@ -617,6 +605,7 @@ exports.main = async (event, context) => {
       const transaction = await db.startTransaction()
       let oldNickname = ''
       let savedAvatarFileID = ''
+      let oldAvatarFileID = ''
 
       try {
         // 必须读取事务中的最新玩家数组，避免资料保存覆盖同时发生的计分结果。
@@ -629,14 +618,25 @@ exports.main = async (event, context) => {
         if (playerIndex === -1) throw new Error('您不在该房间中或已退出')
 
         oldNickname = room.players[playerIndex].nickname || '玩家'
+        oldAvatarFileID = room.players[playerIndex].avatarFileID || ''
         savedAvatarFileID = avatarFileID || room.players[playerIndex].avatarFileID || ''
         const updatedPlayers = room.players.map((player, index) => index === playerIndex
           ? { ...player, nickname, avatar: '', avatarFileID: savedAvatarFileID }
           : player)
 
-        await transaction.collection('rooms').doc(roomId).update({
-          data: { players: updatedPlayers }
-        })
+        const profileUpdate = { players: updatedPlayers, stateVersion: nextStateVersion(room) }
+        if (oldNickname !== nickname) {
+          const existingMessages = await getRecentMessagesInTransaction(transaction, roomId, room)
+          profileUpdate.recentMessages = retainRecentMessages(existingMessages, {
+            fromOpenid: OPENID,
+            fromNickname: nickname,
+            fromAvatarFileID: savedAvatarFileID,
+            content: `${oldNickname} 修改昵称为 ${nickname}`,
+            messageType: 'system',
+            timestamp: db.serverDate()
+          })
+        }
+        await transaction.collection('rooms').doc(roomId).update({ data: profileUpdate })
         await transaction.collection('users').doc(OPENID).update({
           data: { nickname, avatar: '', avatarFileID: savedAvatarFileID, updateTime: db.serverDate() }
         })
@@ -646,50 +646,36 @@ exports.main = async (event, context) => {
         throw error
       }
 
-      // 昵称提示是附属流水，失败不回滚已经安全提交的资料。
-      if (oldNickname !== nickname) {
-        try {
-          await db.collection('messages').doc(roomId).update({
-            data: {
-              messages: _.push({
-                fromOpenid: OPENID,
-                fromNickname: nickname,
-                fromAvatarFileID: savedAvatarFileID,
-                content: `${oldNickname} 修改昵称为 ${nickname}`,
-                messageType: 'system',
-                timestamp: db.serverDate()
-              })
-            }
-          })
-        } catch (messageError) {
-          console.log('资料已更新，但昵称消息写入失败:', messageError.message)
-        }
+      try {
+        await deleteReplacedAvatar(cloud, oldAvatarFileID, savedAvatarFileID)
+      } catch (cleanupError) {
+        console.log('资料已保存，但旧头像清理失败:', cleanupError.message)
       }
+
       return { success: true, msg: '资料更新成功' }
     }
 
     // === 动作 J：更新 All In 值 ===
     if (action === 'updateAllInValue') {
       const { roomId, allInValue } = payload
-      
-      // 检查房间是否存在
-      const roomRes = await db.collection('rooms').doc(roomId).get().catch(() => null)
-      if (!roomRes || !roomRes.data) {
-        throw new Error('房间不存在')
-      }
-      
-      // 检查权限（只有房主可以设置）
-      if (roomRes.data.owner !== OPENID) {
-        throw new Error('权限不足，只有房主可以设置')
-      }
-      if (roomRes.data.status !== 'active') throw new Error('房间已结束，无法修改设置')
-      if (roomRes.data.mode !== 'bet') throw new Error('只有下注模式可以设置 All In')
       if (!Number.isSafeInteger(allInValue) || allInValue <= 0) throw new Error('All In 值必须是正整数')
-      
-      // 更新 allInVal
-      await db.collection('rooms').doc(roomId).update({
-        data: { allInVal: allInValue }
-      })
+
+      const transaction = await db.startTransaction()
+      try {
+        const roomRes = await transaction.collection('rooms').doc(roomId).get()
+        const room = roomRes.data
+        if (!room) throw new Error('房间不存在')
+        if (room.owner !== OPENID) throw new Error('权限不足，只有房主可以设置')
+        if (room.status !== 'active') throw new Error('房间已结束，无法修改设置')
+        if (room.mode !== 'bet') throw new Error('只有下注模式可以设置 All In')
+        await transaction.collection('rooms').doc(roomId).update({
+          data: { allInVal: allInValue, stateVersion: nextStateVersion(room) }
+        })
+        await transaction.commit()
+      } catch (error) {
+        await transaction.rollback()
+        throw error
+      }
       
       return { success: true, msg: 'All In 值已设置' }
     }
