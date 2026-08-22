@@ -3,7 +3,7 @@ const THEMES = new Set(['light', 'dark'])
 
 const PALETTES = {
   light: {
-    navBackground: '#F7FAF8',
+    navBackground: '#F6FAFB',
     navFront: '#000000',
     tabBackground: '#FFFFFF',
     tabColor: '#8E8E93',
@@ -31,10 +31,36 @@ function getTheme() {
   return normalizeTheme(stored)
 }
 
+function getCustomNavMetrics() {
+  let windowInfo = {}
+  let menuRect = null
+  try {
+    windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+    menuRect = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null
+  } catch (err) {}
+
+  const statusBarHeight = Number(windowInfo.statusBarHeight) || 20
+  const capsuleGap = menuRect && Number.isFinite(menuRect.top)
+    ? Math.max(6, menuRect.top - statusBarHeight)
+    : 8
+  const navTop = menuRect && Number.isFinite(menuRect.top)
+    ? Math.round(menuRect.top)
+    : statusBarHeight + 6
+  const navHeight = menuRect && Number.isFinite(menuRect.height)
+    ? Math.round(menuRect.height)
+    : 32
+  const safeTop = menuRect && Number.isFinite(menuRect.bottom)
+    ? Math.ceil(menuRect.bottom + capsuleGap)
+    : Math.ceil(statusBarHeight + 48)
+
+  return { safeTop, navTop, navHeight }
+}
+
 function applyNativeChrome(pageType = 'home', theme = getTheme()) {
   const normalized = normalizeTheme(theme)
   const palette = { ...PALETTES[normalized] }
-  if (pageType !== 'home' && normalized === 'light') palette.navBackground = '#F2F2F7'
+  if (pageType === 'room' && normalized === 'light') palette.navBackground = '#F6FAFB'
+  else if (pageType !== 'home' && normalized === 'light') palette.navBackground = '#F2F2F7'
 
   wx.setNavigationBarColor({
     frontColor: palette.navFront,
@@ -63,4 +89,4 @@ function setTheme(theme, page, pageType = 'home') {
   return normalized
 }
 
-module.exports = { getTheme, setTheme, applyNativeChrome, normalizeTheme, PALETTES }
+module.exports = { getTheme, getCustomNavMetrics, setTheme, applyNativeChrome, normalizeTheme, PALETTES }

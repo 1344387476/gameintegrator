@@ -1,7 +1,8 @@
 /* 全局视觉基础：轻量、克制的 iOS 分组界面语言 */
 page {
+  --app-background: #F6FAFB;
   min-height: 100%;
-  background: #f2f2f7;
+  background: var(--app-background);
   color: #1c1c1e;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -37,7 +38,7 @@ button::after { border: 0; }
 }
 
 .theme-light {
-  --page-bg: #f2f2f7; --page-top: #f7faf8; --surface: #ffffff;
+  --page-bg: var(--app-background); --page-top: var(--app-background); --surface: #ffffff;
   --surface-raised: rgba(255,255,255,.78); --surface-secondary: #f7f7fa;
   --text-primary: #1c1c1e; --text-secondary: #6e6e73; --text-tertiary: #8e8e93;
   --separator: rgba(60,60,67,.075); --accent: #28a860; --accent-soft: #eef9f2;

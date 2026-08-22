@@ -1,4 +1,10 @@
 .record-page { min-height: 100vh; padding: 40rpx 28rpx calc(40rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: var(--page-bg); color: var(--text-primary); transition: background-color 180ms ease,color 180ms ease; }
+.record-page.theme-light {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(100,210,220,.13), transparent 35%),
+    radial-gradient(circle at 80% 70%, rgba(100,210,220,.13), transparent 40%),
+    var(--app-background);
+}
 .record-intro { padding: 12rpx 10rpx 42rpx; }
 .record-kicker { display: block; margin-bottom: 12rpx; color: var(--accent); font-size: 19rpx; font-weight: 700; letter-spacing: 3rpx; }
 .record-title { display: block; font-size: 43rpx; font-weight: 750; letter-spacing: -1rpx; }

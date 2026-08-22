@@ -5,9 +5,10 @@
     "pages/record/record"
   ],
   "window": {
-    "backgroundColor": "#f2f2f7",
+    "backgroundColor": "#F6FAFB",
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#ffffff",
+    "navigationStyle": "custom",
+    "navigationBarBackgroundColor": "#F6FAFB",
     "navigationBarTitleText": "牌局",
     "navigationBarTextStyle": "black",
     "enablePullDownRefresh": false

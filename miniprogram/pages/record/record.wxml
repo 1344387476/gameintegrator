@@ -1,4 +1,4 @@
-<view class="record-page theme-{{appearanceTheme}} motion-{{motionLevel}}">
+<view class="record-page theme-{{appearanceTheme}} motion-{{motionLevel}}" style="padding-top: {{pageSafeTop}}px;">
   <view class="record-intro">
     <text class="record-kicker">GAME HISTORY</text>
     <text class="record-title">每一局，都有迹可循</text>

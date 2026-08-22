@@ -4,7 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
 const db = cloud.database()
 const { retainRecentMessages } = require('./messageUtils')
-const SUPPORTED_ACTIONS = new Set(['TRANSFER', 'BATCH_TRANSFER', 'BET', 'ALLIN', 'CLAIM', 'PASS'])
+const SUPPORTED_ACTIONS = new Set(['TRANSFER', 'BATCH_TRANSFER', 'BET', 'BASE_BET', 'ALLIN', 'CLAIM'])
 const MAX_TRANSACTION_RETRIES = 3
 const MAX_RECENT_OPERATION_IDS = 50
 
@@ -94,13 +94,17 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
       messages.push(buildMessage({ sender, content: `转给 ${receiver.nickname || '玩家'} ${amount} 分`, messageType: 'transfer', toPlayer: receiver, operationId, amount }))
     }
     sender.score = safeAdd(getScore(sender), -totalAmount)
-  } else if (action === 'BET' || action === 'ALLIN') {
+  } else if (action === 'BET' || action === 'BASE_BET' || action === 'ALLIN') {
     assert(room.mode === 'bet', '下注操作只能在下注模式使用')
-    const amount = assertPositiveInteger(payload.amount)
+    let amount
     if (action === 'ALLIN') {
-      const allInValue = room.allInVal
-      assert(Number.isSafeInteger(allInValue) && allInValue > 0, '房主尚未设置 All-in 值')
-      assert(amount === allInValue, 'All-in 金额与房间设置不一致')
+      amount = getScore(sender)
+      assert(amount > 0, '当前积分必须大于 0 才能 All-in')
+    } else if (action === 'BASE_BET') {
+      const baseBetValue = room.baseBetVal === undefined ? room.allInVal : room.baseBetVal
+      amount = assertPositiveInteger(baseBetValue, '底注值')
+    } else {
+      amount = assertPositiveInteger(payload.amount)
     }
     const pot = room.pot === undefined ? 0 : room.pot
     assert(Number.isSafeInteger(pot) && pot >= 0, '奖池数据异常，请联系房主')
@@ -108,7 +112,8 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
     sender.lastDepositAmount = amount
     sender.lastDepositTime = new Date().toISOString()
     updates.pot = safeAdd(pot, amount)
-    messages.push(buildMessage({ sender, content: `${action === 'ALLIN' ? 'All-in' : '下注'} ${amount} 分`, messageType: action === 'ALLIN' ? 'allin' : 'bet', operationId, amount, potAfter: updates.pot }))
+    const actionLabel = action === 'ALLIN' ? 'All-in' : (action === 'BASE_BET' ? '底注' : '下注')
+    messages.push(buildMessage({ sender, content: `${actionLabel} ${amount} 分`, messageType: action === 'ALLIN' ? 'allin' : 'bet', operationId, amount, potAfter: updates.pot }))
   } else if (action === 'CLAIM') {
     assert(room.mode === 'bet', '领取奖池只能在下注模式使用')
     const pot = room.pot === undefined ? 0 : room.pot
@@ -116,9 +121,6 @@ function prepareOperation({ action, payload, room, openid, operationId }) {
     sender.score = safeAdd(getScore(sender), pot)
     updates.pot = 0
     messages.push(buildMessage({ sender, content: `收走了奖池 ${pot} 分`, messageType: 'claim', toPlayer: sender, operationId, amount: pot, potAfter: 0 }))
-  } else if (action === 'PASS') {
-    assert(room.mode === 'bet', '跳过回合只能在下注模式使用')
-    messages.push(buildMessage({ sender, content: `${sender.nickname || '玩家'} 跳过了这回合`, messageType: 'pass', operationId }))
   }
 
   return { updates, messages }
@@ -196,3 +198,5 @@ exports.main = async (event) => {
     return { success: false, msg: error.message || '操作失败，请重试' }
   }
 }
+
+exports._test = { prepareOperation }

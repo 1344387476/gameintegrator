@@ -16,6 +16,8 @@ Page({
   data: {
     appearanceTheme: app.globalData.appearanceTheme || 'light',
     motionLevel: motion.getMotionLevel(),
+    pageSafeTop: 72,
+    pageActionTop: 78,
     showAppearanceSettings: false,
     // 当前显示的昵称
     nickname: '',
@@ -48,6 +50,7 @@ Page({
   onLoad() {
     this.setData({ appearanceTheme: theme.getTheme() });
     theme.applyNativeChrome('home', this.data.appearanceTheme);
+    this.updatePageSafeTop();
     // 统一监听用户信息加载状态，只触发一次
     this.waitForUserInfoAndInit();
   },
@@ -165,6 +168,15 @@ Page({
     if (this._userInfoWatcher) {
       clearTimeout(this._userInfoWatcher);
     }
+  },
+
+  updatePageSafeTop() {
+    const { safeTop } = theme.getCustomNavMetrics();
+    this.setData({ pageSafeTop: safeTop, pageActionTop: safeTop + 6 });
+  },
+
+  onResize() {
+    this.updatePageSafeTop();
   },
 
   onHide() {

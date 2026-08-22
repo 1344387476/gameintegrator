@@ -1,147 +1,94 @@
 <!--pages/room/room.wxml-->
 <view class="room-page theme-{{appearanceTheme}} motion-{{motionLevel}}">
 <view class="main-container">
-  <view class="left-section">
-    <view class="members-section">
-      <scroll-view class="members-scroll" scroll-y scroll-with-animation enhanced show-scrollbar="{{false}}">
-        <view class="sidebar-list">
-          <!-- 邀请好友卡片 -->
-          <view class="capsule-card invite-card" bindtap="showQrcode">
-            <image class="invite-avatar-img" src="/images/weixin.png"></image>
-            <text class="capsule-label">邀请</text>
-          </view>
-          
-          <!-- 玩家胶囊卡片 -->
-          <view class="capsule-card {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}} {{item.isExited ? 'is-exited' : ''}} {{item.openid === receiveTargetOpenid ? 'claim-target claim-target-' + receiveAnimationPhase : ''}}"
-                wx:for="{{room.members}}" wx:key="openid" bindtap="handleMemberTap" data-index="{{index}}" hover-class="card-pressed">
-            <!-- 房主皇冠 - 右上角 -->
-            <view class="crown-badge" wx:if="{{item.openid === room.creator}}">👑</view>
-            
-            <!-- 头像 -->
-            <image class="capsule-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" data-file-id="{{item.avatarFileID}}" binderror="handleAvatarError"></image>
-            <view class="offline-badge" wx:if="{{item.isExited}}">离线</view>
-            
-            <!-- 昵称 -->
-            <text class="capsule-name">{{item.name}}</text>
-            
-            <!-- 分数胶囊 (0分隐藏) -->
-            <view class="score-capsule {{item.score > 0 ? 'positive' : 'negative'}} {{item.scoreScroll ? 'compact-number' : ''}}" wx:if="{{item.score !== 0}}">
-              <text class="score-capsule-text">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
-            </view>
-            <view class="claim-reward-badge" wx:if="{{showReceiveAnimation && receiveAnimationPhase === 'reward' && item.openid === receiveTargetOpenid}}">+{{receiveAmount}}</view>
-          </view>
-          
-
-        </view>
-      </scroll-view>
+  <view class="scoreboard-section" style="padding-top: {{roomSafeTop}}px;">
+    <view class="room-custom-title" style="top: {{customNavTop}}px; height: {{customNavHeight}}px;">
+      <text>{{room.roomName}}</text>
+    </view>
+    <view class="room-invite-btn" style="top: {{roomInviteTop}}px;" bindtap="showQrcode" hover-class="control-pressed">
+      <text class="room-invite-plus">+</text>
+      <text>邀请</text>
     </view>
 
+    <view class="table-stage-shell">
+    <view class="table-stage">
+      <view class="table-surface"></view>
+
+      <view class="table-player {{item.seatClass}} {{item.openid === room.creator ? 'is-creator' : ''}} {{item.openid === myOpenid ? 'is-me' : ''}} {{item.isExited ? 'is-exited' : ''}} {{item.openid === receiveTargetOpenid ? 'claim-target claim-target-' + receiveAnimationPhase : ''}}"
+            wx:for="{{room.members}}" wx:key="openid" bindtap="handleMemberTap" data-index="{{item.seatIndex}}" hover-class="card-pressed">
+        <view class="crown-badge" wx:if="{{item.openid === room.creator}}">👑</view>
+        <image class="table-player-avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" data-file-id="{{item.avatarFileID}}" binderror="handleAvatarError"></image>
+        <view class="offline-badge" wx:if="{{item.isExited}}">已退出</view>
+        <text class="table-player-name">{{item.name}}</text>
+        <text class="table-player-score {{item.score > 0 ? 'positive' : (item.score < 0 ? 'negative' : 'zero')}} {{item.scoreScroll ? 'compact-number' : ''}}">{{item.score > 0 ? '+' : ''}}{{item.score}}</text>
+        <view class="claim-reward-badge" wx:if="{{showReceiveAnimation && receiveAnimationPhase === 'reward' && item.openid === receiveTargetOpenid}}">+{{receiveAmount}}</view>
+      </view>
+
+      <view class="table-center normal-center" wx:if="{{room.gameMode === 'normal'}}">
+        <text class="center-eyebrow">{{room.leader.isTie ? '并列领先' : '当前领先'}}</text>
+        <view class="leader-avatars">
+          <image class="leader-avatar {{item.isExited ? 'is-exited' : ''}}" wx:for="{{room.leader.leaders}}" wx:key="openid" src="{{item.avatarUrl || '/images/avatar.png'}}"></image>
+          <view class="leader-overflow" wx:if="{{room.leader.overflow > 0}}">+{{room.leader.overflow}}</view>
+        </view>
+        <text class="leader-name" wx:if="{{!room.leader.isTie && room.leader.leaders.length}}">{{room.leader.leaders[0].name}}</text>
+        <text class="leader-score">{{room.leader.score > 0 ? '+' : ''}}{{room.leader.score}}</text>
+      </view>
+
+      <view class="table-center bet-center {{showReceiveAnimation ? 'claiming claim-' + receiveAnimationPhase : ''}}" wx:if="{{room.gameMode === 'bet'}}">
+        <view class="center-pool" bindtap="transferToPrizePool" hover-class="pool-pressed">
+          <text class="center-eyebrow">奖池积分</text>
+          <scroll-view class="center-pool-value prize-amount-scroll {{animateAmount ? 'animate' : ''}}" scroll-x enhanced show-scrollbar="{{false}}">
+            <text>{{room.prizePool.total}}</text>
+          </scroll-view>
+          <text class="center-pool-hint">点击转入</text>
+        </view>
+        <text class="center-receiver" wx:if="{{room.prizePool.receiver}}">{{room.prizePool.receiver}}已收取</text>
+        <view class="center-claim-btn {{room.prizePool.receiver || gameOperationSubmitting ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" catchtap="onCollectPoolTap" hover-class="control-pressed">收取奖池</view>
+      </view>
+    </view>
+    </view>
   </view>
 
-  <view class="right-section">
-    <!-- 下注模式面板 -->
-    <view class="bet-panel-wrapper" wx:if="{{room.gameMode === 'bet'}}">
-      <!-- 公共奖池卡片 -->
-      <view class="prize-pool-card-modern {{showReceiveAnimation ? 'claiming claim-' + receiveAnimationPhase : ''}}" bindtap="transferToPrizePool" hover-class="pool-pressed">
-        <!-- 点击区域：奖袋、数字、提示 -->
-        <view class="prize-pool-content">
-          <!-- 奖袋图标 -->
-          <view class="prize-icon-wrap">
-            <text class="prize-bag-icon">💰</text>
-          </view>
-          <!-- 积分数字 -->
-          <scroll-view class="prize-amount-wrap prize-amount-scroll {{animateAmount ? 'animate' : ''}}" scroll-x enhanced show-scrollbar="{{false}}">
-            <text class="prize-amount-number">{{room.prizePool.total}}</text>
-          </scroll-view>
-          <!-- 提示文字 -->
-          <text class="prize-pool-hint">点击转入积分</text>
-        </view>
-        
-        <!-- 收取状态提示 -->
-        <view class="prize-receiver-tip {{room.prizePool.receiver ? 'show' : ''}}">
-          【{{room.prizePool.receiver}}】已收取
-        </view>
-        
-        <!-- 收取奖池按钮 - 在卡片内部，阻止冒泡 -->
-        <view class="collect-pool-btn {{room.prizePool.receiver || gameOperationSubmitting ? 'disabled' : ''}}" wx:if="{{room.status === 'playing'}}" catchtap="onCollectPoolTap" hover-class="control-pressed">
-          <text class="collect-pool-text">收取奖池</text>
-        </view>
-      </view>
-
-      <!-- 游戏操作按钮 - 紧贴奖池下方 -->
-      <view class="game-actions-row" wx:if="{{room.status === 'playing'}}">
-        <view class="game-action-btn call {{!canFollow || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleFollow" hover-class="control-pressed">
-          <text class="action-btn-text">跟</text>
-        </view>
-        <view class="game-action-btn pass {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handlePass" hover-class="control-pressed">
-          <text class="action-btn-text">过</text>
-        </view>
-        <view class="game-action-btn allin {{!room.allInValue || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleAllIn" hover-class="control-pressed">
-          <text class="action-btn-text">All-in</text>
-        </view>
+  <view class="records-section {{room.gameMode === 'normal' ? 'has-bottom-action' : ''}}">
+    <view class="record-filter-bar">
+      <text class="record-filter-title">积分流水</text>
+      <view class="record-filter" aria-label="流水筛选">
+        <view class="record-filter-item {{recordFilter === 'all' ? 'active' : ''}}" bindtap="onRecordFilterChange" data-filter="all" hover-class="control-pressed">全部</view>
+        <view class="record-filter-item {{recordFilter === 'mine' ? 'active' : ''}}" bindtap="onRecordFilterChange" data-filter="mine" hover-class="control-pressed">关于我</view>
       </view>
     </view>
-
-
-    <view class="chat-section {{room.gameMode === 'normal' ? 'has-bottom-action' : ''}}">
-      <view class="message-panel">
-        <view class="record-filter-bar">
-          <text class="record-filter-title">信息记录</text>
-          <view class="record-filter" aria-label="流水筛选">
-            <view class="record-filter-item {{recordFilter === 'all' ? 'active' : ''}}" bindtap="onRecordFilterChange" data-filter="all" hover-class="control-pressed">全部</view>
-            <view class="record-filter-item {{recordFilter === 'mine' ? 'active' : ''}}" bindtap="onRecordFilterChange" data-filter="mine" hover-class="control-pressed">关于我</view>
+    <scroll-view class="records-scroll" scroll-y scroll-with-animation scroll-into-view="{{scrollIntoView}}" bindscrolltoupper="onScrollToUpper">
+      <view class="records-list">
+        <view class="records-empty" wx:if="{{room.records.length === 0}}">{{recordFilter === 'mine' ? '暂无与我相关的记录' : '暂无积分流水'}}</view>
+        <view wx:if="{{loadedRecords.length > 0 && (loadingMoreText || isLoadingMore)}}" class="load-more-container {{hasMore ? 'clickable' : ''}}" bindtap="onLoadingMoreTap">
+          <text class="loading-icon" wx:if="{{isLoadingMore}}">⟳</text>
+          <text>{{isLoadingMore ? '加载中...' : loadingMoreText}}</text>
+        </view>
+        <view id="record-{{index}}" class="timeline-item timeline-{{item.eventClass}} {{item.isMe ? 'is-me' : ''}}" wx:for="{{room.records}}" wx:key="recordKey" bindtap="onRecordTap" data-record="{{item}}">
+          <view class="timeline-marker">{{item.eventIcon}}</view>
+          <image class="timeline-avatar" wx:if="{{!item.isSystem}}" src="{{item.detail.operatorAvatar || '/images/avatar.png'}}"></image>
+          <view class="timeline-body">
+            <view class="timeline-meta">
+              <text class="timeline-operator">{{item.isSystem ? '房间动态' : item.detail.operator}}</text>
+              <text class="timeline-time">{{item.time}}</text>
+            </view>
+            <text class="timeline-content">
+              <block wx:if="{{item.segments}}"><text wx:for="{{item.segments}}" wx:for-item="segment" wx:key="index" class="{{segment.isMe ? 'me' : ''}} {{segment.isAmount ? 'transfer-amount' : ''}}">{{segment.text}}</text></block>
+              <block wx:else>{{item.processedDescription || item.description}}</block>
+            </text>
           </view>
         </view>
-        <scroll-view
-          class="chat-scroll"
-          scroll-y
-          scroll-with-animation
-          scroll-into-view="{{scrollIntoView}}"
-          bindscrolltoupper="onScrollToUpper">
-          <view class="chat-list">
-            <view class="records-empty" wx:if="{{room.records.length === 0 && recordFilter === 'mine'}}">暂无与我相关的记录</view>
-            <view
-              wx:if="{{loadedRecords.length > 0 && (loadingMoreText || isLoadingMore)}}"
-              class="load-more-container {{hasMore ? 'clickable' : ''}}"
-              bindtap="onLoadingMoreTap">
-              <block wx:if="{{isLoadingMore}}">
-                <text class="loading-icon">⟳</text>
-                <text>加载中...</text>
-              </block>
-              <block wx:else>
-                <text>{{loadingMoreText}}</text>
-              </block>
-            </view>
-            <view id="record-{{index}}" class="chat-message {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}}" wx:for="{{room.records}}" wx:key="recordKey" bindtap="onRecordTap" data-record="{{item}}">
-              <view class="message-component">
-                <view class="avatar-name-container" wx:if="{{!item.isSystem}}">
-                  <text class="message-username">{{item.detail.operator}}</text>
-                  <view class="avatar-container {{room.gameMode === 'bet' ? 'bet-avatar' : ''}}">
-                    <image class="single-avatar {{item.isMe ? 'avatar-me' : 'avatar-other'}}" src="{{item.detail.operatorAvatar || '/images/avatar.png'}}"></image>
-                  </view>
-                </view>
-                <view class="bubble-time-container">
-                  <text class="message-time">{{item.time}}</text>
-                  <view class="bubble {{item.isMe ? 'mine' : 'others'}} {{item.isSystem ? 'system' : ''}} {{item.isReceive ? 'receive' : ''}}">
-                    <text class="message-content {{item.isReceive ? 'receive-text' : ''}}">
-                      <block wx:if="{{item.segments}}">
-                        <text wx:for="{{item.segments}}" wx:for-item="segment" wx:key="index" class="{{segment.isMe ? 'me' : ''}} {{segment.isAmount ? 'transfer-amount' : ''}}">{{segment.text}}</text>
-                      </block>
-                      <block wx:else>{{item.processedDescription || item.description}}</block>
-                    </text>
-                  </view>
-                </view>
-              </view>
-            </view>
-          </view>
-        </scroll-view>
       </view>
-
-      <view class="bottom-actions-container" wx:if="{{room.gameMode === 'normal'}}">
-        <view class="action-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn" hover-class="control-pressed">
-          <text class="btn-text">批量支出</text>
-        </view>
+    </scroll-view>
+    <view class="bottom-actions-container scoreboard-bottom-action" wx:if="{{room.gameMode === 'normal'}}">
+      <view class="action-btn expense-btn {{room.status !== 'playing' ? 'disabled' : ''}}" bindtap="handleExpenseBtn" hover-class="control-pressed">
+        <text class="btn-text">批量支出</text>
       </view>
+    </view>
+    <view class="bottom-actions-container bet-bottom-actions" wx:if="{{room.gameMode === 'bet' && room.status === 'playing'}}">
+      <view class="bottom-game-btn base-bet {{!room.baseBetValue || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleBaseBet" hover-class="control-pressed">底注</view>
+      <view class="bottom-game-btn follow {{!canFollow || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleFollow" hover-class="control-pressed">跟注</view>
+      <view class="bottom-game-btn allin {{myScore <= 0 || gameOperationSubmitting ? 'disabled' : ''}}" bindtap="handleAllIn" hover-class="control-pressed">All-in</view>
     </view>
   </view>
 
@@ -344,8 +291,24 @@
   bind:close="closeResultModal"
 />
 
-<view class="all-in-tip {{showAllInTip ? 'show' : ''}}" wx:if="{{showAllInTip}}">
-  <text class="tip-content-text">请先设置all in值</text>
+<view class="all-in-tip {{showBaseBetTip ? 'show' : ''}}" wx:if="{{showBaseBetTip}}">
+  <text class="tip-content-text">请先设置底注值</text>
+</view>
+
+<view class="modal-mask {{showAllInConfirm ? 'show' : ''}}" wx:if="{{showAllInConfirm}}" bindtap="closeAllInConfirm"></view>
+<view class="confirm-modal {{showAllInConfirm ? 'show' : ''}}" wx:if="{{showAllInConfirm}}">
+  <view class="modal-header">
+    <text class="modal-title">确认 All-in</text>
+    <text class="modal-close" bindtap="closeAllInConfirm">✕</text>
+  </view>
+  <view class="modal-body">
+    <view class="confirm-text">是否Allin所有分数</view>
+    <view class="confirm-sub">确认后将把当前全部积分转入奖池</view>
+    <view class="modal-actions">
+      <view class="action-btn cancel {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="closeAllInConfirm">再想想</view>
+      <view class="action-btn confirm allin-confirm-btn {{gameOperationSubmitting ? 'disabled' : ''}}" bindtap="confirmAllIn">{{gameOperationSubmitting ? '转入中…' : '确认'}}</view>
+    </view>
+  </view>
 </view>
 
 <view class="modal-mask {{showExitConfirm ? 'show' : ''}}" wx:if="{{showExitConfirm}}" bindtap="closeExitConfirm"></view>
@@ -388,10 +351,10 @@
   </view>
   <view class="modal-body">
     <view class="setting-item" wx:if="{{room.gameMode === 'bet'}}">
-      <view class="setting-label">All In值设置</view>
-      <view class="setting-description">设置全局all in最大值（仅房主可设置）</view>
+      <view class="setting-label">底注值设置</view>
+      <view class="setting-description">设置每次点击底注固定转入的积分（仅房主可设置）</view>
       <view class="setting-input-wrapper">
-        <input class="setting-input" type="digit" maxlength="16" placeholder="请输入" value="{{allInInput}}" bindinput="onAllInInput" />
+        <input class="setting-input" type="digit" maxlength="16" placeholder="请输入" value="{{baseBetInput}}" bindinput="onBaseBetInput" />
         <text class="setting-unit">分</text>
       </view>
     </view>

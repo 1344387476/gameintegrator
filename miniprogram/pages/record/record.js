@@ -6,6 +6,7 @@ Page({
   data: {
     appearanceTheme: getApp().globalData.appearanceTheme || 'light',
     motionLevel: motion.getMotionLevel(),
+    pageSafeTop: 82,
     items: [],
     page: 1,
     hasMore: true,
@@ -22,8 +23,18 @@ Page({
   onLoad() {
     this.setData({ appearanceTheme: theme.getTheme() })
     theme.applyNativeChrome('record', this.data.appearanceTheme)
+    this.updatePageSafeTop()
     wx.showShareMenu({ menus: ['shareAppMessage'] })
     this.loadHistory(true)
+  },
+
+  updatePageSafeTop() {
+    const { safeTop } = theme.getCustomNavMetrics()
+    this.setData({ pageSafeTop: safeTop + 20 })
+  },
+
+  onResize() {
+    this.updatePageSafeTop()
   },
 
   onShow() {

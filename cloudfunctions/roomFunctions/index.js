@@ -631,7 +631,7 @@ exports.main = async (event, context) => {
             fromOpenid: OPENID,
             fromNickname: nickname,
             fromAvatarFileID: savedAvatarFileID,
-            content: `${oldNickname} 修改昵称为 ${nickname}`,
+            content: `修改了个人资料`,
             messageType: 'system',
             timestamp: db.serverDate()
           })
@@ -655,10 +655,10 @@ exports.main = async (event, context) => {
       return { success: true, msg: '资料更新成功' }
     }
 
-    // === 动作 J：更新 All In 值 ===
-    if (action === 'updateAllInValue') {
-      const { roomId, allInValue } = payload
-      if (!Number.isSafeInteger(allInValue) || allInValue <= 0) throw new Error('All In 值必须是正整数')
+    // === 动作 J：更新底注值 ===
+    if (action === 'updateBaseBetValue') {
+      const { roomId, baseBetValue } = payload
+      if (!Number.isSafeInteger(baseBetValue) || baseBetValue <= 0) throw new Error('底注值必须是正整数')
 
       const transaction = await db.startTransaction()
       try {
@@ -667,9 +667,9 @@ exports.main = async (event, context) => {
         if (!room) throw new Error('房间不存在')
         if (room.owner !== OPENID) throw new Error('权限不足，只有房主可以设置')
         if (room.status !== 'active') throw new Error('房间已结束，无法修改设置')
-        if (room.mode !== 'bet') throw new Error('只有下注模式可以设置 All In')
+        if (room.mode !== 'bet') throw new Error('只有下注模式可以设置底注')
         await transaction.collection('rooms').doc(roomId).update({
-          data: { allInVal: allInValue, stateVersion: nextStateVersion(room) }
+          data: { baseBetVal: baseBetValue, stateVersion: nextStateVersion(room) }
         })
         await transaction.commit()
       } catch (error) {
@@ -677,7 +677,7 @@ exports.main = async (event, context) => {
         throw error
       }
       
-      return { success: true, msg: 'All In 值已设置' }
+      return { success: true, msg: '底注值已设置' }
     }
 
     return { success: false, msg: '未知动作' }

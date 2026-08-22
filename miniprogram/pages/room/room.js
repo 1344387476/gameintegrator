@@ -8,6 +8,7 @@
 const theme = require('../../utils/theme')
 const motion = require('../../utils/motion')
 const { limitDisplayText, safeInteger } = require('../../utils/display')
+const { decorateMembers, deriveLeader, decorateRecord } = require('../../utils/room-presentation')
 
 Page({
   /**
@@ -16,6 +17,10 @@ Page({
   data: {
     appearanceTheme: getApp().globalData.appearanceTheme || 'light',
     motionLevel: motion.getMotionLevel(),
+    roomSafeTop: 72,
+    roomInviteTop: 78,
+    customNavTop: 26,
+    customNavHeight: 32,
     showTransferPicker: false,
     // 房间ID
     roomId: '',
@@ -25,6 +30,7 @@ Page({
       roomName: '',
       gameMode: 'normal', // 'normal'(普通模式) 或 'bet'(下注模式)
       members: [], // 成员列表
+      leader: { score: 0, leaders: [], overflow: 0, isTie: false },
       records: [], // 操作记录
       creator: '', // 房主
       status: 'playing', // 'playing'(进行中) 或 'ended'(已结束)
@@ -33,17 +39,20 @@ Page({
         receiver: '',
         receivedTime: ''
       },
-      allInValue: 0 // all in最大值（下注模式）
+      baseBetValue: 0 // 底注固定值（下注模式）
     },
     // 当前用户昵称
     currentUser: '',
     // 当前用户openid
     myOpenid: '',
+    // 当前用户积分，用于控制 All-in 是否可用
+    myScore: 0,
     // 弹窗显示状态
 showTransferModal: false, // 转账弹窗
     showExpenseModal: false, // 支出弹窗
     showExitConfirm: false, // 退出房间确认弹窗
     showDismissConfirm: false, // 解散房间确认弹窗
+    showAllInConfirm: false, // All-in 确认弹窗
     // 转账相关数据
     targetMemberIndex: -1, // 目标成员索引
     targetMember: '', // 目标成员昵称
@@ -63,11 +72,10 @@ showTransferModal: false, // 转账弹窗
     expenseAmounts: {}, // 各成员支出金额
     expenseTotal: 0, // 支出总计
     // 下注模式相关数据
-    allInValue: 0, // all in最大值（下注模式）
-    showAllInModal: false, // all in设置弹窗（已废弃）
+    baseBetValue: 0, // 底注固定值（下注模式）
     showSettingsModal: false, // 设置弹窗
-    allInInput: '', // all in值输入
-    showAllInTip: false, // all in未设置提示
+    baseBetInput: '', // 底注值输入
+    showBaseBetTip: false, // 底注未设置提示
     lastDepositAmount: 0, // 上一个转入金额
     lastDepositOperator: '', // 上一个转入玩家
     canFollow: false, // 是否可以跟注
@@ -154,6 +162,7 @@ showTransferModal: false, // 转账弹窗
     this.setData({ appearanceTheme: theme.getTheme() });
     theme.applyNativeChrome('room', this.data.appearanceTheme);
 
+    this.updateRoomSafeTop();
     this.updateFabPosition();
     
     this.setData({ 
@@ -189,6 +198,20 @@ showTransferModal: false, // 转账弹窗
 
   onReady() {
     this.generateShareImage();
+  },
+
+  /**
+   * 自定义导航模式下，内容避开右上角微信原生胶囊按钮。
+   */
+  updateRoomSafeTop() {
+    const { safeTop: roomSafeTop, navTop: customNavTop, navHeight: customNavHeight } = theme.getCustomNavMetrics();
+
+    this.setData({
+      roomSafeTop,
+      roomInviteTop: roomSafeTop + 6,
+      customNavTop,
+      customNavHeight
+    });
   },
 
   /**
@@ -231,6 +254,7 @@ showTransferModal: false, // 转账弹窗
   },
 
   onResize(res) {
+    this.updateRoomSafeTop();
     if (res && res.size) this.updateFabPosition(res.size);
   },
 
@@ -473,6 +497,7 @@ showTransferModal: false, // 转账弹窗
       showExitConfirm: false,
       showSettleConfirm: false,
       showDismissConfirm: false,
+      showAllInConfirm: false,
       transferSubmitting: false,
       gameOperationSubmitting: false,
       settingsSubmitting: false,
@@ -777,7 +802,7 @@ showTransferModal: false, // 转账弹窗
         segments = this.generateAmountSegments(processedDescription, msg.messageType);
       }
       
-      return {
+      return decorateRecord({
         recordKey: msg.operationId ? `${msg.operationId}-${msg.toOpenid || messageIndex}` : `${msg.messageType || 'system'}-${new Date(msg.timestamp).getTime()}-${messageIndex}`,
         operationId: msg.operationId || '',
         description,
@@ -790,7 +815,7 @@ showTransferModal: false, // 转账弹窗
         isSystem: ['create', 'join', 'leave', 'settle'].includes(msg.messageType) || !msg.messageType,
         isReceive: false,
         segments
-      };
+      });
     });
   },
 
@@ -933,20 +958,21 @@ loadRoom(roomId) {
     }));
 
     // 为members添加积分滚动检测
-    members = members.map(member => {
+    members = decorateMembers(members.map(member => {
       const scoreText = member.score > 0 ? `+${member.score}` : `${member.score}`;
       const scoreScroll = scoreText.length > 7;
       return {
         ...member,
         scoreScroll
       };
-    });
+    }));
 
     const processedRoom = {
       _id: room._id,
       roomName: displayRoomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
       members: members,
+      leader: deriveLeader(members),
       records: [],
       creator: room.owner,
       // 状态映射：云函数 'active'/'settled' -> 前端 'playing'/'ended'
@@ -956,7 +982,7 @@ loadRoom(roomId) {
         receiver: '',
         receivedTime: ''
       },
-      allInValue: safeInteger(room.allInVal)
+      baseBetValue: safeInteger(room.baseBetVal === undefined ? room.allInVal : room.baseBetVal)
     };
 
     // 下注模式：初始化跟注相关数据
@@ -969,7 +995,8 @@ loadRoom(roomId) {
       lastDepositAmount,
       lastDepositOperator,
       canFollow,
-      isCreator
+      isCreator,
+      myScore: members.find(member => member.openid === myOpenid)?.score || 0
     }, () => this.generateShareImage());
     this._lastRoomSnapshotAt = Date.now();
   },
@@ -1032,6 +1059,7 @@ loadRoom(roomId) {
         // 同步更新成员列表和消息列表，避免消息继续使用默认头像。
         this.setData({
           'room.members': updatedMembers,
+          'room.leader': deriveLeader(updatedMembers),
           loadedRecords: updatedRecords,
           'room.records': this.filterRecords(updatedRecords)
         });
@@ -1065,7 +1093,10 @@ loadRoom(roomId) {
         const members = this.data.room.members.map(member =>
           member.avatarFileID === fileID ? { ...member, avatarUrl } : member
         );
-        this.setData({ 'room.members': members });
+        this.setData({
+          'room.members': members,
+          'room.leader': deriveLeader(members)
+        });
       },
       fail: (err) => console.error('重新获取头像链接失败:', err)
     });
@@ -1126,14 +1157,16 @@ loadRoom(roomId) {
       'room.roomName': processedRoom.roomName,
       'room.gameMode': processedRoom.gameMode,
       'room.members': mergedMembers,
+      'room.leader': deriveLeader(mergedMembers),
       'room.status': processedRoom.status,
       'room.prizePool': processedRoom.prizePool,
-      'room.allInValue': processedRoom.allInValue,
+      'room.baseBetValue': processedRoom.baseBetValue,
       'room.creator': processedRoom.creator,
       lastDepositAmount: processedRoom.lastDepositAmount,
       lastDepositOperator: processedRoom.lastDepositOperator,
       canFollow: processedRoom.canFollow,
-      isCreator: processedRoom.isCreator
+      isCreator: processedRoom.isCreator,
+      myScore: mergedMembers.find(member => member.openid === this.data.myOpenid)?.score || 0
     });
     if (Array.isArray(room.recentMessages)) this.applyMessagesSnapshot(room.recentMessages);
     this.checkAndRefreshAvatars(room, mergedMembers);
@@ -1216,18 +1249,20 @@ loadRoom(roomId) {
       // 一次性 setData（关键！同时更新积分和消息，但保留头像）
       this.setData({
         'room.members': mergedMembers,
+        'room.leader': deriveLeader(mergedMembers),
         loadedRecords: result.records,
         'room.records': this.filterRecords(result.records),
         messagesLoaded: result.count,
         hasMore: result.hasMore,
         'room.status': processedRoom.status,
         'room.prizePool': processedRoom.prizePool,
-        'room.allInValue': processedRoom.allInValue,
+        'room.baseBetValue': processedRoom.baseBetValue,
         'room.creator': processedRoom.creator,
         lastDepositAmount: processedRoom.lastDepositAmount,
         lastDepositOperator: processedRoom.lastDepositOperator,
         canFollow: processedRoom.canFollow,
-        isCreator: processedRoom.isCreator
+        isCreator: processedRoom.isCreator,
+        myScore: mergedMembers.find(member => member.openid === this.data.myOpenid)?.score || 0
       });
       this._lastRoomSnapshotAt = Date.now();
       this._lastMessageSnapshotAt = Date.now();
@@ -1280,7 +1315,7 @@ loadRoom(roomId) {
       _id: room._id,
       roomName: displayRoomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
-      members: room.players.map(player => {
+      members: decorateMembers(room.players.map(player => {
         // 检查积分是否需要滚动（超过7位数字）
         const score = safeInteger(player.score);
         const scoreText = score > 0 ? `+${score}` : `${score}`;
@@ -1295,7 +1330,7 @@ loadRoom(roomId) {
           isExited: player.isExited || false,
           scoreScroll
         };
-      }),
+      })),
       records: [],
       creator: room.owner,
       status: room.status === 'active' ? 'playing' : (room.status === 'settled' ? 'ended' : room.status),
@@ -1304,8 +1339,9 @@ loadRoom(roomId) {
         receiver: limitDisplayText(room.prizePoolReceiver, 10, ''),
         receivedTime: room.prizePoolReceivedTime || ''
       },
-      allInValue: safeInteger(room.allInVal)
+      baseBetValue: safeInteger(room.baseBetVal === undefined ? room.allInVal : room.baseBetVal)
     };
+    processedRoom.leader = deriveLeader(processedRoom.members);
 
     // 判断当前用户是否为房主
     const currentUserOpenid = wx.getStorageSync('openid');
@@ -1536,6 +1572,7 @@ loadRoom(roomId) {
 
           this.setData({
             'room.members': members,
+            'room.leader': deriveLeader(members),
             currentUser: nickname
           });
 
@@ -1793,9 +1830,9 @@ success: (res) => {
         suffix = match[3];
       }
     }
-    // 下注消息："下注 50 分" - 匹配 "下注" 后面的数字
+    // 下注/底注消息：匹配动作名称后面的数字
     else if (messageType === 'bet') {
-      const match = description.match(/^(下注\s)(\d+)(\s*分)$/);
+      const match = description.match(/^((?:下注|底注)\s)(\d+)(\s*分)$/);
       if (match) {
         prefix = match[1];
         amountMatch = match[2];
@@ -3210,7 +3247,6 @@ success: (res) => {
   handleFollow() {
     if (this.data.gameOperationSubmitting) return;
     // 检查是否可以跟注
-    console.log("111")
     if (!this.data.canFollow || this.data.lastDepositAmount <= 0) {
       this.showTip('暂无玩家转入积分，无法跟注');
       return;
@@ -3267,44 +3303,46 @@ success: (res) => {
   },
 
   /**
-   * 点击"过"按钮
-   * 功能：跳过当前回合，生成系统消息
+   * 点击“底注”按钮：按房主设置的固定值转入奖池。
    */
-  handlePass() {
+  handleBaseBet() {
     if (this.data.gameOperationSubmitting) return;
+    if (!this.data.room.baseBetValue || this.data.room.baseBetValue <= 0) {
+      this.showBaseBetTip();
+      return;
+    }
     if (this.data.room.status !== 'playing') {
       return;
     }
 
-    const currentUser = this.data.currentUser;
     this.setData({ gameOperationSubmitting: true });
-
-    // 调用云函数执行"过"
     wx.cloud.callFunction({
       name: 'gameLogic',
       data: {
-        action: 'PASS',
+        action: 'BASE_BET',
         payload: {
           roomId: this.data.roomId,
-          operationId: this.createGameOperationId(),
-          nickname: currentUser
+          operationId: this.createGameOperationId()
         }
       },
       success: (res) => {
         if (res.result.success) {
+          const amount = res.result.latestMessages?.[0]?.amount || this.data.room.baseBetValue;
+          const playerIndex = this.data.room.members.findIndex(m => m.openid === this.data.myOpenid);
+          if (playerIndex !== -1) this.triggerDepositAnimation(playerIndex, amount);
           this.scheduleRealtimeFallback();
         } else {
           if (this.handleRoomOperationFailure(res.result.msg)) return;
           wx.showToast({
-            title: res.result.msg || '操作失败',
+            title: res.result.msg || '底注失败',
             icon: 'none'
           });
         }
       },
       fail: (err) => {
-        console.error('跳过失败:', err);
+        console.error('底注失败:', err);
         wx.showToast({
-          title: '操作失败，请重试',
+          title: '底注失败，请重试',
           icon: 'none'
         });
       },
@@ -3332,48 +3370,47 @@ success: (res) => {
     // 不再本地添加消息，等待 watch 监听器自动同步
   },
 
-  /**
-   * 点击"all in"按钮
-   * 功能：根据设置的all in值转入积分到奖池
-   */
+  /** 点击 All-in：正积分玩家需先确认，再由云端转入操作瞬间的全部积分。 */
   handleAllIn() {
     if (this.data.gameOperationSubmitting) return;
-    // 检查是否设置了all in值
-    if (!this.data.room.allInValue || this.data.room.allInValue <= 0) {
-      this.showAllInTip();
+    if (this.data.myScore <= 0) {
+      this.showTip('当前积分必须大于 0 才能 All-in');
       return;
     }
-
-    // 游戏已结束，不允许操作
     if (this.data.room.status !== 'playing') {
-      // this.showTip('游戏已结束，无法操作');
       return;
     }
+    this.setData({ showAllInConfirm: true });
+  },
 
-    const amount = this.data.room.allInValue;
+  closeAllInConfirm() {
+    if (!this.data.gameOperationSubmitting) this.setData({ showAllInConfirm: false });
+  },
 
+  confirmAllIn() {
+    if (this.data.gameOperationSubmitting) return;
+    if (this.data.room.status !== 'playing') return;
+    if (this.data.myScore <= 0) {
+      this.setData({ showAllInConfirm: false });
+      this.showTip('当前积分必须大于 0 才能 All-in');
+      return;
+    }
     this.setData({ gameOperationSubmitting: true });
-    // 调用云函数执行 all in
     wx.cloud.callFunction({
       name: 'gameLogic',
       data: {
         action: 'ALLIN',
         payload: {
           roomId: this.data.roomId,
-          operationId: this.createGameOperationId(),
-          amount: amount,
-          nickname: this.data.currentUser
+          operationId: this.createGameOperationId()
         }
       },
       success: (res) => {
         if (res.result.success) {
-          // 找到当前玩家位置（用于动画）
-          const room = this.data.room;
-          const playerIndex = room.members.findIndex(m => m.name === this.data.currentUser);
-          if (playerIndex !== -1) {
-            this.triggerDepositAnimation(playerIndex, amount);
-          }
-          
+          const amount = res.result.latestMessages?.[0]?.amount || this.data.myScore;
+          const playerIndex = this.data.room.members.findIndex(m => m.openid === this.data.myOpenid);
+          if (playerIndex !== -1) this.triggerDepositAnimation(playerIndex, amount);
+          this.setData({ showAllInConfirm: false });
           this.scheduleRealtimeFallback();
         } else {
           if (this.handleRoomOperationFailure(res.result.msg)) return;
@@ -3395,20 +3432,20 @@ success: (res) => {
   },
 
   /**
-   * all in值输入
+   * 底注值输入
    */
-  onAllInInput(e) {
+  onBaseBetInput(e) {
     const value = e.detail.value;
-    this.setData({ allInInput: value });
+    this.setData({ baseBetInput: value });
   },
 
   /**
-   * 显示all in未设置提示
+   * 显示底注未设置提示
    */
-  showAllInTip() {
-    this.setData({ showAllInTip: true });
+  showBaseBetTip() {
+    this.setData({ showBaseBetTip: true });
     setTimeout(() => {
-      this.setData({ showAllInTip: false });
+      this.setData({ showBaseBetTip: false });
     }, 2000);
   },
   
@@ -3610,7 +3647,7 @@ success: (res) => {
     this.setData({
       showSettingsModal: true,
       fabExpanded: false,
-      allInInput: this.data.room.allInValue ? this.data.room.allInValue.toString() : ''
+      baseBetInput: this.data.room.baseBetValue ? this.data.room.baseBetValue.toString() : ''
     });
   },
 
@@ -3632,25 +3669,25 @@ success: (res) => {
       return;
     }
 
-    // 如果是下注模式，保存all in值
+    // 如果是下注模式，保存底注值
     if (room.gameMode === 'bet') {
-      const value = parseInt(this.data.allInInput);
-      if (this.data.allInInput && value > 0) {
+      const value = parseInt(this.data.baseBetInput);
+      if (this.data.baseBetInput && value > 0) {
         if (!this.validatePositiveInteger(value)) {
           this.showTip('请输入正整数');
           return;
         }
 
         this.setData({ settingsSubmitting: true });
-        // 调用云函数保存 allInVal 到数据库
+        // 调用云函数保存底注值到数据库
         try {
           const res = await wx.cloud.callFunction({
             name: 'roomFunctions',
             data: {
-              action: 'updateAllInValue',
+              action: 'updateBaseBetValue',
               payload: {
                 roomId: this.data.roomId,
-                allInValue: value
+                baseBetValue: value
               }
             }
           });
@@ -3658,16 +3695,16 @@ success: (res) => {
           if (res.result.success) {
             // 更新本地数据
             this.setData({
-              'room.allInValue': value
+              'room.baseBetValue': value
             });
-            this.showTip('All In 值已保存');
+            this.showTip('底注值已保存');
           } else {
             if (this.handleRoomOperationFailure(res.result.msg)) return;
             this.showTip(res.result.msg || '保存失败');
             return;
           }
         } catch (err) {
-          console.error('保存 All In 值失败:', err);
+          console.error('保存底注值失败:', err);
           this.showTip('保存失败，请重试');
           return;
         } finally {

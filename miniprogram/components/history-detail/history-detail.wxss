@@ -56,9 +56,10 @@
 .settlement-person.payer .settlement-name { color: var(--negative); font-weight: 650; }
 .settlement-person.receiver .settlement-name { color: var(--positive); font-weight: 650; }
 .settlement-targets { display: flex; min-width: 0; flex: 1; flex-wrap: wrap; align-items: center; row-gap: 12rpx; }
-.settlement-target { display: flex; min-width: 142rpx; flex: 1 1 46%; align-items: center; }
-.settlement-arrow { display: flex; min-width: 58rpx; flex: 1; flex-direction: column; align-items: center; justify-content: center; color: var(--accent); font-size: 28rpx; font-weight: 700; line-height: 1; }
-.settlement-amount { color: var(--text-primary); font-size: 21rpx; font-weight: 750; }
+.settlement-target { display: flex; min-width: 200rpx; flex: 1 1 100%; align-items: center; }
+.settlement-arrow { display: flex; min-width: 92rpx; flex: 1; align-items: center; justify-content: center; gap: 8rpx; padding: 0 8rpx; box-sizing: border-box; color: var(--accent); font-weight: 700; line-height: 1; }
+.settlement-arrow-symbol { flex-shrink: 0; font-size: 30rpx; }
+.settlement-amount { min-width: 0; color: var(--text-primary); font-size: 24rpx; font-weight: 800; line-height: 32rpx; text-align: center; }
 .ranking-card { margin-bottom: 20rpx; padding: 26rpx; border-radius: 26rpx; background: rgba(127,127,127,.065); }
 .section-label { display: block; margin-bottom: 16rpx; color: var(--text-secondary); font-size: 23rpx; font-weight: 650; }
 .empty-ranking { padding: 40rpx 0; text-align: center; color: var(--text-tertiary); font-size: 23rpx; }
@@ -81,7 +82,7 @@
 .player-score { max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-score.compact-number { font-size: 19rpx; letter-spacing: -1rpx; }
 .settlement-flow,.settlement-targets,.settlement-target { min-width: 0; }
-.settlement-amount { display: block; max-width: 100%; overflow: hidden; font-size: 18rpx; letter-spacing: -1rpx; text-overflow: ellipsis; white-space: nowrap; }
+.settlement-amount { display: block; overflow: visible; letter-spacing: -.5rpx; white-space: nowrap; }
 .overview-score { max-width: 48%; overflow: hidden; font-size: 32rpx; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes mask-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sheet-in { from { opacity: .55; transform: translate3d(0,100%,0); } to { opacity: 1; transform: translate3d(0,0,0); } }

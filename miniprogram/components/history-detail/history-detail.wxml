@@ -38,7 +38,10 @@
             </view>
             <view class="settlement-targets">
               <view class="settlement-target" wx:for="{{group.transfers}}" wx:key="key" wx:for-item="transfer">
-                <view class="settlement-arrow"><text class="settlement-amount">{{transfer.amount}}</text><text>→</text></view>
+                <view class="settlement-arrow">
+                  <text class="settlement-arrow-symbol">→</text>
+                  <text class="settlement-amount">{{transfer.amount}}</text>
+                </view>
                 <view class="settlement-person receiver">
                   <image class="settlement-avatar" src="{{transfer.receiver.avatarUrl}}" mode="aspectFill"></image>
                   <text class="settlement-name">{{transfer.receiver.nickname}}</text>

@@ -13,7 +13,7 @@
 这是一个微信云开发小程序，用于创建牌局房间、多人实时记分、结算并保存战绩：
 
 - `normal` 普通模式：玩家之间单笔或批量转分。
-- `bet` 下注模式：下注/跟注、All-in、跳过和领取奖池。
+- `bet` 下注模式：下注/底注/跟注、All-in 和领取奖池。
 
 建议接手时依次阅读：
 
@@ -92,7 +92,7 @@ node --check cloudfunctions\userFunctions\index.js
 
 - 房间页只 watch `rooms/{roomId}` 一份聚合状态；每位前台玩家占用一条实时连接。
 - 云端 `active/settled` 映射为前端 `playing/ended`。
-- 云端 `pot` 映射为 `room.prizePool.total`，`allInVal` 映射为 `room.allInValue`。
+- 云端 `pot` 映射为 `room.prizePool.total`，`baseBetVal` 映射为 `room.baseBetValue`；旧房间仅有 `allInVal` 时兼容作为底注值读取。
 - watcher 收到结算或删除后立即锁定操作；非结算发起者先收到提示，再展示结果。
 - 修改页面显示/隐藏、卸载、重进逻辑时要防重复监听和陈旧回调，运行 `room-lifecycle.test.js` 并双账号验证。
 
@@ -122,7 +122,7 @@ node --check cloudfunctions\userFunctions\index.js
 - `settle`、`dismiss`、`deleteSettledRoom`：结算、解散、清理用户侧旧关联。
 - `checkUserStatus`：首页“返回房间”和进入检查。
 - `updateProfile`：同步房间玩家快照与用户资料。
-- `updateAllInValue`：仅下注模式房主可设置正安全整数。
+- `updateBaseBetValue`：仅下注模式房主可设置正安全整数底注值。
 - `generateQRCode`：复用或生成上传二维码。
 - `getAvatarUrls`：只为当前房间成员换取房间/消息中允许的 fileID 临时 URL。
 - `listHistory`：仅调用者参与的 v2 战绩，默认每页 20、最大 50。
@@ -133,9 +133,9 @@ node --check cloudfunctions\userFunctions\index.js
 - `TRANSFER`：普通模式单笔转分。
 - `BATCH_TRANSFER`：普通模式批量转分，最多 7 个不同接收者。
 - `BET`：下注模式投入奖池；“跟注”本质也是此 action。
-- `ALLIN`：金额必须严格等于 `allInVal`。
+- `BASE_BET`：按房间 `baseBetVal` 固定转入奖池，不信任客户端金额；兼容旧房间的 `allInVal`。
+- `ALLIN`：将调用者在事务内读取到的全部正积分转入奖池并归零；零分或负分不可使用。
 - `CLAIM`：领取整个奖池并将 `pot` 归零。
-- `PASS`：仅记录跳过消息。
 
 所有 action 都使用 `payload`，至少带 `roomId` 和 `operationId`；金额操作带 `amount`，单转带 `toOpenid`，批量带 `transferList`。`operationId` 必须为 8～80 字符字符串。
 
@@ -154,7 +154,7 @@ node --check cloudfunctions\userFunctions\index.js
 - `owner`、`roomName`（最多 20 字符）
 - `mode`：`normal` / `bet`
 - `status`：`active` / `settled`
-- `pot`：非负安全整数；`allInVal`：可能尚未设置
+- `pot`：非负安全整数；`baseBetVal`：可能尚未设置；旧房间可能仅有兼容字段 `allInVal`
 - `players`：玩家账本数组
 - `qrCode`：永久云文件 ID
 - `recentMessages`：最近 100 条活跃房间信息，与积分状态由同一房间快照推送
@@ -190,7 +190,7 @@ node --check cloudfunctions\userFunctions\index.js
 4. 金额和运算结果必须是 JavaScript 安全整数，金额必须为正。
 5. 允许负分，不做余额不足拦截；这是已确认玩法。
 6. 任何未退出成员都可领取整个奖池；这是已确认玩法。
-7. All-in 金额必须严格等于 `room.allInVal`。
+7. 底注金额必须来自 `room.baseBetVal`（旧房间兼容 `allInVal`）；All-in 必须在事务内读取调用者当前全部正积分，零分或负分不可使用。
 8. 禁止给自己转分；批量拒绝空列表、重复/非成员接收者和超过 7 人。
 9. 流水昵称和头像必须从房间玩家生成，不信任前端展示字段。
 10. 积分、奖池、活跃时间、幂等 ID 和计分流水在同一短事务中写入。

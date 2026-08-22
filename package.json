@@ -4,7 +4,7 @@
   "description": "计分小程序 ",
   "main": "app.js",
   "scripts": {
-    "test": "node --test tests/theme.test.js tests/history.test.js tests/motion.test.js tests/room-entry.test.js tests/room-transfer.test.js tests/room-lifecycle.test.js tests/home-profile.test.js tests/message-retention.test.js tests/avatar-cleanup.test.js"
+    "test": "node --test tests/theme.test.js tests/history.test.js tests/motion.test.js tests/room-entry.test.js tests/room-transfer.test.js tests/room-lifecycle.test.js tests/room-presentation.test.js tests/home-profile.test.js tests/message-retention.test.js tests/avatar-cleanup.test.js tests/game-bet.test.js"
   },
   "keywords": [
     "miniprogram",

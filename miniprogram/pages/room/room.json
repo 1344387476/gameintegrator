@@ -3,6 +3,7 @@
     "history-detail": "/components/history-detail/history-detail"
   },
   "disableScroll": true,
-  "navigationBarBackgroundColor": "#F2F2F7",
+  "navigationStyle": "custom",
+  "navigationBarBackgroundColor": "#F6FAFB",
   "navigationBarTextStyle": "black"
 }

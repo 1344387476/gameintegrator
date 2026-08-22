@@ -9,10 +9,10 @@
    </view>
 
  <view class="container theme-{{appearanceTheme}} motion-{{motionLevel}} {{isLoading || isCreatingOrJoining ? 'hidden' : 'motion-visible'}}">
-  <view class="appearance-button" hover-class="button-pressed" bindtap="openAppearanceSettings" aria-label="外观设置">
+  <view class="appearance-button" style="top: {{pageActionTop}}px;" hover-class="button-pressed" bindtap="openAppearanceSettings" aria-label="外观设置">
     <text class="appearance-button__icon">{{appearanceTheme === 'dark' ? '☾' : '☼'}}</text>
   </view>
-  <view class="content">
+  <view class="content" style="padding-top: {{pageSafeTop}}px;">
     <!-- 上部分：标题、头像、输入框、按钮（占3/5） -->
     <view class="top-section">
       <!-- 欢迎文字 -->

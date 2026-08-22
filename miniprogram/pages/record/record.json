@@ -2,9 +2,10 @@
   "usingComponents": {
     "history-detail": "/components/history-detail/history-detail"
   },
+  "navigationStyle": "custom",
   "navigationBarTitleText": "战绩",
-  "navigationBarBackgroundColor": "#F2F2F7",
+  "navigationBarBackgroundColor": "#F6FAFB",
   "navigationBarTextStyle": "black",
   "enablePullDownRefresh": true,
-  "backgroundColor": "#F2F2F7"
+  "backgroundColor": "#F6FAFB"
 }
