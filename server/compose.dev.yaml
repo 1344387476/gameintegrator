@@ -1,0 +1,27 @@
+# 仅开发数据库；不要把这个配置作为生产部署文件使用。
+name: gameintegrator-development
+services:
+  database:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-gameintegrator_dev}
+      POSTGRES_USER: ${PGUSER:-gameintegrator_dev}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?请在server/.env设置独立的开发数据库密码}
+    ports:
+      - "127.0.0.1:${PGPORT:-5432}:5432"
+    volumes:
+      - database-data:/var/lib/postgresql/data
+    mem_limit: 512m
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=30"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  database-data:

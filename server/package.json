@@ -1,0 +1,22 @@
+{
+  "name": "gameintegrator-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "计分小程序自建后端",
+  "type": "commonjs",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "dev": "node --env-file-if-exists=.env --watch src/index.js",
+    "db:migrate": "node --env-file-if-exists=.env src/migrate.js",
+    "test": "node --test --test-concurrency=1 test/config.test.js test/wechat.test.js test/database.test.js test/auth.test.js"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "11.2.0",
+    "fastify": "5.12.1",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8"
+  }
+}

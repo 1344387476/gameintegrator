@@ -10,6 +10,13 @@
 - 本次自建服务器改造使用 `codex/self-hosted-migration`；原云开发代码保留在 `codex/cloudbase-baseline`，基线提交为 `77c54eba3b1bfbd8f446f950263af202717bd1b5`，来源分支为 `codex/room-scoreboard`。
 - 迁移完成后仍保留上述基线分支，不在其上开发，不删除、重置或强推该分支；后续修复旧版时从基线另建分支。分支保留只覆盖代码，不等于云端数据或服务备份。
 
+## 自建迁移当前状态
+
+- 用户已确认 Node.js 24 / CommonJS、Fastify、PostgreSQL 17、WebSocket、Nginx、Docker Compose，并授权分阶段实施；第一批为 `server/` 基础服务、数据库迁移和微信登录，小程序尚未切换。
+- 当前后端运行与接口见 `server/README.md`；已确认决策、云开发限制优化清单及下一阶段见 `docs/self-hosted-migration.md`。新后端测试使用 `npm --prefix server test`；根 `npm test` 仍验证原小程序。
+- 用户要求优化受云服务限制的功能，不必照搬原实现。下文的数组整包更新、最近100条消息、最近50个去重ID、平台连接配额和历史兼容分支是旧实现描述，不是新系统必须遵守的设计约束。人数、玩法和数据保留变化应在对应阶段说明；鉴权、积分正确性和事务一致性不能削弱。
+- 当前没有部署到服务器；生产部署、域名/证书、远端推送和旧云服务停用另需明确确认。保留分支不动，不删除旧云数据。
+
 ## 项目概览
 
 这是一个微信云开发小程序，用于创建牌局房间、多人实时记分、结算并保存战绩：
@@ -253,7 +260,7 @@ node --check cloudfunctions\userFunctions\index.js
 ## 项目 Agent 团队与自建迁移状态
 
 项目画像、角色职责和介入条件见 [.codex/agent-curator/TEAM.md](.codex/agent-curator/TEAM.md)。涉及本次自建迁移时先按需读取。
-用户已确认 Ubuntu 22.04 / 杭州 / 2 vCPU / 2 GiB、域名正在 ICP 备案、旧业务数据无需迁移；当前仅配置 Agent，先确认方案，不开始业务开发或部署。旧数据无需迁移不代表授权删除旧数据或关闭云服务。
-本文其他章节仍描述当前云开发实现及既有演进设想；自建后端技术选型与切换方式尚待确认。角色配置不要求启动全部 Agent，实际委派须有明确任务、授权和文件分工。
+用户已确认 Ubuntu 22.04 / 杭州 / 2 vCPU / 2 GiB、域名正在 ICP 备案、旧业务数据无需迁移；已确认技术方案并进入server/第一批基础开发。旧数据无需迁移不代表授权删除旧数据或关闭云服务。
+已确认选型和云开发限制优化清单见 docs/self-hosted-migration.md，旧版实现细节不机械沿用；前端尚未切换，正式部署仍需确认。角色配置不要求启动全部 Agent，实际委派须有明确任务、授权和文件分工。
 技术栈、业务风险或阶段实质变化时，用 $project-agent-curator 重新评估；普通修改不重配。禁止批量删除及原有账本规则继续适用。
 <!-- project-agent-curator:end -->

@@ -9,7 +9,7 @@
     "licenseSourcePath": "LICENSE",
     "licenseSourceSha256": "9a45258434d5cedf0af73c9ad4771373701225038d246c49219026c33677f66f"
   },
-  "phase": "migration-planning-only",
+  "phase": "foundation-implementation",
   "roles": [
     {
       "sourceName": "Backend Architect",
@@ -21,7 +21,7 @@
       "sourceReview": "full-text",
       "ownership": "project-agent-curator",
       "outputPath": ".codex/agents/pac-engineering-backend-architect.toml",
-      "outputSha256": "83aa07041b75939a530f31ba77570e667c390992997f280a432b5e6e07fb959c"
+      "outputSha256": "a5d388fc2890fb949dd8936a92a305ecc05f94b237c5ec1af720f4fec7c880cd"
     },
     {
       "sourceName": "Application Security Engineer",
@@ -33,7 +33,7 @@
       "sourceReview": "full-text",
       "ownership": "project-agent-curator",
       "outputPath": ".codex/agents/pac-security-appsec-engineer.toml",
-      "outputSha256": "144f9bb47667f4dfe91cad25beecc95f77732bccb055d31af199afa46b1f8353"
+      "outputSha256": "6ac34457fc5e18c0d9db7cc0dc8f407aea54f87fbb096192d62146fd7c678ebe"
     },
     {
       "sourceName": "DevOps Automator",
@@ -45,7 +45,7 @@
       "sourceReview": "full-text",
       "ownership": "project-agent-curator",
       "outputPath": ".codex/agents/pac-engineering-devops-automator.toml",
-      "outputSha256": "bca3c22ea8edaf17cd1615b744ada05a03b765a650a7b102d261d7e5353fb55e"
+      "outputSha256": "b9aeff92599b9d822d71ed8023bf2805fb6dc6b5672f610ecd7c0fc4fe9f1a9a"
     },
     {
       "sourceName": "API Tester",
@@ -122,7 +122,7 @@
   "managedFiles": [
     {
       "path": ".codex/agent-curator/TEAM.md",
-      "sha256": "07773c88cc3b38a5b8c53523d4bc70259e4109e7ed3cf0a2b85022b4a1c0d4b0"
+      "sha256": "12ed71be4b3d4a276f04926feb855a474eb61849db1f6a4205b8de6f9fb2bcd4"
     },
     {
       "path": ".codex/agent-curator/licenses/agency-agents-LICENSE.txt",
@@ -130,15 +130,15 @@
     },
     {
       "path": ".codex/agents/pac-engineering-backend-architect.toml",
-      "sha256": "83aa07041b75939a530f31ba77570e667c390992997f280a432b5e6e07fb959c"
+      "sha256": "a5d388fc2890fb949dd8936a92a305ecc05f94b237c5ec1af720f4fec7c880cd"
     },
     {
       "path": ".codex/agents/pac-engineering-devops-automator.toml",
-      "sha256": "bca3c22ea8edaf17cd1615b744ada05a03b765a650a7b102d261d7e5353fb55e"
+      "sha256": "b9aeff92599b9d822d71ed8023bf2805fb6dc6b5672f610ecd7c0fc4fe9f1a9a"
     },
     {
       "path": ".codex/agents/pac-security-appsec-engineer.toml",
-      "sha256": "144f9bb47667f4dfe91cad25beecc95f77732bccb055d31af199afa46b1f8353"
+      "sha256": "6ac34457fc5e18c0d9db7cc0dc8f407aea54f87fbb096192d62146fd7c678ebe"
     }
   ],
   "managedBlocks": [
@@ -146,9 +146,10 @@
       "path": "AGENTS.md",
       "beginMarker": "<!-- project-agent-curator:begin -->",
       "endMarker": "<!-- project-agent-curator:end -->",
-      "sha256": "5d4b19e4ed95defd3e9c165e3f3fdc66752ce216236506543c09e2beac0aafe5"
+      "sha256": "b3a1e2d61df3bc05a41734a71d4abcb819d8350c1c7071fac5067845fb2bb3fd"
     }
   ],
   "runtimeVerification": "pending; no subagents started",
-  "configReference": "https://learn.chatgpt.com/docs/agent-configuration/subagents"
+  "configReference": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
+  "phaseNote": "用户已确认选型并要求优化云开发限制；第一批实现不等于前端切换或生产部署。"
 }
