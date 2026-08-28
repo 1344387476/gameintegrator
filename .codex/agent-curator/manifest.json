@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "managedBy": "project-agent-curator",
+  "projectRoot": ".",
+  "source": {
+    "repository": "https://github.com/msitarzewski/agency-agents",
+    "revision": "3c9588880b7cafaec325a104899fd8bbe27e7d72",
+    "license": "MIT",
+    "licenseSourcePath": "LICENSE",
+    "licenseSourceSha256": "9a45258434d5cedf0af73c9ad4771373701225038d246c49219026c33677f66f"
+  },
+  "phase": "migration-planning-only",
+  "roles": [
+    {
+      "sourceName": "Backend Architect",
+      "sourcePath": "engineering/engineering-backend-architect.md",
+      "projectRoleName": "pac-engineering-backend-architect",
+      "status": "enabled",
+      "reason": "云开发的身份、事务、数据库直读和实时监听需一起重构；专门约束计分账本与 API 合约，补足通用架构角色的项目细节。",
+      "sourceSha256": "18f237d054fa91f72a5dcda46a52ddcf7354ea3a3e39e0247629f4ea0f446917",
+      "sourceReview": "full-text",
+      "ownership": "project-agent-curator",
+      "outputPath": ".codex/agents/pac-engineering-backend-architect.toml",
+      "outputSha256": "83aa07041b75939a530f31ba77570e667c390992997f280a432b5e6e07fb959c"
+    },
+    {
+      "sourceName": "Application Security Engineer",
+      "sourcePath": "security/security-appsec-engineer.md",
+      "projectRoleName": "pac-security-appsec-engineer",
+      "status": "enabled",
+      "reason": "移除云端自动身份与集合权限后，登录、房间订阅、战绩读取和文件上传成为新的公开信任边界，需要设计阶段独立检查。",
+      "sourceSha256": "f3ee22350c9e0e7289d2d4747e7c1a8fe196d70340feec7b176b13bacc3deb77",
+      "sourceReview": "full-text",
+      "ownership": "project-agent-curator",
+      "outputPath": ".codex/agents/pac-security-appsec-engineer.toml",
+      "outputSha256": "144f9bb47667f4dfe91cad25beecc95f77732bccb055d31af199afa46b1f8353"
+    },
+    {
+      "sourceName": "DevOps Automator",
+      "sourcePath": "engineering/engineering-devops-automator.md",
+      "projectRoleName": "pac-engineering-devops-automator",
+      "status": "enabled",
+      "reason": "用户已有 Ubuntu 22.04 / 2 vCPU / 2 GiB 单机且正处ICP备案，部署资源、HTTPS/WSS、恢复和切换约束现在就影响方案。",
+      "sourceSha256": "5d3c3d12c605a8c07fadfd109697249f98bc8e3d1901247c390641ef9fb013e8",
+      "sourceReview": "full-text",
+      "ownership": "project-agent-curator",
+      "outputPath": ".codex/agents/pac-engineering-devops-automator.toml",
+      "outputSha256": "bca3c22ea8edaf17cd1615b744ada05a03b765a650a7b102d261d7e5353fb55e"
+    },
+    {
+      "sourceName": "API Tester",
+      "sourcePath": "testing/testing-api-tester.md",
+      "projectRoleName": "pac-testing-api-tester",
+      "status": "conditional",
+      "reason": "自建接口与数据库可在隔离环境运行后，再评估独立的契约、权限、并发和重复请求回归；当前无新接口，不生成加载文件。",
+      "sourceSha256": "c89d7ae592523f4799426a8b09700ec4b9d99bf2fcae2d1b0dd2900d5f770127",
+      "sourceReview": "index-and-metadata"
+    },
+    {
+      "sourceName": "Performance Benchmarker",
+      "sourcePath": "testing/testing-performance-benchmarker.md",
+      "projectRoleName": "pac-testing-performance-benchmarker",
+      "status": "conditional",
+      "reason": "取得隔离压测目标、负载场景和停止条件授权后，再评估2 GiB容量与弱网重连；不对生产自动压测。",
+      "sourceSha256": "24dbd3a55cf6ca36c5f8af4081e87859914131199d87b6f90d129643fcfba43e",
+      "sourceReview": "index-and-metadata"
+    },
+    {
+      "sourceName": "Frontend Developer",
+      "sourcePath": "engineering/engineering-frontend-developer.md",
+      "projectRoleName": "pac-engineering-frontend-developer",
+      "status": "excluded",
+      "reason": "来源主要面向React/Vue/Angular，当前是原生微信小程序且不改UI；接入层与生命周期工作由主Agent和已有Minimal Change Engineer按需承担。",
+      "sourceSha256": "35961da50f408e00eb6189c87825ac5e62e6b1bf9de3dee198a95536c6d2619e",
+      "sourceReview": "index-and-metadata"
+    }
+  ],
+  "inheritedRoles": [
+    {
+      "name": "Code Reviewer",
+      "scope": "user",
+      "ownership": "user",
+      "sourcePath": "~/.codex/agents/code-reviewer.toml",
+      "sha256": "40e32a1188bb51af8bc5bdfa69341510e8f9c2d331d3ed6b53f25b71c052eeaf"
+    },
+    {
+      "name": "Git Workflow Master",
+      "scope": "user",
+      "ownership": "user",
+      "sourcePath": "~/.codex/agents/git-workflow-master.toml",
+      "sha256": "7a109b468788db05b8563d19150aaef71f424bfd6ba7ed1056c970a2336961e3"
+    },
+    {
+      "name": "Minimal Change Engineer",
+      "scope": "user",
+      "ownership": "user",
+      "sourcePath": "~/.codex/agents/minimal-change-engineer.toml",
+      "sha256": "5873d6e5b8ae5aafbaf785d4f2e9d2a9065fac7f32acf6a4f26e51186f4fd09b"
+    },
+    {
+      "name": "Reality Checker",
+      "scope": "user",
+      "ownership": "user",
+      "sourcePath": "~/.codex/agents/reality-checker.toml",
+      "sha256": "0eef38abe35b62ce9e82d1ab70f2e95ce810bbb1a3e184939ccd5889cdfde292"
+    },
+    {
+      "name": "Software Architect",
+      "scope": "user",
+      "ownership": "user",
+      "sourcePath": "~/.codex/agents/software-architect.toml",
+      "sha256": "dec3e4de3fdbac219d2d1420be7c40fd98fdd241b887ee74fcbde80e5ffdcd2a"
+    },
+    {
+      "name": "Technical Writer",
+      "scope": "user",
+      "ownership": "user",
+      "sourcePath": "~/.codex/agents/technical-writer.toml",
+      "sha256": "60ceeb66931d412b4c845b241f1c6f1737ff094d0991c445689efb6640085b2e"
+    }
+  ],
+  "managedFiles": [
+    {
+      "path": ".codex/agent-curator/TEAM.md",
+      "sha256": "07773c88cc3b38a5b8c53523d4bc70259e4109e7ed3cf0a2b85022b4a1c0d4b0"
+    },
+    {
+      "path": ".codex/agent-curator/licenses/agency-agents-LICENSE.txt",
+      "sha256": "9a45258434d5cedf0af73c9ad4771373701225038d246c49219026c33677f66f"
+    },
+    {
+      "path": ".codex/agents/pac-engineering-backend-architect.toml",
+      "sha256": "83aa07041b75939a530f31ba77570e667c390992997f280a432b5e6e07fb959c"
+    },
+    {
+      "path": ".codex/agents/pac-engineering-devops-automator.toml",
+      "sha256": "bca3c22ea8edaf17cd1615b744ada05a03b765a650a7b102d261d7e5353fb55e"
+    },
+    {
+      "path": ".codex/agents/pac-security-appsec-engineer.toml",
+      "sha256": "144f9bb47667f4dfe91cad25beecc95f77732bccb055d31af199afa46b1f8353"
+    }
+  ],
+  "managedBlocks": [
+    {
+      "path": "AGENTS.md",
+      "beginMarker": "<!-- project-agent-curator:begin -->",
+      "endMarker": "<!-- project-agent-curator:end -->",
+      "sha256": "5d4b19e4ed95defd3e9c165e3f3fdc66752ce216236506543c09e2beac0aafe5"
+    }
+  ],
+  "runtimeVerification": "pending; no subagents started",
+  "configReference": "https://learn.chatgpt.com/docs/agent-configuration/subagents"
+}

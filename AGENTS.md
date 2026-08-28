@@ -7,6 +7,8 @@
 - 维护者 d.s 擅长 Java、JavaScript，有 Android 背景，主要熟悉前端。解释云函数、数据库、事务、权限、索引和部署时，用大白话说明为什么、影响和验证方法。
 - 禁止批量删除文件或目录。只能一次删除一个明确路径的文件；需要批量删除时停止并请用户手动处理。
 - 当前主分支为 `master`，项目使用 CommonJS。
+- 本次自建服务器改造使用 `codex/self-hosted-migration`；原云开发代码保留在 `codex/cloudbase-baseline`，基线提交为 `77c54eba3b1bfbd8f446f950263af202717bd1b5`，来源分支为 `codex/room-scoreboard`。
+- 迁移完成后仍保留上述基线分支，不在其上开发，不删除、重置或强推该分支；后续修复旧版时从基线另建分支。分支保留只覆盖代码，不等于云端数据或服务备份。
 
 ## 项目概览
 
@@ -246,3 +248,12 @@ node --check cloudfunctions\userFunctions\index.js
 - 不要让客户端决定可信身份、昵称、头像或最终积分。
 - 不要因临时 URL 失效而删除当前 `avatarFileID`；只有用户成功换用另一个受管 `avatars/...` fileID 后才能清理被替换的旧文件。
 - 不要把战绩页当成空页面；它已是正式功能。
+
+<!-- project-agent-curator:begin -->
+## 项目 Agent 团队与自建迁移状态
+
+项目画像、角色职责和介入条件见 [.codex/agent-curator/TEAM.md](.codex/agent-curator/TEAM.md)。涉及本次自建迁移时先按需读取。
+用户已确认 Ubuntu 22.04 / 杭州 / 2 vCPU / 2 GiB、域名正在 ICP 备案、旧业务数据无需迁移；当前仅配置 Agent，先确认方案，不开始业务开发或部署。旧数据无需迁移不代表授权删除旧数据或关闭云服务。
+本文其他章节仍描述当前云开发实现及既有演进设想；自建后端技术选型与切换方式尚待确认。角色配置不要求启动全部 Agent，实际委派须有明确任务、授权和文件分工。
+技术栈、业务风险或阶段实质变化时，用 $project-agent-curator 重新评估；普通修改不重配。禁止批量删除及原有账本规则继续适用。
+<!-- project-agent-curator:end -->
