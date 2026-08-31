@@ -22,6 +22,11 @@ function createAuth({ store, exchangeCode, sessionTtlSeconds }) {
       if (!session) throw new ApiError(401, 'AUTH_REQUIRED', '登录已失效，请重新登录')
       return { tokenHash, ...session }
     },
+    async validate(tokenHash) {
+      const session = await store.findSession(tokenHash)
+      if (!session) throw new ApiError(401, 'AUTH_REQUIRED', '登录已失效，请重新登录')
+      return { tokenHash, ...session }
+    },
     logout(tokenHash) {
       return store.revokeSession(tokenHash)
     }

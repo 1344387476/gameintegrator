@@ -1,3 +1,5 @@
+const path = require('node:path')
+
 class ConfigurationError extends Error {
   constructor(message) {
     super(message)
@@ -56,13 +58,20 @@ function readConfig(env = process.env) {
   const appSecret = required(env, 'WECHAT_APP_SECRET')
   if (!/^wx[0-9a-f]{16}$/u.test(appId)) throw new ConfigurationError('WECHAT_APP_ID 格式无效')
   if (!/^[0-9a-f]{32}$/iu.test(appSecret)) throw new ConfigurationError('WECHAT_APP_SECRET 格式无效')
+  const avatarDirectory = required({ AVATAR_STORAGE_DIR: path.join(__dirname, '..', 'data', 'avatars'), ...env }, 'AVATAR_STORAGE_DIR', 1024)
+  if (!path.isAbsolute(avatarDirectory) || path.resolve(avatarDirectory) === path.parse(avatarDirectory).root) {
+    throw new ConfigurationError('AVATAR_STORAGE_DIR 必须是专用目录的绝对路径，不能是磁盘根目录')
+  }
   return {
     nodeEnv,
+    avatarDirectory,
     host: required({ HOST: '127.0.0.1', ...env }, 'HOST'),
     port: integer(env, 'PORT', 3000, 1, 65535),
     logLevel: choice(env, 'LOG_LEVEL', 'info', ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']),
     trustProxyHops: integer(env, 'TRUST_PROXY_HOPS', 0, 0, 1),
     loginRateLimitMax: integer(env, 'LOGIN_RATE_LIMIT_MAX', 10, 1, 60),
+    websocketMaxConnections: integer(env, 'WEBSOCKET_MAX_CONNECTIONS', 200, 1, 1000),
+    websocketHeartbeatMs: integer(env, 'WEBSOCKET_HEARTBEAT_MS', 30000, 10000, 60000),
     sessionTtlSeconds: integer(env, 'SESSION_TTL_SECONDS', 604800, 300, 2592000),
     wechat: { appId, appSecret, timeoutMs: integer(env, 'WECHAT_TIMEOUT_MS', 5000, 1000, 15000) },
     database: readDatabaseConfig({ ...env, NODE_ENV: nodeEnv })

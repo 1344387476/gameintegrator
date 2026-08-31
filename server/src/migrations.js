@@ -53,6 +53,17 @@ async function verifyMigrations(pool, migrations) {
   assertCompatible(rows, migrations, true)
   await pool.query('SELECT id FROM users LIMIT 0')
   await pool.query('SELECT token_hash FROM sessions LIMIT 0')
+  await pool.query('SELECT id FROM rooms LIMIT 0')
+  await pool.query('SELECT room_id FROM room_members LIMIT 0')
+  await pool.query('SELECT user_id FROM active_room_memberships LIMIT 0')
+  await pool.query('SELECT operation_id FROM room_commands LIMIT 0')
+  await pool.query('SELECT pot, base_bet_value FROM rooms LIMIT 0')
+  await pool.query('SELECT last_deposit_amount, last_deposit_at FROM room_members LIMIT 0')
+  await pool.query('SELECT id FROM score_ledger LIMIT 0')
+  await pool.query('SELECT entry_id FROM score_ledger_changes LIMIT 0')
+  await pool.query('SELECT id FROM histories LIMIT 0')
+  await pool.query('SELECT history_id FROM history_players LIMIT 0')
+  await pool.query('SELECT room_id FROM room_qrcodes LIMIT 0')
 }
 
 module.exports = { readMigrations, migrate, verifyMigrations }

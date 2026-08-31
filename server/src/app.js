@@ -2,10 +2,14 @@ const Fastify = require('fastify')
 const rateLimit = require('@fastify/rate-limit')
 const { randomUUID } = require('node:crypto')
 const { ApiError, safeErrorCode } = require('./errors')
+const { profileRoutes } = require('./profile-routes')
+const { roomRoutes } = require('./room-routes')
+const { scoreRoutes } = require('./score-routes')
+const { historyRoutes } = require('./history-routes')
 
 const emptyQuery = { type: 'object', additionalProperties: false, properties: {} }
 
-async function buildApp({ config, auth, checkReady, logger }) {
+async function buildApp({ config, auth, profile, rooms, scores, histories, qrcodes, realtime, checkReady, logger }) {
   const app = Fastify({
     logger: logger === false ? false : {
       level: config.logLevel,
@@ -15,7 +19,7 @@ async function buildApp({ config, auth, checkReady, logger }) {
         res: reply => ({ statusCode: reply.statusCode }),
         err: error => ({ code: safeErrorCode(error) })
       },
-      redact: ['req.headers.authorization', 'req.body', 'res.headers["set-cookie"]']
+      redact: ['req.headers.authorization', 'req.body', 'res.headers["set-cookie"]', 'busboyOptions']
     },
     logController: new Fastify.LogController({ disableRequestLogging: true }),
     requestIdHeader: false,
@@ -46,7 +50,7 @@ async function buildApp({ config, auth, checkReady, logger }) {
     if (error instanceof ApiError) return failure(request, reply, error.statusCode, error.code, error.message)
     if (error.statusCode === 429) return failure(request, reply, 429, 'RATE_LIMITED', '请求过于频繁，请稍后重试')
     if (error.statusCode === 413) return failure(request, reply, 413, 'REQUEST_TOO_LARGE', '请求内容过大')
-    if (error.statusCode === 415) return failure(request, reply, 415, 'UNSUPPORTED_MEDIA_TYPE', '请使用 application/json')
+    if (error.statusCode === 415) return failure(request, reply, 415, 'UNSUPPORTED_MEDIA_TYPE', '请求内容类型不支持')
     if (error.validation || error.statusCode === 400) return failure(request, reply, 400, 'INVALID_REQUEST', '请求参数无效')
     request.log.error({ code: safeErrorCode(error) }, 'request failed')
     return failure(request, reply, 500, 'INTERNAL_ERROR', '服务暂不可用，请稍后重试')
@@ -54,6 +58,10 @@ async function buildApp({ config, auth, checkReady, logger }) {
   app.setNotFoundHandler((request, reply) => failure(request, reply, 404, 'NOT_FOUND', '接口不存在'))
   const success = (request, data) => ({ success: true, data, requestId: request.id })
   const requireAuth = async request => { request.session = await auth.authenticate(request.headers.authorization) }
+  if (profile) await app.register(profileRoutes, { profile, realtime, requireAuth, success })
+  if (rooms) await app.register(roomRoutes, { rooms, qrcodes, realtime, requireAuth, success })
+  if (scores) await app.register(scoreRoutes, { scores, realtime, requireAuth, success })
+  if (histories) await app.register(historyRoutes, { histories, requireAuth, success })
 
   app.get('/health/live', { config: { rateLimit: false } }, async request => success(request, { status: 'alive' }))
   app.get('/health/ready', async request => {

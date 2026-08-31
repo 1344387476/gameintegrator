@@ -4,17 +4,23 @@
   "private": true,
   "description": "计分小程序自建后端",
   "type": "commonjs",
-  "engines": { "node": ">=24 <25" },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/index.js",
     "dev": "node --env-file-if-exists=.env --watch src/index.js",
     "db:migrate": "node --env-file-if-exists=.env src/migrate.js",
-    "test": "node --test --test-concurrency=1 test/config.test.js test/wechat.test.js test/database.test.js test/auth.test.js"
+    "test": "node --test --test-concurrency=1 test/config.test.js test/wechat.test.js test/database.test.js test/auth.test.js test/profile.test.js test/room.test.js test/score.test.js test/realtime.test.js",
+    "test:postgres": "node --test --test-concurrency=1 test/postgres-ledger.test.js"
   },
   "dependencies": {
+    "@fastify/multipart": "10.1.1",
     "@fastify/rate-limit": "11.2.0",
     "fastify": "5.12.1",
-    "pg": "8.23.0"
+    "pg": "8.23.0",
+    "sharp": "0.35.4",
+    "ws": "8.18.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8"

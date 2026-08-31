@@ -4,5 +4,7 @@ node_modules
 test
 test-support
 coverage
+artifacts
+data
 *.log
 .git

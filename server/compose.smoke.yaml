@@ -1,0 +1,124 @@
+# 仅服务器隔离测试，不是生产发布文件。不依赖开发数据库或旧云服务。
+name: gameintegrator-smoke
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  image: gameintegrator-api:smoke
+  build:
+    context: .
+    args:
+      NODE_IMAGE: ${NODE_IMAGE:-public.ecr.aws/docker/library/node:24-bookworm-slim}
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 256m
+  cpus: 0.75
+  pids_limit: 64
+  logging: *logging
+  stop_grace_period: 15s
+
+x-db-client: &db-client
+  NODE_ENV: production
+  NODE_OPTIONS: --max-old-space-size=128
+  PGHOST: database
+  PGPORT: "5432"
+  PGDATABASE: gameintegrator_smoke
+  PGPOOL_MAX: "3"
+  PGSSLMODE: disable
+
+services:
+  database:
+    image: ${POSTGRES_IMAGE:-public.ecr.aws/docker/library/postgres:17-bookworm}
+    environment:
+      POSTGRES_DB: gameintegrator_smoke
+      POSTGRES_USER: gameintegrator_owner
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:?请设置测试数据库管理密码}
+      APP_DB_PASSWORD: ${DB_APP_PASSWORD:?请设置独立的应用数据库密码}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - database-data:/var/lib/postgresql/data
+      - type: bind
+        source: ./deploy/smoke/init.sql
+        target: /docker-entrypoint-initdb.d/010-app-role.sql
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: [backend]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    shm_size: 64m
+    command: [postgres, -c, shared_buffers=128MB, -c, max_connections=20, -c, work_mem=4MB, -c, maintenance_work_mem=32MB]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    stop_grace_period: 60s
+    logging: *logging
+
+  # 建表工具按需启动，不随API启动，不把管理密码交给API。
+  migrate:
+    <<: *app
+    profiles: [tools]
+    environment:
+      <<: *db-client
+      PGUSER: gameintegrator_owner
+      PGPASSWORD: ${DB_ADMIN_PASSWORD:?请设置测试数据库管理密码}
+    networks: [backend]
+    depends_on:
+      database:
+        condition: service_healthy
+    command: [node, src/migrate.js]
+    restart: "no"
+
+  api:
+    <<: *app
+    environment:
+      <<: *db-client
+      PGUSER: gameintegrator_app
+      PGPASSWORD: ${DB_APP_PASSWORD:?请设置独立的应用数据库密码}
+      HOST: 0.0.0.0
+      PORT: "3000"
+      LOG_LEVEL: info
+      TRUST_PROXY_HOPS: "0"
+      WEBSOCKET_MAX_CONNECTIONS: "100"
+      WEBSOCKET_HEARTBEAT_MS: "30000"
+      WECHAT_APP_ID: wx7687ea673d95f908
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:?请在服务器本地配置小程序密钥}
+      AVATAR_STORAGE_DIR: /app/data/avatars
+    volumes:
+      - avatar-data:/app/data/avatars
+    ports:
+      - "127.0.0.1:3000:3000"
+    # 只有API需要出站访问微信；数据库仅使用隔离内部网络。
+    networks: [backend, outbound]
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  database-data:
+  avatar-data:
+
+networks:
+  backend:
+    internal: true
+  outbound:

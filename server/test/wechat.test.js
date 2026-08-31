@@ -2,6 +2,9 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createWechatClient } = require('../src/wechat')
 const { testConfig } = require('../test-support/config')
+const { createWechatQRCodeClient } = require('../src/wechat-qrcode')
+const { roomScene } = require('../src/qrcode')
+const sharp = require('sharp')
 
 test('微信登录只调用固定服务端地址，正确发送code，结果仅保留openid', async () => {
   const config = testConfig().wechat
@@ -59,5 +62,71 @@ test('超时、HTTP错误、非JSON或无有效身份均失败关闭', async () 
       assert.equal(error.cause, undefined)
       return true
     })
+  }
+})
+
+test('小程序码使用固定微信接口和release，缓存token并只对失效token重试一次', async () => {
+  const config = testConfig().wechat
+  const scene = roomScene('39159b22-69ba-4aaf-8fc8-b1109a81c726')
+  const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: 'white' } }).png().toBuffer()
+  let tokens = 0, images = 0, clock = 1000
+  const client = createWechatQRCodeClient(config, async (url, options) => {
+    assert.equal(url.origin, 'https://api.weixin.qq.com')
+    assert.equal(options.method, 'POST')
+    assert.equal(options.redirect, 'error')
+    assert.ok(options.signal instanceof AbortSignal)
+    const input = JSON.parse(options.body)
+    if (url.pathname === '/cgi-bin/stable_token') {
+      tokens++
+      assert.deepEqual(input, { grant_type: 'client_credential', appid: config.appId, secret: config.appSecret, force_refresh: false })
+      return Response.json({ access_token: `private-token-${tokens}`, expires_in: 7200 })
+    }
+    assert.equal(url.pathname, '/wxa/getwxacodeunlimit')
+    assert.equal(url.searchParams.get('access_token'), `private-token-${tokens}`)
+    assert.deepEqual(input, { scene, page: 'pages/home/home', width: 400, env_version: 'release', check_path: true })
+    images++
+    if (images === 1) return Response.json({ errcode: 42001, errmsg: 'private detail' })
+    return new Response(png, { headers: { 'content-type': 'image/png' } })
+  }, () => clock)
+  assert.equal((await sharp(await client(scene)).metadata()).format, 'png')
+  await client(scene)
+  assert.equal(tokens, 2)
+  assert.equal(images, 3)
+  clock += 7200 * 1000
+  await client(scene)
+  assert.equal(tokens, 3)
+})
+
+test('小程序码拒绝超大/损坏/伪装图片、微信错误与网络错误，不泄露凭证', async () => {
+  const scene = roomScene('39159b22-69ba-4aaf-8fc8-b1109a81c726')
+  const badResponses = [
+    () => { throw new Error('private access_token secret URL') },
+    () => new Response('private', { status: 502 }),
+    () => new Response('not an image'),
+    () => new Response('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'),
+    () => new Response(Buffer.alloc(1024 * 1024 + 1)),
+    () => new Response('oversize', { headers: { 'content-length': '1048577' } }),
+    () => Response.json({ errcode: 41030, errmsg: 'private path' }),
+    () => Response.json({ errcode: 40001, errmsg: 'private token' })
+  ]
+  for (const respond of badResponses) {
+    let calls = 0
+    const client = createWechatQRCodeClient(testConfig().wechat, async url => {
+      calls++
+      return url.pathname === '/cgi-bin/stable_token' ? Response.json({ access_token: 'private-token', expires_in: 7200 }) : respond()
+    })
+    await assert.rejects(client(scene), error => {
+      assert.equal(error.code, 'QRCODE_UNAVAILABLE')
+      assert.ok(!/private|secret|access_token/u.test(error.message))
+      assert.equal(error.cause, undefined)
+      return true
+    })
+    assert.ok(calls <= 4)
+  }
+  const rateLimited = createWechatQRCodeClient(testConfig().wechat, async url => url.pathname === '/cgi-bin/stable_token'
+    ? Response.json({ access_token: 'token', expires_in: 7200 }) : Response.json({ errcode: 45009 }))
+  await assert.rejects(rateLimited(scene), { code: 'WECHAT_RATE_LIMITED' })
+  for (const body of [{ access_token: 'bad', expires_in: '7200' }, { errcode: 40125, errmsg: 'private secret' }, null]) {
+    await assert.rejects(createWechatQRCodeClient(testConfig().wechat, async () => Response.json(body))(scene), { code: 'QRCODE_UNAVAILABLE' })
   }
 })
