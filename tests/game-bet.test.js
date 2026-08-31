@@ -82,6 +82,8 @@ function loadBetPage() {
     showToast() {}
   }
   global.Page = definition => { pageDefinition = definition }
+  const backendPath = require.resolve('../miniprogram/utils/backend')
+  require.cache[backendPath] = { exports: { callFunction: options => global.wx.cloud.callFunction(options) } }
   const modulePath = require.resolve('../miniprogram/pages/room/room')
   delete require.cache[modulePath]
   require(modulePath)

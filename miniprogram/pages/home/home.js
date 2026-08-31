@@ -8,6 +8,7 @@ const app = getApp();
 const theme = require('../../utils/theme');
 const motion = require('../../utils/motion');
 const { parseScannedRoomId } = require('../../utils/room-entry');
+const backend = require('../../utils/backend');
 
 Page({
   /**
@@ -120,8 +121,7 @@ Page({
 
     console.log('统一初始化用户信息:', userInfo);
 
-    // Home页面直接使用fileID显示头像，不申请临时URL
-    // 微信image组件支持cloud://协议直接显示
+    // 自建头像受鉴权保护，页面先显示已缓存的本地路径，再按资源ID刷新。
     const currentRoomId = app.globalData.currentRoomId || '';
 
     this.setData({
@@ -138,6 +138,20 @@ Page({
       syncedRoomId: currentRoomId
     };
     this._profileDraftVersion = 0;
+
+    if (userInfo.avatarFileID) {
+      backend.getTempFileURL({
+        fileList: [userInfo.avatarFileID],
+        success: result => {
+          const avatarUrl = result.fileList && result.fileList[0] && result.fileList[0].tempFileURL;
+          if (avatarUrl) {
+            this.setData({ avatarUrl });
+            getApp().globalData.userInfo.avatarUrl = avatarUrl;
+          }
+        },
+        fail: error => console.error('读取本人头像失败:', error)
+      });
+    }
 
     // 外部扫码/分享进入的待加入房间优先于旧房间返回入口。
     if (app.globalData.pendingRoomId) {
@@ -256,7 +270,7 @@ Page({
       return;
     }
 
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: { action: 'checkUserStatus' },
       success: (res) => {
@@ -289,7 +303,7 @@ Page({
         wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
         return;
       }
-      wx.cloud.callFunction({
+      backend.callFunction({
       name: 'roomFunctions',
       data: { action: 'checkUserStatus' },
       success: (res) => {
@@ -328,11 +342,9 @@ Page({
     // 显示加载中
     wx.showLoading({ title: '上传头像...' });
     
-    // 立即上传到云存储获取fileID
-    // 因为home页面使用avatarFileID显示头像（永不过期）
+    // 立即上传到自建服务并取得永久资源ID。
     const uploadPromise = new Promise((resolve, reject) => {
-      wx.cloud.uploadFile({
-        cloudPath: 'avatars/' + Date.now() + '.jpg',
+      backend.uploadFile({
         filePath: avatarUrl,
         success: resolve,
         fail: reject
@@ -345,7 +357,7 @@ Page({
         
         // 更新本地数据，使用fileID显示头像
         this.setData({
-          avatarUrl: '',  // 清空临时URL
+          avatarUrl,
           avatarFileID: uploadRes.fileID  // 使用fileID显示（永不过期）
         });
         this._profileDraftVersion = (this._profileDraftVersion || 0) + 1;
@@ -437,7 +449,7 @@ Page({
         };
 
     return new Promise((resolve) => {
-      wx.cloud.callFunction({
+      backend.callFunction({
         ...request,
         success: (res) => resolve(Boolean(res.result && res.result.success)),
         fail: (err) => {
@@ -496,8 +508,7 @@ Page({
   },
 
   /**
-   * 上传用户资料到云端
-   * 如果头像是临时文件，先上传到云存储获取永久URL
+   * 保存用户资料到自建服务；头像选择时已经独立上传并保存。
    * @param {Function} callback - 回调函数，参数为 boolean 表示是否成功
    */
   uploadUserInfo(callback) {
@@ -619,7 +630,7 @@ Page({
    * @param {string} roomName - 房间名称
    */
   createRoom(roomName) {
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'create',
@@ -729,7 +740,7 @@ Page({
    * @param {string} roomId - 房间ID
    */
   joinRoomAction(roomId) {
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
        data: {
          action: 'join',
@@ -742,14 +753,15 @@ Page({
        },
       success: (res) => {
         if (res.result.success) {
-          app.globalData.currentRoomId = roomId;
+          const joinedRoomId = res.result.roomId || roomId;
+          app.globalData.currentRoomId = joinedRoomId;
           this.setData({
             isCreatingOrJoining: false,
-            currentRoomId: roomId,
+            currentRoomId: joinedRoomId,
             hasActiveRoom: true
           });
             wx.navigateTo({
-              url: `/pages/room/room?roomId=${roomId}`
+              url: `/pages/room/room?roomId=${joinedRoomId}`
             });
         } else {
           this.setData({ isCreatingOrJoining: false });

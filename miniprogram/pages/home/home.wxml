@@ -32,7 +32,7 @@
         >
           <image
             class="avatar"
-            src="{{avatarFileID || '/images/avatar.png'}}"
+            src="{{avatarUrl || '/images/avatar.png'}}"
             mode="aspectFill"
           ></image>
         </button>

@@ -1,4 +1,6 @@
 const theme = require('./utils/theme')
+const backend = require('./utils/backend')
+const { extractInvite } = require('./utils/room-entry')
 
 App({
   /**
@@ -21,18 +23,9 @@ App({
    */
   onLaunch(options) {
     this.globalData.appearanceTheme = theme.getTheme()
-    wx.cloud.init({
-      env: 'cloud1-5gv2wyv347737dc9',
-      traceUser: true
-    })
-
     const logs = wx.getStorageSync('logs') || []
     logs.unshift(Date.now())
     wx.setStorageSync('logs', logs)
-
-    wx.login({
-      success: () => {}
-    })
 
     // 处理从外部进入的场景（扫码、分享卡片等）
     this.handleLaunchOptions(options)
@@ -52,21 +45,7 @@ App({
 
     // 从query中获取参数
     const query = options.query || {}
-    let roomId = query.roomId
-
-    // 处理小程序码的scene参数
-    // 小程序码扫码后，scene参数内容会放在query.scene中（形如 "roomId=XXXXXX"）
-    if (!roomId && query.scene) {
-      const sceneStr = decodeURIComponent(query.scene)
-      console.log('小程序码scene参数:', sceneStr)
-      if (sceneStr.includes('roomId=')) {
-        const match = sceneStr.match(/roomId=([^&]+)/)
-        if (match && match[1]) {
-          roomId = match[1]
-          console.log('从小程序码解析到roomId:', roomId)
-        }
-      }
-    }
+    const roomId = extractInvite(query.roomId || '') || extractInvite(query.scene || '')
 
     console.log('场景值:', scene, 'roomId:', roomId)
 
@@ -96,7 +75,7 @@ App({
   initUserInfo() {
     this.globalData.userInfoStatus = 'loading'
 
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'userFunctions',
       data: { action: 'getUserInfo' },
       success: (res) => {
@@ -158,7 +137,7 @@ App({
       }
     }
     
-    wx.cloud.database().collection('rooms').doc(roomId).get({
+    backend.database().collection('rooms').doc(roomId).get({
       success: (res) => {
         const room = res.data
         console.log('查询房间' + room)
@@ -180,7 +159,7 @@ App({
   },
 
   checkUserStatusAndNavigate(roomId) {
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: { action: 'checkUserStatus' },
       success: (res) => {
@@ -200,7 +179,7 @@ App({
   },
 
   deleteSettledRoom(roomId) {
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'deleteSettledRoom',

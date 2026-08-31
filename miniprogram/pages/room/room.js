@@ -9,6 +9,7 @@ const theme = require('../../utils/theme')
 const motion = require('../../utils/motion')
 const { limitDisplayText, safeInteger } = require('../../utils/display')
 const { decorateMembers, deriveLeader, decorateRecord } = require('../../utils/room-presentation')
+const backend = require('../../utils/backend')
 
 Page({
   /**
@@ -301,15 +302,15 @@ showTransferModal: false, // 转账弹窗
     const avatarUrl = userInfo.avatarUrl || '';
     const avatarFileID = userInfo.avatarFileID || '';
 
-    // 情况1：头像是临时文件，需要上传到云存储
-    if (avatarUrl && (avatarUrl.startsWith('wxfile://') || avatarUrl.startsWith('http://tmp'))) {
-      console.log('检测到临时头像，上传到云存储');
-      wx.cloud.uploadFile({
+    // 只有尚无永久资源ID的本地选择才上传；downloadFile得到的本地路径已有avatarFileID，不能重复上传。
+    if (!avatarFileID && avatarUrl && (avatarUrl.startsWith('wxfile://') || avatarUrl.startsWith('http://tmp'))) {
+      console.log('检测到尚未保存的本地头像，上传到自建服务');
+      backend.uploadFile({
         cloudPath: 'avatars/' + Date.now() + '.jpg',
         filePath: avatarUrl,
         success: (uploadRes) => {
           // 获取临时URL
-          wx.cloud.getTempFileURL({
+          backend.getTempFileURL({
             fileList: [uploadRes.fileID],
             success: (urlRes) => {
               const permanentUrl = urlRes.fileList[0]?.tempFileURL || '';
@@ -337,7 +338,7 @@ showTransferModal: false, // 转账弹窗
     // 情况2：有fileID但没有URL，获取临时URL
     if (avatarFileID && !avatarUrl) {
       console.log('有fileID无URL，获取临时URL');
-      wx.cloud.getTempFileURL({
+      backend.getTempFileURL({
         fileList: [avatarFileID],
         success: (res) => {
           const tempUrl = res.fileList[0]?.tempFileURL || '';
@@ -410,16 +411,22 @@ showTransferModal: false, // 转账弹窗
     if (this.data.roomWatcher) this.data.roomWatcher.close();
 
     try {
-      const watcher = wx.cloud.database().collection('rooms').doc(roomId).watch({
+      const watcher = backend.database().collection('rooms').doc(roomId).watch({
         onChange: (snapshot) => {
           const docs = snapshot.docs || [];
           const wasRemoved = (snapshot.docChanges || []).some(change =>
             change && (change.dataType === 'remove' || change.queueType === 'dequeue')
           );
+          const accessRevoked = (snapshot.docChanges || []).some(change => change && change.dataType === 'access_revoked');
+          if (accessRevoked) {
+            this.handleRoomAccessRevoked();
+            return;
+          }
           if ((docs.length === 0 || wasRemoved) && !this._isDismissing) {
             this.handleRoomDismissed();
           } else if (docs[0]) {
             this._roomPollingAttempt = 0;
+            this._roomWatchRetryAttempt = 0;
             this.applyRoomSnapshot(docs[0]);
           }
         },
@@ -428,7 +435,10 @@ showTransferModal: false, // 转账弹窗
           this.setData({ roomWatcher: null });
           this.startRoomStatusPolling(roomId);
           clearTimeout(this._roomWatchRetryTimer);
-          this._roomWatchRetryTimer = setTimeout(() => this.initRoomWatch(roomId), 20000);
+          const attempt = Math.min((this._roomWatchRetryAttempt || 0) + 1, 6);
+          this._roomWatchRetryAttempt = attempt;
+          const retryDelay = Math.min(1000 * (2 ** (attempt - 1)), 30000) + Math.floor(Math.random() * 500);
+          this._roomWatchRetryTimer = setTimeout(() => this.initRoomWatch(roomId), retryDelay);
         }
       });
       this.setData({ roomWatcher: watcher });
@@ -445,7 +455,7 @@ showTransferModal: false, // 转账弹窗
         this.setData({ roomStatusPollingTimer: null });
         return;
       }
-      wx.cloud.database().collection('rooms').doc(roomId).get({
+      backend.database().collection('rooms').doc(roomId).get({
         success: (res) => {
           if (res.data) this.applyRoomSnapshot(res.data);
           this._roomPollingAttempt = (this._roomPollingAttempt || 0) + 1;
@@ -472,7 +482,7 @@ showTransferModal: false, // 转账弹窗
 
   checkRoomStatusOnce(roomId) {
     if (!roomId || this._roomDismissHandled) return;
-    wx.cloud.database().collection('rooms').doc(roomId).get({
+    backend.database().collection('rooms').doc(roomId).get({
       success: (res) => {
         if (res && res.data) this.applyRoomSnapshot(res.data);
         else this.handleRoomDismissed();
@@ -669,7 +679,7 @@ showTransferModal: false, // 转账弹窗
    * @param {boolean} isInitialLoad - 是否为初始加载
    */
   loadMessages(roomId, isInitialLoad = true) {
-    wx.cloud.database().collection('messages').doc(roomId).get({
+    backend.database().collection('messages').doc(roomId).get({
       success: (res) => {
         if (res.data) {
           const messages = res.data?.messages || [];
@@ -878,7 +888,7 @@ loadRoom(roomId) {
         return;
       }
 
-      wx.cloud.database().collection('rooms').doc(roomId).get({
+      backend.database().collection('rooms').doc(roomId).get({
         success: (res) => {
           if (res.data) {
             const room = res.data;
@@ -969,6 +979,7 @@ loadRoom(roomId) {
 
     const processedRoom = {
       _id: room._id,
+      roomCode: room.roomCode || '',
       roomName: displayRoomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
       members: members,
@@ -1018,7 +1029,7 @@ loadRoom(roomId) {
     if (this._avatarFetchPromise) return this._avatarFetchPromise
     try {
         // 通过云函数统一获取，避免客户端无法读取其他用户上传的头像。
-        this._avatarFetchPromise = wx.cloud.callFunction({
+        this._avatarFetchPromise = backend.callFunction({
           name: 'roomFunctions',
           data: {
             action: 'getAvatarUrls',
@@ -1080,7 +1091,7 @@ loadRoom(roomId) {
     if (this._avatarRetryIds.has(fileID)) return;
     this._avatarRetryIds.add(fileID);
 
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'getAvatarUrls',
@@ -1154,6 +1165,7 @@ loadRoom(roomId) {
     this._lastRoomSnapshotAt = Date.now();
     this.setData({
       'room._id': processedRoom._id,
+      'room.roomCode': processedRoom.roomCode,
       'room.roomName': processedRoom.roomName,
       'room.gameMode': processedRoom.gameMode,
       'room.members': mergedMembers,
@@ -1202,7 +1214,7 @@ loadRoom(roomId) {
     this._refreshAllDataPromise = (async () => {
       try {
       const roomRes = await new Promise((resolve, reject) => {
-        wx.cloud.database().collection('rooms').doc(roomId).get({
+        backend.database().collection('rooms').doc(roomId).get({
           success: (res) => resolve(res.data),
           fail: reject
         });
@@ -1211,7 +1223,7 @@ loadRoom(roomId) {
       // 仅兼容尚未发生任何新操作的旧房间；迁移后不再读取 messages。
       if (messagesRes === null) {
         messagesRes = await new Promise(resolve => {
-          wx.cloud.database().collection('messages').doc(roomId).get({
+          backend.database().collection('messages').doc(roomId).get({
             success: (res) => resolve(res.data?.messages || []),
             fail: () => resolve([])
           });
@@ -1313,6 +1325,7 @@ loadRoom(roomId) {
     // 数据字段映射：云数据库字段 -> 页面显示字段
     const processedRoom = {
       _id: room._id,
+      roomCode: room.roomCode || '',
       roomName: displayRoomName,
       gameMode: room.mode === 'bet' ? 'bet' : 'normal',
       members: decorateMembers(room.players.map(player => {
@@ -1459,12 +1472,12 @@ loadRoom(roomId) {
     });
 
     // 上传头像到云存储
-    wx.cloud.uploadFile({
+    backend.uploadFile({
       cloudPath: `avatars/${Date.now()}_${Math.random().toString(36).substr(2, 6)}.jpg`,
       filePath: avatarUrl,
       success: (res) => {
         // 获取临时URL
-        wx.cloud.getTempFileURL({
+        backend.getTempFileURL({
           fileList: [res.fileID],
           success: (urlRes) => {
             const tempFileURL = urlRes.fileList[0]?.tempFileURL || '';
@@ -1543,8 +1556,8 @@ loadRoom(roomId) {
 
     this.setData({ isSavingProfile: true });
 
-    // 调用云函数更新用户信息
-    wx.cloud.callFunction({
+    // 调用自建接口更新用户信息
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'updateProfile',
@@ -1655,8 +1668,8 @@ confirmTransfer() {
 
     this.setData({ transferSubmitting: true });
 
-    // 调用云函数执行转账
-    wx.cloud.callFunction({
+    // 调用自建接口执行转账
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'TRANSFER',
@@ -1754,8 +1767,8 @@ success: (res) => {
     // 立即关闭弹窗
     this.closePrizeModal();
 
-    // 调用云函数执行转入
-    wx.cloud.callFunction({
+    // 调用自建接口执行转入
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'BET',
@@ -2064,8 +2077,8 @@ success: (res) => {
     }
 
     this.setData({ gameOperationSubmitting: true });
-    // 调用云函数执行收取
-    wx.cloud.callFunction({
+    // 调用自建接口执行收取
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'CLAIM',
@@ -2216,8 +2229,8 @@ success: (res) => {
     }
 
     this.setData({ gameOperationSubmitting: true });
-    // 调用云函数执行批量转账
-    wx.cloud.callFunction({
+    // 调用自建接口执行批量转账
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'BATCH_TRANSFER',
@@ -2323,8 +2336,8 @@ success: (res) => {
     }
 
     this.setData({ settleSubmitting: true });
-    // 参数标准化：云函数期望 { roomId }
-    wx.cloud.callFunction({
+    // 参数标准化：自建接口只接收房间ID和幂等编号
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'settle',
@@ -2332,13 +2345,18 @@ success: (res) => {
           roomId: roomId  // ✅ 标准化参数：roomId
         }
       },
-success: (res) => {
+      success: (res) => {
         if (res.result.success) {
           this.setData({ showSettleConfirm: false });
-          // 成功后立即展示战绩；转账方案由战绩组件根据最终积分生成。
-          this.showResultModal();
           this.setData({ 'room.status': 'ended', settleSubmitting: false });
-          this.scheduleRealtimeFallback();
+          // 结算后活动房间接口会关闭，改从参与者战绩读取最终快照，避免漏掉紧邻结算的最后一笔计分。
+          backend.getRoomDocument(roomId).then(finalRoom => {
+            this.applyRoomSnapshot(finalRoom);
+            this.showResultModal();
+          }, error => {
+            console.error('读取最终战绩快照失败:', error);
+            this.showResultModal();
+          });
         } else {
           // 失败：获取 msg，保留原有错误提示逻辑
           wx.showToast({
@@ -3090,7 +3108,7 @@ success: (res) => {
       qrCodeError: false
     });
     
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: "roomFunctions",
       data: {
         action: "generateQRCode",
@@ -3101,7 +3119,7 @@ success: (res) => {
       success: (res) => {
         if (res.result && res.result.success && res.result.fileID) {
           // 将云文件fileID转换为临时URL
-          wx.cloud.getTempFileURL({
+          backend.getTempFileURL({
             fileList: [res.result.fileID],
             success: (urlRes) => {
               if (urlRes.fileList && urlRes.fileList[0] && urlRes.fileList[0].tempFileURL) {
@@ -3199,7 +3217,7 @@ success: (res) => {
   executeExitRoom() {
     const roomId = this.data.roomId;
 
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'leave',
@@ -3261,8 +3279,8 @@ success: (res) => {
     const amount = this.data.lastDepositAmount;
 
     this.setData({ gameOperationSubmitting: true });
-    // 调用云函数执行下注
-    wx.cloud.callFunction({
+    // 调用自建接口执行下注
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'BET',
@@ -3316,7 +3334,7 @@ success: (res) => {
     }
 
     this.setData({ gameOperationSubmitting: true });
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'BASE_BET',
@@ -3383,6 +3401,20 @@ success: (res) => {
     this.setData({ showAllInConfirm: true });
   },
 
+  handleRoomAccessRevoked() {
+    if (this._roomAccessRevokedHandled) return;
+    this._roomAccessRevokedHandled = true;
+    const wasExiting = this.data.exitSubmitting;
+    if (this.data.roomWatcher) this.data.roomWatcher.close();
+    this.closeRoomOperationOverlays();
+    wx.removeStorageSync('currentRoomId');
+    getApp().globalData.currentRoomId = null;
+    // 主动退出的HTTP回调负责跳转；另一设备退出时，本页安静返回首页，不误报“房间已解散”。
+    if (wasExiting) return;
+    wx.showToast({ title: '你已退出房间', icon: 'none' });
+    setTimeout(() => wx.reLaunch({ url: '/pages/home/home' }), 800);
+  },
+
   closeAllInConfirm() {
     if (!this.data.gameOperationSubmitting) this.setData({ showAllInConfirm: false });
   },
@@ -3396,7 +3428,7 @@ success: (res) => {
       return;
     }
     this.setData({ gameOperationSubmitting: true });
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'gameLogic',
       data: {
         action: 'ALLIN',
@@ -3531,7 +3563,7 @@ success: (res) => {
     this._isDismissing = true;
     wx.showLoading({ title: '正在解散...' });
 
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: { action: 'dismiss', payload: { roomId } },
       success: (cloudRes) => {
@@ -3572,8 +3604,8 @@ success: (res) => {
     this.closeExitConfirm();
     this.setData({ exitSubmitting: true });
 
-    // 参数标准化：云函数期望 { roomId }
-    wx.cloud.callFunction({
+    // 参数标准化：自建接口只接收房间ID和幂等编号
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'leave',
@@ -3681,7 +3713,7 @@ success: (res) => {
         this.setData({ settingsSubmitting: true });
         // 调用云函数保存底注值到数据库
         try {
-          const res = await wx.cloud.callFunction({
+          const res = await backend.callFunction({
             name: 'roomFunctions',
             data: {
               action: 'updateBaseBetValue',
@@ -3750,50 +3782,29 @@ success: (res) => {
     this.setData({ qrCodeSaving: true });
     wx.showLoading({ title: '保存中...' });
 
-    // 先下载图片到本地
-    wx.downloadFile({
-      url: qrCodeTempUrl,
-      success: (res) => {
-        if (res.statusCode === 200) {
-          // 保存到相册
-          wx.saveImageToPhotosAlbum({
-            filePath: res.tempFilePath,
-            success: () => {
-              wx.hideLoading();
-              this.setData({ qrCodeSaving: false });
-              this.showTip('保存成功');
-            },
-            fail: (err) => {
-              wx.hideLoading();
-              this.setData({ qrCodeSaving: false });
-              console.error('保存到相册失败:', err);
-              if (err.errMsg && err.errMsg.includes('auth')) {
-                // 权限问题，引导用户开启权限
-                wx.showModal({
-                  title: '需要相册权限',
-                  content: '请前往设置开启相册权限',
-                  success: (modalRes) => {
-                    if (modalRes.confirm) {
-                      wx.openSetting();
-                    }
-                  }
-                });
-              } else {
-                this.showTip('保存失败');
-              }
-            }
-          });
-        } else {
-          wx.hideLoading();
-          this.setData({ qrCodeSaving: false });
-          this.showTip('下载图片失败');
-        }
+    // 自建接口已把受保护的二维码写入小程序临时目录，直接保存，不把Bearer放进URL。
+    wx.saveImageToPhotosAlbum({
+      filePath: qrCodeTempUrl,
+      success: () => {
+        wx.hideLoading();
+        this.setData({ qrCodeSaving: false });
+        this.showTip('保存成功');
       },
       fail: (err) => {
         wx.hideLoading();
         this.setData({ qrCodeSaving: false });
-        console.error('下载图片失败:', err);
-        this.showTip('下载失败，请重试');
+        console.error('保存到相册失败:', err);
+        if (err.errMsg && err.errMsg.includes('auth')) {
+          wx.showModal({
+            title: '需要相册权限',
+            content: '请前往设置开启相册权限',
+            success: (modalRes) => {
+              if (modalRes.confirm) wx.openSetting();
+            }
+          });
+        } else {
+          this.showTip('保存失败');
+        }
       }
     });
   },
@@ -3814,8 +3825,8 @@ success: (res) => {
 
     this.setData({ isGeneratingQR: true, qrCodeError: false });
 
-    // 调用云函数生成二维码
-    wx.cloud.callFunction({
+    // 调用自建接口生成二维码
+    backend.callFunction({
       name: 'roomFunctions',
       data: {
         action: 'generateQRCode',
@@ -3827,7 +3838,7 @@ success: (res) => {
           this.setData({ qrCodeFileID: fileID });
           
           // 获取临时URL
-          wx.cloud.getTempFileURL({
+          backend.getTempFileURL({
             fileList: [fileID],
             success: (urlRes) => {
               const tempUrl = urlRes.fileList[0].tempFileURL;
@@ -3888,7 +3899,7 @@ success: (res) => {
    */
   generateShareImage() {
     const roomName = limitDisplayText(this.data.room.roomName, 16, '牌局');
-    const roomId = this.data.roomId || this.data.room._id || '';
+    const roomId = this.data.room.roomCode || this.data.roomId || this.data.room._id || '';
     if (!roomId || !roomName) return;
 
     const signature = `${roomId}|${roomName}|${this.data.room.gameMode}`;

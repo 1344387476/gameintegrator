@@ -15,6 +15,14 @@ function loadRoomPage(wxOverrides = {}) {
   }
   global.Page = definition => { pageDefinition = definition }
 
+  const backendPath = require.resolve('../miniprogram/utils/backend')
+  require.cache[backendPath] = { exports: {
+    callFunction: options => global.wx.cloud.callFunction(options),
+    uploadFile: options => global.wx.cloud.uploadFile(options),
+    getTempFileURL: options => global.wx.cloud.getTempFileURL(options),
+    database: () => global.wx.cloud.database()
+  } }
+
   const roomModulePath = require.resolve('../miniprogram/pages/room/room')
   delete require.cache[roomModulePath]
   require(roomModulePath)
@@ -110,6 +118,23 @@ test('房间页隐藏时释放唯一实时监听', () => {
 
   assert.equal(closed, 1)
   assert.equal(page.data.roomWatcher, null)
+})
+
+test('WSS成员权限撤销按退出处理，不误报房间已解散', () => {
+  let watchOptions
+  let modalCount = 0
+  const database = { collection: () => ({ doc: () => ({ watch(options) { watchOptions = options; return { close() {} } } }) }) }
+  const { app, page } = loadRoomPage({
+    cloud: { database: () => database },
+    showModal() { modalCount += 1 },
+    showToast() {},
+    reLaunch() {}
+  })
+  page.data.exitSubmitting = true
+  page.initRoomWatch('ABC123')
+  watchOptions.onChange({ docs: [], docChanges: [{ dataType: 'access_revoked' }] })
+  assert.equal(modalCount, 0)
+  assert.equal(app.globalData.currentRoomId, null)
 })
 
 test('点击离线玩家只提示状态，不打开转分弹窗', () => {

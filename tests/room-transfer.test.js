@@ -18,6 +18,8 @@ test('普通模式单笔转账会调用 gameLogic 云函数', () => {
     showToast() {}
   }
   global.Page = definition => { pageDefinition = definition }
+  const backendPath = require.resolve('../miniprogram/utils/backend')
+  require.cache[backendPath] = { exports: { callFunction: options => global.wx.cloud.callFunction(options) } }
 
   const roomModulePath = require.resolve('../miniprogram/pages/room/room')
   delete require.cache[roomModulePath]

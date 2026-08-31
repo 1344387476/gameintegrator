@@ -33,6 +33,14 @@ function loadHomePage({ callFunction } = {}) {
   }
   global.Page = definition => { pageDefinition = definition }
 
+  const backendPath = require.resolve('../miniprogram/utils/backend')
+  require.cache[backendPath] = { exports: {
+    callFunction: options => global.wx.cloud.callFunction(options),
+    uploadFile: options => global.wx.cloud.uploadFile(options),
+    getTempFileURL: options => global.wx.cloud.getTempFileURL(options),
+    database: () => global.wx.cloud.database()
+  } }
+
   const modulePath = require.resolve('../miniprogram/pages/home/home')
   delete require.cache[modulePath]
   require(modulePath)

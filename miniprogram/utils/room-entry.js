@@ -16,20 +16,33 @@ function decodeSafely(value) {
 }
 
 function normalizeRoomId(value) {
-  const roomId = decodeSafely(value).trim().toUpperCase()
-  return /^[A-Z0-9]{6}$/.test(roomId) ? roomId : ''
+  const roomId = decodeSafely(value).trim()
+  if (/^[A-Z0-9]{6}$/i.test(roomId)) return roomId.toUpperCase()
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(roomId)) return roomId.toLowerCase()
+  return ''
 }
 
-function extractRoomId(value) {
+function normalizeScene(value) {
+  const scene = decodeSafely(value).trim()
+  return /^r[A-Za-z0-9_-]{22}$/.test(scene) ? scene : ''
+}
+
+function extractInvite(value) {
   const decoded = decodeSafely(value)
   if (!decoded) return ''
 
-  // 兼容页面参数 roomId=ABC123，以及 scene=roomId%3DABC123。
-  const match = decoded.match(/(?:^|[?&#=])roomId=([^&#]+)/i)
-  if (match && match[1]) return normalizeRoomId(match[1])
+  const sceneMatch = decoded.match(/(?:^|[?&#])scene=([^&#]+)/i)
+  if (sceneMatch && sceneMatch[1]) {
+    const nested = decodeSafely(sceneMatch[1])
+    return normalizeScene(nested) || extractInvite(nested)
+  }
+  const roomMatch = decoded.match(/(?:^|[?&#])roomId=([^&#]+)/i)
+  if (roomMatch && roomMatch[1]) return normalizeRoomId(roomMatch[1])
+  return normalizeScene(decoded) || normalizeRoomId(decoded)
+}
 
-  // 普通二维码可以只保存六位房间号。
-  return normalizeRoomId(decoded)
+function extractRoomId(value) {
+  return extractInvite(value)
 }
 
 function parseScannedRoomId(scanResult) {
@@ -39,6 +52,7 @@ function parseScannedRoomId(scanResult) {
 
 module.exports = {
   decodeSafely,
+  extractInvite,
   extractRoomId,
   normalizeRoomId,
   parseScannedRoomId

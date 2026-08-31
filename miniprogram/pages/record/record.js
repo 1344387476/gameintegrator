@@ -1,6 +1,7 @@
 const theme = require('../../utils/theme')
 const motion = require('../../utils/motion')
 const { limitDisplayText, safeInteger } = require('../../utils/display')
+const backend = require('../../utils/backend')
 
 Page({
   data: {
@@ -77,7 +78,7 @@ Page({
     if (this.data.loadingMore) return Promise.resolve()
     const page = reset ? 1 : this.data.page
     this.setData(reset ? { loading: true, errorText: '' } : { loadingMore: true })
-    return wx.cloud.callFunction({
+    return backend.callFunction({
       name: 'roomFunctions',
       data: { action: 'listHistory', payload: { page, pageSize: 20 } }
     }).then(res => {
@@ -103,7 +104,7 @@ Page({
   openDetail(e) {
     const historyId = e.currentTarget.dataset.id
     this.setData({ showDetail: true, detailLoading: true, detail: null, detailPlayers: [] })
-    wx.cloud.callFunction({
+    backend.callFunction({
       name: 'roomFunctions',
       data: { action: 'getHistoryDetail', payload: { historyId } }
     }).then(res => {
