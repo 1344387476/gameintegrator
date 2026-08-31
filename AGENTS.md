@@ -12,27 +12,33 @@
 
 ## 自建迁移当前状态
 
-- 用户已确认 Node.js 24 / CommonJS、Fastify、PostgreSQL 17、WebSocket、Nginx、Docker Compose，并授权分阶段实施；第一批为 `server/` 基础服务、数据库迁移和微信登录，小程序尚未切换。
-- 当前后端运行与接口见 `server/README.md`；已确认决策、云开发限制优化清单及下一阶段见 `docs/self-hosted-migration.md`。新后端测试使用 `npm --prefix server test`；根 `npm test` 仍验证原小程序。
-- 用户要求优化受云服务限制的功能，不必照搬原实现。下文的数组整包更新、最近100条消息、最近50个去重ID、平台连接配额和历史兼容分支是旧实现描述，不是新系统必须遵守的设计约束。人数、玩法和数据保留变化应在对应阶段说明；鉴权、积分正确性和事务一致性不能削弱。
-- 当前没有部署到服务器；生产部署、域名/证书、远端推送和旧云服务停用另需明确确认。保留分支不动，不删除旧云数据。
+- 已确认 Node.js 24 / CommonJS、Fastify、PostgreSQL 17、同端口 WebSocket、Nginx 和 Docker Compose。`server/` 已实现微信登录/会话、资料与头像、房间生命周期、事务计分与流水、结算/解散、战绩、微信小程序码和单实例实时同步；迁移为 `001`～`004`。
+- `miniprogram/` 已移除 `wx.cloud` 调用，登录、资料、头像、房间、计分、流水、战绩、二维码和永久邀请均通过 `miniprogram/utils/backend.js` 访问自建 REST/WSS。页面内部旧 `openid` 字段当前承载自建用户 UUID；服务端不信任客户端身份字段。
+- 账本规则：每局最多8个历史席位；允许负分；任意未退出成员可领奖池；积分、奖池、版本、流水和幂等回执同事务提交。操作编号跨房间生命周期与计分共用持久化命名空间，不再受旧版最近50条限制；流水独立分页，不再只保留最近100条。
+- 房间号为可复用的6位展示码，内部房间ID和分享邀请使用永久UUID；新版scene为 `r` 加UUID的base64url（23字符）。最后一人退出或房主解散删除本局及流水、不生成战绩；结算保留最终快照和审计流水，留存期及删除流程上线前确认。
+- 头像使用服务端UUID和独立持久化目录，校验并重编码后保存；替换提交成功后才逐个清理旧头像，数据库结果未知时保留文件人工核对。二维码最多256 KiB/房并存数据库，结算、解散或最后退出时清理。
+- 当前代码尚未部署。`miniprogram/config.js` 的生产 HTTPS 地址为空，现有 Ubuntu 隔离环境仍运行提交 `0f0a086` 的基础镜像；旧线上小程序继续使用云开发，未停用或删除旧云服务和数据。
+- 已有隔离部署只证明基础镜像的 ready、回环API端口、数据库未映射宿主机端口和受限运行账号。完整版本仍需迁移/授权/重建镜像，并完成真实微信登录与二维码、合法域名、真机、多账号弱网、真实 PostgreSQL 多连接并发、外网隔离、重启及备份恢复验收；宿主机已有80端口Nginx，不得直接覆盖。
+- 本地验证：`npm test` 验证小程序及旧云端兼容行为，`npm --prefix server test` 验证自建服务；`npm --prefix server run test:postgres` 只允许显式配置的本机独立测试库，随机schema保留且不自动删除。
+- 当前接口与部署要求见 `server/README.md`，决策、未完成验收和切换顺序见 `docs/self-hosted-migration.md`。旧云开发实现仍是基线参考；数组整包更新、最近100条消息、最近50个去重ID和平台连接配额不再是新后端约束，但鉴权、积分正确性和事务一致性不得削弱。
 
 ## 项目概览
 
-这是一个微信云开发小程序，用于创建牌局房间、多人实时记分、结算并保存战绩：
+这是一个正在从微信云开发迁往自建后端的小程序，用于创建牌局房间、多人实时记分、结算并保存战绩。当前仓库同时保留旧云函数基线和未部署的新 REST/WSS 实现：
 
 - `normal` 普通模式：玩家之间单笔或批量转分。
 - `bet` 下注模式：下注/底注/跟注、All-in 和领取奖池。
 
 建议接手时依次阅读：
 
-1. `miniprogram/app.js`：云环境、用户初始化、扫码/分享入口。
+1. `miniprogram/app.js`、`miniprogram/utils/backend.js`：登录、用户初始化、自建传输适配、扫码/分享入口。
 2. `miniprogram/pages/home/home.js`：资料、创建/加入/返回房间。
 3. `miniprogram/pages/room/room.js`：实时状态和所有核心交互；文件很大，先按 action 或云函数名定位。
-4. `cloudfunctions/gameLogic/index.js`：积分和奖池账本，安全与并发核心。
-5. `cloudfunctions/roomFunctions/index.js`：房间生命周期、二维码、头像、结算和战绩。
-6. `miniprogram/pages/record/record.js`、`components/history-detail/`：战绩列表、详情、结算建议和海报。
-7. `tests/`：已经固化的行为约束。
+4. `server/src/score-store.js`、`server/src/room-store.js`：新后端事务账本和房间生命周期，是迁移后的正确性核心。
+5. `server/src/realtime.js`、`server/src/profile*.js`、`server/src/history*.js`、`server/src/qrcode.js`：实时同步、头像、战绩和二维码权限。
+6. `cloudfunctions/gameLogic/index.js`、`cloudfunctions/roomFunctions/index.js`：仍在线的旧云开发基线，迁移切换前不得随意删除。
+7. `miniprogram/pages/record/record.js`、`components/history-detail/`：战绩列表、详情、结算建议和海报。
+8. `tests/`、`server/test/`：已经固化的行为约束；不能替代真实微信、真机和多连接数据库验收。
 
 ## 目录职责
 
@@ -260,7 +266,7 @@ node --check cloudfunctions\userFunctions\index.js
 ## 项目 Agent 团队与自建迁移状态
 
 项目画像、角色职责和介入条件见 [.codex/agent-curator/TEAM.md](.codex/agent-curator/TEAM.md)。涉及本次自建迁移时先按需读取。
-用户已确认 Ubuntu 22.04 / 杭州 / 2 vCPU / 2 GiB、域名正在 ICP 备案、旧业务数据无需迁移；已确认技术方案并进入server/第一批基础开发。旧数据无需迁移不代表授权删除旧数据或关闭云服务。
-已确认选型和云开发限制优化清单见 docs/self-hosted-migration.md，旧版实现细节不机械沿用；前端尚未切换，正式部署仍需确认。角色配置不要求启动全部 Agent，实际委派须有明确任务、授权和文件分工。
+用户已确认 Ubuntu 22.04 / 杭州 / 2 vCPU / 2 GiB、域名正在 ICP 备案、旧业务数据无需迁移；当前完整代码已覆盖server业务、单实例WSS和小程序REST/WSS适配，尚未部署或正式切换。旧数据无需迁移不代表授权删除旧数据或关闭云服务。
+已确认选型、当前验收缺口和切换顺序见 docs/self-hosted-migration.md，旧版实现细节不机械沿用；生产地址、完整部署、真实环境验收和正式切换仍需确认。角色配置不要求启动全部 Agent，实际委派须有明确任务、授权和文件分工。
 技术栈、业务风险或阶段实质变化时，用 $project-agent-curator 重新评估；普通修改不重配。禁止批量删除及原有账本规则继续适用。
 <!-- project-agent-curator:end -->
