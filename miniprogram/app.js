@@ -86,7 +86,7 @@ App({
           // 不再自动跳转到旧房间；由首页显示“返回房间”入口。
           this.globalData.currentRoomId = res.result.currentRoomId || null
           
-          // 云函数已统一处理新老用户，直接获取返回的用户信息
+          // 自建登录接口已统一处理新老用户，直接使用返回的用户信息
           this.globalData.userInfo = {
             nickname: res.result.userInfo.nickname || '',
             avatarUrl: res.result.userInfo.avatar || '',
@@ -149,7 +149,7 @@ App({
         if (room.status === 'active') {
           this.checkUserStatusAndNavigate(roomId)
         } else if (room.status === 'settled') {
-          this.deleteSettledRoom(roomId)
+          wx.removeStorageSync('currentRoomId')
         }
       },
       fail: () => {
@@ -173,19 +173,6 @@ App({
       },
       fail: (err) => {
         console.error('检查用户状态失败:', err)
-        wx.removeStorageSync('currentRoomId')
-      }
-    })
-  },
-
-  deleteSettledRoom(roomId) {
-    backend.callFunction({
-      name: 'roomFunctions',
-      data: {
-        action: 'deleteSettledRoom',
-        payload: { roomId }
-      },
-      complete: () => {
         wx.removeStorageSync('currentRoomId')
       }
     })

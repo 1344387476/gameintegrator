@@ -13,6 +13,7 @@ x-app: &app
     context: .
     args:
       NODE_IMAGE: ${NODE_IMAGE:-public.ecr.aws/docker/library/node:24-bookworm-slim}
+      NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
   init: true
   read_only: true
   tmpfs:

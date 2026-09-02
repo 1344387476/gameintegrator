@@ -26,8 +26,8 @@
       <view class="logo-section">
         <button
           class="avatar-btn"
-          open-type="chooseAvatar"
-          bindchooseavatar="onChooseAvatar"
+          bindtap="onAvatarButtonTap"
+          disabled="{{isAvatarUploading}}"
           hover-class="avatar-pressed"
         >
           <image
@@ -36,7 +36,7 @@
             mode="aspectFill"
           ></image>
         </button>
-        <view class="avatar-edit-mark">编辑</view>
+        <view class="avatar-edit-mark">{{isAvatarUploading ? '上传中' : '编辑'}}</view>
       </view>
 
       <!-- 昵称输入 - 微信昵称输入 -->

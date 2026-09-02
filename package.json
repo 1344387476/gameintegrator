@@ -4,7 +4,7 @@
   "description": "计分小程序 ",
   "main": "app.js",
   "scripts": {
-    "test": "node --test tests/theme.test.js tests/history.test.js tests/motion.test.js tests/room-entry.test.js tests/room-transfer.test.js tests/room-lifecycle.test.js tests/room-presentation.test.js tests/home-profile.test.js tests/message-retention.test.js tests/avatar-cleanup.test.js tests/game-bet.test.js tests/backend-client.test.js"
+    "test": "node --test tests/theme.test.js tests/history.test.js tests/history-poster.test.js tests/motion.test.js tests/room-entry.test.js tests/room-transfer.test.js tests/room-lifecycle.test.js tests/room-presentation.test.js tests/home-profile.test.js tests/message-retention.test.js tests/avatar-cleanup.test.js tests/game-bet.test.js tests/backend-client.test.js tests/self-hosted-independence.test.js"
   },
   "keywords": [
     "miniprogram",
@@ -16,10 +16,11 @@
   "author": "Craft",
   "license": "MIT",
   "dependencies": {
-    "weui-wxss": "^2.4.4",
+    "weui-wxss": "^2.4.4"
+  },
+  "devDependencies": {
     "wx-server-sdk": "^3.0.1"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/1344387476/gameintegrator.git"

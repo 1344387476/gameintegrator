@@ -7,7 +7,7 @@ function decodeSafely(value) {
       const next = decodeURIComponent(decoded)
       if (next === decoded) break
       decoded = next
-    } catch (error) {
+    } catch {
       break
     }
   }

@@ -1,0 +1,5 @@
+# 与compose.smoke.yaml一起使用。API仍只绑定127.0.0.1，由本机Nginx代理。
+services:
+  api:
+    environment:
+      TRUST_PROXY_HOPS: "1"

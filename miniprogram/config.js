@@ -1,6 +1,6 @@
-// 正式切换前填写已备案且已在微信公众平台配置为request/socket/uploadFile/downloadFile合法域名的HTTPS地址。
-// 开发者工具可通过本地存储 backendApiBaseUrl 临时覆盖；不要在仓库提交Token或微信密钥。
+// 已备案、已配置有效证书，并已加入微信合法域名的生产API根地址。
+// 不要在仓库提交Token或微信密钥。
 module.exports = {
-  apiBaseUrl: '',
+  apiBaseUrl: 'https://api.dsbyte.xyz',
   requestTimeoutMs: 15000
 }

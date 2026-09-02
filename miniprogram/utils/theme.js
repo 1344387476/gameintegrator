@@ -27,7 +27,7 @@ function getTheme() {
   const globalTheme = app && app.globalData && app.globalData.appearanceTheme
   if (THEMES.has(globalTheme)) return globalTheme
   let stored = 'light'
-  try { stored = wx.getStorageSync(STORAGE_KEY) } catch (err) {}
+  try { stored = wx.getStorageSync(STORAGE_KEY) } catch {}
   return normalizeTheme(stored)
 }
 
@@ -37,7 +37,7 @@ function getCustomNavMetrics() {
   try {
     windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
     menuRect = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null
-  } catch (err) {}
+  } catch {}
 
   const statusBarHeight = Number(windowInfo.statusBarHeight) || 20
   const capsuleGap = menuRect && Number.isFinite(menuRect.top)
@@ -81,7 +81,7 @@ function applyNativeChrome(pageType = 'home', theme = getTheme()) {
 
 function setTheme(theme, page, pageType = 'home') {
   const normalized = normalizeTheme(theme)
-  try { wx.setStorageSync(STORAGE_KEY, normalized) } catch (err) {}
+  try { wx.setStorageSync(STORAGE_KEY, normalized) } catch {}
   const app = typeof getApp === 'function' ? getApp() : null
   if (app && app.globalData) app.globalData.appearanceTheme = normalized
   if (page && typeof page.setData === 'function') page.setData({ appearanceTheme: normalized })

@@ -67,8 +67,8 @@
     </scroll-view>
 
     <view class="detail-actions" wx:if="{{detail}}">
-      <button class="detail-button secondary" open-type="share" hover-class="button-pressed">分享</button>
-      <button class="detail-button primary {{saving ? 'disabled' : ''}}" bindtap="savePoster" loading="{{saving}}" disabled="{{saving}}" hover-class="button-pressed">{{saving ? '生成中…' : '保存到相册'}}</button>
+      <button class="detail-button secondary {{sharing || saving ? 'disabled' : ''}}" bindtap="sharePoster" loading="{{sharing}}" disabled="{{sharing || saving}}" hover-class="button-pressed">{{sharing ? '生成中…' : '分享图片'}}</button>
+      <button class="detail-button primary {{saving || sharing ? 'disabled' : ''}}" bindtap="savePoster" loading="{{saving}}" disabled="{{saving || sharing}}" hover-class="button-pressed">{{saving ? '生成中…' : '保存到相册'}}</button>
     </view>
   </view>
   <canvas type="2d" id="historyPoster" class="history-poster"></canvas>

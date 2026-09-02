@@ -1,9 +1,7 @@
 const config = require('../config')
 
 const SESSION_KEY = 'selfHostedSession'
-const API_OVERRIDE_KEY = 'backendApiBaseUrl'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
-const ROOM_CODE = /^[A-Z0-9]{6}$/u
 const SCENE = /^r[A-Za-z0-9_-]{22}$/u
 const TOKEN = /^gi_[A-Za-z0-9_-]{43}$/u
 const avatarCache = new Map()
@@ -34,9 +32,8 @@ function readStoredSession() {
 }
 
 function apiBaseUrl() {
-  const configured = String(wx.getStorageSync(API_OVERRIDE_KEY) || config.apiBaseUrl || '').trim().replace(/\/+$/u, '')
-  if (!/^https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[^?#]*)?$/u.test(configured) &&
-      !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/[^?#]*)?$/u.test(configured)) {
+  const configured = String(config.apiBaseUrl || '').trim().replace(/\/+$/u, '')
+  if (!/^https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[^?#]*)?$/u.test(configured)) {
     throw new BackendError('尚未配置自建服务HTTPS地址', 'BACKEND_NOT_CONFIGURED')
   }
   return configured
@@ -437,7 +434,6 @@ async function dispatchFunction(name, data = {}) {
       const user = await request({ method: 'PATCH', path: '/api/v1/users/me', data: { nickname: payload.nickname } })
       return { success: true, user }
     }
-    if (data.action === 'deleteSettledRoom') return { success: true }
     if (data.action === 'updateBaseBetValue') {
       const result = await request({ method: 'POST', path: `/api/v1/rooms/${payload.roomId}/score`, data: {
         operationId: payload.operationId || operationId('base'), action: 'SET_BASE_BET', payload: { amount: payload.baseBetValue }
@@ -574,15 +570,12 @@ function watcher(roomId, options) {
 }
 
 function document(collection, id) {
+  if (collection !== 'rooms') throw new BackendError('仅支持房间数据访问', 'UNSUPPORTED_COLLECTION')
   return {
     get(options = {}) {
-      const promise = collection === 'rooms'
-        ? getRoomDocument(id).then(data => ({ data }))
-        : loadLedgerMessages(id).then(messages => ({ data: { _id: id, messages } }))
-      return callbackPromise(promise, options)
+      return callbackPromise(getRoomDocument(id).then(data => ({ data })), options)
     },
     watch(options) {
-      if (collection !== 'rooms') throw new BackendError('仅房间支持实时订阅', 'UNSUPPORTED_WATCH')
       return watcher(id, options)
     }
   }

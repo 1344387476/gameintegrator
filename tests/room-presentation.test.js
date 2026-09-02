@@ -66,6 +66,22 @@ test('Room 页使用纵向围桌和独立积分流水', () => {
   assert.doesNotMatch(wxml, /class="left-section"/)
 })
 
+test('房间资料头像入口和编辑标记与首页保持一致', () => {
+  const wxml = fs.readFileSync(
+    path.join(__dirname, '../miniprogram/pages/room/room.wxml'),
+    'utf8'
+  )
+  const wxss = fs.readFileSync(
+    path.join(__dirname, '../miniprogram/pages/room/room.wxss'),
+    'utf8'
+  )
+
+  assert.match(wxml, /class="avatar-edit-btn"[^>]*bindtap="onProfileAvatarTap"/)
+  assert.match(wxml, /class="avatar-edit-mark"[^>]*>\{\{isUploadingAvatar \? '上传中' : '编辑'\}\}/)
+  assert.doesNotMatch(wxml, /✏️/u)
+  assert.match(wxss, /\.avatar-edit-mark\s*\{[^}]*border-radius:\s*999rpx;[^}]*background:\s*#1c1c1e/)
+})
+
 test('围桌使用宽度驱动的固定比例，不被机型高度拉伸', () => {
   const wxss = fs.readFileSync(
     path.join(__dirname, '../miniprogram/pages/room/room.wxss'),
@@ -84,6 +100,43 @@ test('牌桌表面保持适合纵向八人座位的椭圆形', () => {
   )
 
   assert.match(wxss, /\.table-surface\s*\{[^}]*top:\s*13%;[^}]*right:\s*9%;[^}]*bottom:\s*10%;[^}]*left:\s*9%;[^}]*border-radius:\s*48%/)
+})
+
+test('普通模式玩家按压和收池动画都不会覆盖牌桌定位位移', () => {
+  const wxml = fs.readFileSync(
+    path.join(__dirname, '../miniprogram/pages/room/room.wxml'),
+    'utf8'
+  )
+  const wxss = fs.readFileSync(
+    path.join(__dirname, '../miniprogram/pages/room/room.wxss'),
+    'utf8'
+  )
+
+  assert.match(wxss, /\.table-player\.card-pressed\s*\{[^}]*translate\(-50%,-50%\)\s+scale\(\.985\)/)
+  assert.match(wxml, /class="table-center bet-center"[\s\S]*class="bet-center-content \{\{showReceiveAnimation/)
+  assert.doesNotMatch(wxss, /\.table-center\.claim-(?:focus|travel|reward|exit)\s*\{/)
+})
+
+test('其他用户收池提示从顶部安全区向下布局', () => {
+  const wxss = fs.readFileSync(
+    path.join(__dirname, '../miniprogram/pages/room/room.wxss'),
+    'utf8'
+  )
+
+  assert.match(wxss, /\.compact \.reward-focus\s*\{[^}]*top:\s*calc\(120rpx \+ env\(safe-area-inset-top\)\)[^}]*height:\s*auto;[^}]*translate3d\(-50%,0,0\)/)
+})
+
+test('普通转分和转入奖池复用屏幕中央卡片布局', () => {
+  const wxss = fs.readFileSync(
+    path.join(__dirname, '../miniprogram/pages/room/room.wxss'),
+    'utf8'
+  )
+
+  assert.match(wxss, /\.room-page \.transfer-modal,\s*\.room-page \.prize-modal\s*\{[^}]*top:\s*50%;[^}]*right:\s*42rpx;[^}]*bottom:\s*auto;[^}]*left:\s*42rpx;[^}]*transform:\s*translate3d\(0,-50%,0\)/)
+  assert.match(wxss, /\.motion-full \.transfer-modal\.show,\s*\.motion-full \.prize-modal\.show\s*\{[^}]*animation:\s*refined-confirm-in/)
+  assert.match(wxss, /\.motion-full \.prize-modal\.show\s*\{[^}]*animation:\s*refined-confirm-in/)
+  assert.doesNotMatch(wxss, /\.motion-full \.transfer-modal\.show,[\s\S]{0,180}motion-sheet-in/)
+  assert.doesNotMatch(wxss, /\.motion-full \.prize-modal\.show,[\s\S]{0,180}motion-sheet-in/)
 })
 
 test('结算金额显示在箭头右边并为长数字保留横向空间', () => {

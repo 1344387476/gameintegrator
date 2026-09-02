@@ -5,7 +5,7 @@ function flushTasks() {
   return new Promise(resolve => setImmediate(resolve))
 }
 
-function loadHomePage({ callFunction } = {}) {
+function loadHomePage({ callFunction, uploadFile, chooseMedia } = {}) {
   let pageDefinition
   const app = {
     globalData: {
@@ -23,11 +23,19 @@ function loadHomePage({ callFunction } = {}) {
     showToast() {},
     showLoading() {},
     hideLoading() {},
+    chooseMedia(options) {
+      if (chooseMedia) return chooseMedia(options)
+      options.fail({ errMsg: 'chooseMedia:fail cancel' })
+    },
     cloud: {
       callFunction(options) {
         requests.push(options)
         if (callFunction) return callFunction(options, requests)
         options.success({ result: { success: true } })
+      },
+      uploadFile(options) {
+        if (uploadFile) return uploadFile(options)
+        options.success({ fileID: 'avatar-new' })
       }
     }
   }
@@ -134,7 +142,7 @@ test('已有活动房间时资料保存同步房间玩家快照', async () => {
   assert.equal(requests[0].name, 'roomFunctions')
   assert.deepEqual(requests[0].data, {
     action: 'updateProfile',
-    payload: { roomId: 'ABC123', nickname: '房间新昵称', avatarFileID: 'cloud://old' }
+    payload: { roomId: 'ABC123', nickname: '房间新昵称' }
   })
 })
 
@@ -166,4 +174,50 @@ test('资料保存失败时不会继续创建房间', async () => {
 
   assert.deepEqual(events, ['updateUserInfo'])
   assert.equal(page.data.isCreatingOrJoining, false)
+})
+
+test('点击头像会选择图片并上传到自建适配层', async () => {
+  const events = []
+  const { page } = loadHomePage({
+    chooseMedia(options) {
+      events.push(['choose', options.mediaType, options.sourceType])
+      options.success({ tempFiles: [{ tempFilePath: 'wxfile://chosen-avatar.jpg' }] })
+    },
+    uploadFile(options) {
+      events.push(['upload', options.filePath])
+      options.success({ fileID: 'avatar-new' })
+    }
+  })
+
+  page.onAvatarButtonTap()
+  await flushTasks()
+  await flushTasks()
+
+  assert.deepEqual(events, [
+    ['choose', ['image'], ['album', 'camera']],
+    ['upload', 'wxfile://chosen-avatar.jpg']
+  ])
+  assert.equal(page.data.avatarUrl, 'wxfile://chosen-avatar.jpg')
+  assert.equal(page.data.avatarFileID, 'avatar-new')
+  assert.equal(page.data.isAvatarUploading, false)
+})
+
+test('头像上传失败时恢复原头像并解除点击锁定', async () => {
+  const { page } = loadHomePage({
+    chooseMedia(options) {
+      options.success({ tempFiles: [{ tempFilePath: 'wxfile://broken.jpg' }] })
+    },
+    uploadFile(options) {
+      options.fail(new Error('upload failed'))
+    }
+  })
+  page.data.avatarUrl = 'wxfile://old.jpg'
+
+  page.onAvatarButtonTap()
+  await flushTasks()
+  await flushTasks()
+
+  assert.equal(page.data.avatarUrl, 'wxfile://old.jpg')
+  assert.equal(page.data.avatarFileID, 'cloud://old')
+  assert.equal(page.data.isAvatarUploading, false)
 })

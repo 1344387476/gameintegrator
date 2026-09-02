@@ -9,7 +9,7 @@ const token = `gi_${'a'.repeat(43)}`
 function ok(data) { return { statusCode: 200, data: { success: true, data } } }
 
 function loadBackend(handler) {
-  const storage = new Map([['backendApiBaseUrl', 'https://api.example.test']])
+  const storage = new Map()
   const requests = []
   global.wx = {
     env: { USER_DATA_PATH: '/tmp' },
@@ -32,6 +32,11 @@ function loadBackend(handler) {
   return { backend: require(path), requests, storage }
 }
 
+test('客户端固定使用生产HTTPS和WSS地址', () => {
+  const { backend } = loadBackend(() => { throw new Error('unexpected request') })
+  assert.equal(backend.websocketUrl(), 'wss://api.dsbyte.xyz/api/v1/ws')
+})
+
 function loginResponse() {
   return ok({ token, expiresAt: '2099-01-01T00:00:00.000Z', isNewUser: true,
     user: { id: userId, nickname: '玩家A', avatarFileId: null, currentRoomId: null } })
@@ -49,7 +54,7 @@ test('自建客户端用wx.login换取Bearer，会话身份只来自服务端', 
   assert.equal(response.result.isNewUser, true)
   assert.equal(requests[0].data.code, 'wechat-code')
   assert.equal(requests[1].header.Authorization, `Bearer ${token}`)
-  assert.equal(requests[1].url, 'https://api.example.test/api/v1/users/me')
+  assert.equal(requests[1].url, 'https://api.dsbyte.xyz/api/v1/users/me')
   assert.equal(storage.get('openid'), userId)
   assert.ok(!JSON.stringify(requests).includes('openid='))
 })
@@ -118,7 +123,7 @@ test('WSS以Header鉴权订阅，只接受更高stateVersion并生成房间watch
   })
   await new Promise(resolve => setImmediate(resolve))
   socketHandlers.open()
-  assert.equal(socketOptions.url, 'wss://api.example.test/api/v1/ws')
+  assert.equal(socketOptions.url, 'wss://api.dsbyte.xyz/api/v1/ws')
   assert.equal(socketOptions.header.Authorization, `Bearer ${token}`)
   assert.deepEqual(sent, { type: 'subscribe', roomId, lastStateVersion: 0 })
 

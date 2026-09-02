@@ -56,9 +56,7 @@ test('普通模式单笔转账会调用 gameLogic 云函数', () => {
     roomId: 'ABC123',
     operationId: 'operation-test-123',
     amount: 25,
-    toOpenid: 'receiver',
-    nickname: '玩家一',
-    toNickname: '玩家二'
+    toOpenid: 'receiver'
   })
   assert.equal(page.data.showTransferModal, false)
   assert.equal(page.data.transferSubmitting, false)

@@ -32,15 +32,15 @@ Page({
     roomName: '',
     // 游戏模式：'normal'(普通模式) 或 'bet'(下注模式)
     gameMode: 'normal',
-    // 加入房间按钮文字
-    joinButtonText: '加入房间',
     // 当前用户可返回的进行中房间
     currentRoomId: '',
     hasActiveRoom: false,
     // 是否正在加载用户信息
     isLoading: true,
     // 是否正在创建或加入房间
-    isCreatingOrJoining: false
+    isCreatingOrJoining: false,
+    // 是否正在选择或上传头像
+    isAvatarUploading: false
   },
 
   /**
@@ -331,17 +331,49 @@ Page({
     });
   },
 
+  onAvatarButtonTap() {
+    if (this.data.isAvatarUploading) return;
+    if (typeof wx.chooseMedia !== 'function') {
+      wx.showToast({ title: '当前微信版本不支持选择头像', icon: 'none' });
+      return;
+    }
+
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sourceType: ['album', 'camera'],
+      sizeType: ['compressed'],
+      success: (result) => {
+        const avatarUrl = result.tempFiles && result.tempFiles[0] && result.tempFiles[0].tempFilePath;
+        if (!avatarUrl) {
+          wx.showToast({ title: '未能读取所选头像', icon: 'none' });
+          return;
+        }
+        this.uploadSelectedAvatar(avatarUrl);
+      },
+      fail: (error) => {
+        if (/cancel/u.test(error && error.errMsg || '')) return;
+        console.error('选择头像失败:', error);
+        wx.showToast({ title: '无法选择头像，请重试', icon: 'none' });
+      }
+    });
+  },
+
   /**
-   * 选择头像
-   * @param {Object} e - 事件对象，包含用户选择的头像URL
+   * 上传已选择的本地头像。
+   * @param {string} avatarUrl - 微信返回的本地临时路径
    */
-  onChooseAvatar(e) {
-    const { avatarUrl } = e.detail;
+  uploadSelectedAvatar(avatarUrl) {
+    if (this.data.isAvatarUploading) return Promise.resolve(false);
     console.log('选择新头像，临时路径:', avatarUrl);
-    
-    // 显示加载中
+
+    const previousAvatar = {
+      avatarUrl: this.data.avatarUrl,
+      avatarFileID: this.data.avatarFileID
+    };
+    this.setData({ isAvatarUploading: true });
     wx.showLoading({ title: '上传头像...' });
-    
+
     // 立即上传到自建服务并取得永久资源ID。
     const uploadPromise = new Promise((resolve, reject) => {
       backend.uploadFile({
@@ -352,7 +384,7 @@ Page({
     });
     this._avatarUploadPromise = uploadPromise;
 
-    uploadPromise.then((uploadRes) => {
+    return uploadPromise.then((uploadRes) => {
         console.log('头像上传成功，fileID:', uploadRes.fileID);
         
         // 更新本地数据，使用fileID显示头像
@@ -365,21 +397,20 @@ Page({
         return this.ensureProfileSaved();
       }).then((saved) => {
         wx.hideLoading();
+        this.setData({ isAvatarUploading: false });
         if (saved) {
           wx.showToast({ title: '头像保存成功', icon: 'success' });
         } else {
           wx.showToast({ title: '资料保存失败，请重试', icon: 'none' });
         }
+        return saved;
       }).catch((err) => {
         console.error('上传头像失败:', err);
         this._avatarUploadPromise = null;
         wx.hideLoading();
+        this.setData({ ...previousAvatar, isAvatarUploading: false });
         wx.showToast({ title: '上传失败，请重试', icon: 'none' });
-        
-        // 上传失败时保留旧头像
-        this.setData({
-          avatarUrl: ''
-        });
+        return false;
       });
   },
 
@@ -437,14 +468,14 @@ Page({
           name: 'roomFunctions',
           data: {
             action: 'updateProfile',
-            payload: { roomId: activeRoomId, nickname: profile.nickname, avatarFileID: profile.avatarFileID }
+            payload: { roomId: activeRoomId, nickname: profile.nickname }
           }
         }
       : {
           name: 'userFunctions',
           data: {
             action: 'updateUserInfo',
-            userData: { nickname: profile.nickname, avatar: '', avatarFileID: profile.avatarFileID }
+            userData: { nickname: profile.nickname }
           }
         };
 
@@ -494,7 +525,7 @@ Page({
     if (this._avatarUploadPromise) {
       try {
         await this._avatarUploadPromise;
-      } catch (error) {
+      } catch {
         return false;
       }
     }
@@ -636,10 +667,7 @@ Page({
         action: 'create',
         payload: {
           roomName: roomName,
-          mode: this.data.gameMode,
-          nickname: this.data.nickname,
-          avatar: this.data.avatarUrl || '',        // 临时 URL（2小时内有效）
-          avatarFileID: this.data.avatarFileID || ''  // fileID（永久）
+          mode: this.data.gameMode
         }
       },
        success: (res) => {
@@ -745,10 +773,7 @@ Page({
        data: {
          action: 'join',
          payload: {
-           roomId: roomId,
-           nickname: this.data.nickname,
-           avatar: this.data.avatarUrl || '',        // 临时 URL（2小时内有效）
-           avatarFileID: this.data.avatarFileID || ''  // fileID（永久，用于重新获取URL）
+           roomId: roomId
          }
        },
       success: (res) => {
