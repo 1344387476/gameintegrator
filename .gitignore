@@ -1,0 +1,21 @@
+# Dependencies and generated packages
+node_modules/
+miniprogram/miniprogram_npm/
+
+# Local environment and tool settings
+.env
+.env.*
+!.env.example
+project.private.config.json
+.cloudbase/container/
+
+# Test/build output and logs
+coverage/
+artifacts/
+*.log
+
+# Operating-system and editor leftovers
+.DS_Store
+Thumbs.db
+*.swp
+*~
